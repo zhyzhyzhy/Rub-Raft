@@ -1,9 +1,9 @@
-package cc.lovezhy.raft.rpc.server.service;
+package cc.lovezhy.raft.rpc.server.netty;
 
+import cc.lovezhy.raft.rpc.EndPoint;
 import cc.lovezhy.raft.rpc.server.codec.KryoDecoder;
 import cc.lovezhy.raft.rpc.server.codec.KryoEncoder;
 import cc.lovezhy.raft.rpc.server.handler.RpcInboundHandler;
-import cc.lovezhy.raft.rpc.server.utils.EndPoint;
 import com.google.common.util.concurrent.SettableFuture;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
@@ -17,17 +17,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
-import java.util.Optional;
 
-public class ServiceClient {
+public class NettyClient {
 
-    private static final Logger log = LoggerFactory.getLogger(ServiceClient.class);
+    private static final Logger log = LoggerFactory.getLogger(NettyClient.class);
     private EndPoint endPoint;
-    private Optional<Channel> channel;
+    private Channel channel;
+    private RpcService rpcService;
     private EventLoopGroup worker;
 
-    public ServiceClient(EndPoint endPoint) {
+    public NettyClient(EndPoint endPoint, RpcService rpcService) {
         this.endPoint = endPoint;
+        this.rpcService = rpcService;
     }
 
     public SettableFuture<Void> connect() {
@@ -42,11 +43,11 @@ public class ServiceClient {
                     protected void initChannel(SocketChannel ch) throws Exception {
                         ch.pipeline().addLast(new KryoDecoder());
                         ch.pipeline().addLast(new KryoEncoder());
-                        ch.pipeline().addLast(new RpcInboundHandler());
+                        ch.pipeline().addLast(new RpcInboundHandler(rpcService));
                     }
                 });
         ChannelFuture connectFuture = bootstrap.connect(new InetSocketAddress(endPoint.getHost(), endPoint.getPort()));
-        this.channel = Optional.ofNullable(connectFuture.channel());
+        this.channel = connectFuture.channel();
         connectFuture.addListener(f -> {
             if (f.isSuccess()) {
                 log.info("rpc client connected");
@@ -59,19 +60,25 @@ public class ServiceClient {
         return connectResultFuture;
     }
 
+    public Channel getChannel() {
+        return channel;
+    }
+
     public void closeSync() {
-        if (channel.isPresent()) {
-            try {
-                channel.get().closeFuture().sync();
-            } catch (InterruptedException e) {
-                //ignore
-            } finally {
-                worker.shutdownGracefully();
-            }
+        try {
+            channel.close().sync();
+        } catch (InterruptedException e) {
+            // ignore
+        } finally {
+            worker.shutdownGracefully();
         }
     }
 
     public void closeAsync() {
-        channel.ifPresent(Channel::closeFuture);
+        try {
+            channel.close();
+        } finally {
+            worker.shutdownGracefully();
+        }
     }
 }

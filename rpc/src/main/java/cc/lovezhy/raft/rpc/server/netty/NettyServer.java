@@ -1,10 +1,10 @@
-package cc.lovezhy.raft.rpc.server.service;
+package cc.lovezhy.raft.rpc.server.netty;
 
 
+import cc.lovezhy.raft.rpc.EndPoint;
 import cc.lovezhy.raft.rpc.server.codec.KryoDecoder;
 import cc.lovezhy.raft.rpc.server.codec.KryoEncoder;
 import cc.lovezhy.raft.rpc.server.handler.RpcInboundHandler;
-import cc.lovezhy.raft.rpc.server.utils.EndPoint;
 import com.google.common.util.concurrent.SettableFuture;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -18,24 +18,33 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
-import java.util.Optional;
 
-public class ServiceServer {
+import static com.google.common.base.Preconditions.checkNotNull;
 
-    private static final Logger log = LoggerFactory.getLogger(ServiceServer.class);
+public class NettyServer {
+
+    private static final Logger log = LoggerFactory.getLogger(NettyServer.class);
 
     private EndPoint endPoint;
 
-    private Optional<Channel> channel = Optional.empty();
+    private Channel channel;
 
-    public ServiceServer(EndPoint endpoint) {
+    private RpcService rpcService;
+
+    private EventLoopGroup boss;
+    private EventLoopGroup worker;
+
+    public NettyServer(EndPoint endpoint, RpcService rpcService) {
+        checkNotNull(endpoint);
+        checkNotNull(rpcService);
         this.endPoint = endpoint;
+        this.rpcService = rpcService;
     }
 
-    public SettableFuture<Channel> start() {
-        EventLoopGroup boss = new NioEventLoopGroup(1);
-        EventLoopGroup worker = new NioEventLoopGroup();
-        SettableFuture<Channel> bindResultFuture = SettableFuture.create();
+    public SettableFuture<Void> start() {
+        boss = new NioEventLoopGroup(1);
+        worker = new NioEventLoopGroup();
+        SettableFuture<Void> bindResultFuture = SettableFuture.create();
         ServerBootstrap bootstrap = new ServerBootstrap();
         bootstrap.group(boss, worker)
                 .channel(NioServerSocketChannel.class)
@@ -44,14 +53,14 @@ public class ServiceServer {
                     protected void initChannel(SocketChannel channel) throws Exception {
                         channel.pipeline().addLast(new KryoDecoder());
                         channel.pipeline().addLast(new KryoEncoder());
-                        channel.pipeline().addLast(new RpcInboundHandler());
+                        channel.pipeline().addLast(new RpcInboundHandler(rpcService));
                     }
                 });
         ChannelFuture bindFuture = bootstrap.bind(new InetSocketAddress(endPoint.getHost(), endPoint.getPort()));
-        channel = Optional.ofNullable(bindFuture.channel());
+        channel = bindFuture.channel();
         bindFuture.addListener(f -> {
             if (f.isSuccess()) {
-                bindResultFuture.set(bindFuture.channel());
+                bindResultFuture.set(null);
                 log.info("start rpc server success");
             } else {
                 bindResultFuture.setException(f.cause());
@@ -63,17 +72,27 @@ public class ServiceServer {
         return bindResultFuture;
     }
 
+    public Channel getChannel() {
+        return channel;
+    }
+
     public void closeSync() {
-        if (channel.isPresent()) {
-            try {
-                channel.get().closeFuture().sync();
-            } catch (InterruptedException e) {
-                //ignore
-            }
+        try {
+            channel.close().sync();
+        } catch (InterruptedException e) {
+            // ignore
+        } finally {
+            boss.shutdownGracefully();
+            worker.shutdownGracefully();
         }
     }
 
     public void closeAsync() {
-        channel.ifPresent(Channel::closeFuture);
+        try {
+            channel.close();
+        } finally {
+            boss.shutdownGracefully();
+            worker.shutdownGracefully();
+        }
     }
 }

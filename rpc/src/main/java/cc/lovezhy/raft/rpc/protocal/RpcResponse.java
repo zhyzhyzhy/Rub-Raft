@@ -1,7 +1,11 @@
 package cc.lovezhy.raft.rpc.protocal;
 
+import com.google.common.base.MoreObjects;
+
 public class RpcResponse {
+
     private String requestId;
+
     private Object responseBody;
 
     public String getRequestId() {
@@ -18,5 +22,13 @@ public class RpcResponse {
 
     public void setResponseBody(Object responseBody) {
         this.responseBody = responseBody;
+    }
+
+    @Override
+    public String toString() {
+        return MoreObjects.toStringHelper(this)
+                .add("requestId", requestId)
+                .add("responseBody", responseBody)
+                .toString();
     }
 }

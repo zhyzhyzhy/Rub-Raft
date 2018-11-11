@@ -1,7 +1,11 @@
-package cc.lovezhy.raft.rpc.server.utils;
+package cc.lovezhy.raft.rpc;
+
+import com.google.common.base.MoreObjects;
 
 public class EndPoint {
+
     private String host;
+
     private int port;
 
     private EndPoint(String host, int port) {
@@ -12,6 +16,7 @@ public class EndPoint {
     public static EndPoint create(String host, int port) {
         return new EndPoint(host, port);
     }
+
     public String getHost() {
         return host;
     }
@@ -26,5 +31,13 @@ public class EndPoint {
 
     public void setPort(int port) {
         this.port = port;
+    }
+
+    @Override
+    public String toString() {
+        return MoreObjects.toStringHelper(this)
+                .add("host", host)
+                .add("port", port)
+                .toString();
     }
 }

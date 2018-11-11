@@ -1,42 +1,29 @@
 package cc.lovezhy.raft.rpc.service;
 
-import cc.lovezhy.raft.rpc.common.RpcExecutors;
-import cc.lovezhy.raft.rpc.server.service.ServiceClient;
-import cc.lovezhy.raft.rpc.server.service.ServiceServer;
-import cc.lovezhy.raft.rpc.server.utils.EndPoint;
-import com.google.common.util.concurrent.SettableFuture;
+import cc.lovezhy.raft.rpc.EndPoint;
+import cc.lovezhy.raft.rpc.RpcClient;
+import cc.lovezhy.raft.rpc.RpcProvider;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.util.concurrent.CountDownLatch;
 
 public class ServerTest {
 
     private EndPoint endPoint;
+    private ExampleService exampleService;
 
-    private ServiceClient client;
-    private ServiceServer server;
 
     @Before
     public void setUp() {
+        System.out.println("cccccc");
         endPoint = EndPoint.create("127.0.0.1", 5283);
-
-        client = new ServiceClient(endPoint);
-        server = new ServiceServer(endPoint);
+        RpcProvider.create(ExampleServiceImpl.class, endPoint);
+        exampleService = RpcClient.create(ExampleService.class, endPoint);
     }
 
     @Test
     public void testServerStart() {
-        SettableFuture<Void> start = server.start();
-
-        CountDownLatch countDownLatch = new CountDownLatch(1);
-        start.addListener(countDownLatch::countDown, RpcExecutors.commonExecutor());
-
-        client.connect();
-        server.closeAsync();
-
-        client.closeSync();
-
+        System.out.println(exampleService.echo("Hello"));
+        System.out.println(exampleService.plusOne(2));
     }
 
 }

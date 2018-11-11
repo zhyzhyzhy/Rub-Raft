@@ -2,13 +2,11 @@ package cc.lovezhy.raft.rpc.server.handler;
 
 import cc.lovezhy.raft.rpc.protocal.RpcRequest;
 import cc.lovezhy.raft.rpc.protocal.RpcResponse;
-import cc.lovezhy.raft.rpc.server.service.RpcService;
+import cc.lovezhy.raft.rpc.server.netty.RpcService;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static java.util.Objects.requireNonNull;
 
 public class RpcInboundHandler extends SimpleChannelInboundHandler<Object> {
 
@@ -17,23 +15,18 @@ public class RpcInboundHandler extends SimpleChannelInboundHandler<Object> {
     private RpcService rpcService;
 
     public RpcInboundHandler(RpcService rpcService) {
-        requireNonNull(rpcService);
         this.rpcService = rpcService;
     }
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx) throws Exception {
-
-    }
-
-    @Override
     protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
-        if (msg instanceof RpcRequest) {
-            RpcRequest request = (RpcRequest)msg;
-            rpcService.handleRequest(request);
-        } else if (msg instanceof RpcResponse) {
-            RpcResponse response = (RpcResponse)msg;
-            rpcService.onResponse(response);
+        if (msg instanceof RpcResponse) {
+            rpcService.onResponse((RpcResponse) msg);
+        } else if (msg instanceof RpcRequest) {
+            rpcService.handleRequest(ctx.channel(), (RpcRequest) msg);
+        } else {
+            // TODO
+            // ignore
         }
     }
 }
