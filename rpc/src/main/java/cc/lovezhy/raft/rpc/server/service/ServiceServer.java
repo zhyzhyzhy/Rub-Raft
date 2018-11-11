@@ -1,11 +1,10 @@
 package cc.lovezhy.raft.rpc.server.service;
 
 
-import cc.lovezhy.raft.rpc.server.handler.RpcInboundHandler;
-import cc.lovezhy.raft.rpc.server.utils.EndPoint;
 import cc.lovezhy.raft.rpc.server.codec.KryoDecoder;
 import cc.lovezhy.raft.rpc.server.codec.KryoEncoder;
-import com.esotericsoftware.kryo.Kryo;
+import cc.lovezhy.raft.rpc.server.handler.RpcInboundHandler;
+import cc.lovezhy.raft.rpc.server.utils.EndPoint;
 import com.google.common.util.concurrent.SettableFuture;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -33,18 +32,18 @@ public class ServiceServer {
         this.endPoint = endpoint;
     }
 
-    public SettableFuture<Void> start() {
+    public SettableFuture<Channel> start() {
         EventLoopGroup boss = new NioEventLoopGroup(1);
         EventLoopGroup worker = new NioEventLoopGroup();
-        SettableFuture<Void> bindResultFuture = SettableFuture.create();
+        SettableFuture<Channel> bindResultFuture = SettableFuture.create();
         ServerBootstrap bootstrap = new ServerBootstrap();
         bootstrap.group(boss, worker)
                 .channel(NioServerSocketChannel.class)
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel channel) throws Exception {
-                        channel.pipeline().addLast(new KryoDecoder(new Kryo()));
-                        channel.pipeline().addLast(new KryoEncoder(new Kryo()));
+                        channel.pipeline().addLast(new KryoDecoder());
+                        channel.pipeline().addLast(new KryoEncoder());
                         channel.pipeline().addLast(new RpcInboundHandler());
                     }
                 });
@@ -52,7 +51,7 @@ public class ServiceServer {
         channel = Optional.ofNullable(bindFuture.channel());
         bindFuture.addListener(f -> {
             if (f.isSuccess()) {
-                bindResultFuture.set(null);
+                bindResultFuture.set(bindFuture.channel());
                 log.info("start rpc server success");
             } else {
                 bindResultFuture.setException(f.cause());

@@ -17,8 +17,6 @@ public class ServerTest {
     private ServiceClient client;
     private ServiceServer server;
 
-    
-
     @Before
     public void setUp() {
         endPoint = EndPoint.create("127.0.0.1", 5283);

@@ -1,4 +1,4 @@
-package cc.lovezhy.raft.rpc.server.protocal;
+package cc.lovezhy.raft.rpc.protocal;
 
 public enum RpcRequestType {
     ONE_WAY,

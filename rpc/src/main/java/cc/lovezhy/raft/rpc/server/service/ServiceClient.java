@@ -1,10 +1,9 @@
 package cc.lovezhy.raft.rpc.server.service;
 
-import cc.lovezhy.raft.rpc.server.handler.RpcInboundHandler;
 import cc.lovezhy.raft.rpc.server.codec.KryoDecoder;
 import cc.lovezhy.raft.rpc.server.codec.KryoEncoder;
+import cc.lovezhy.raft.rpc.server.handler.RpcInboundHandler;
 import cc.lovezhy.raft.rpc.server.utils.EndPoint;
-import com.esotericsoftware.kryo.Kryo;
 import com.google.common.util.concurrent.SettableFuture;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
@@ -25,13 +24,14 @@ public class ServiceClient {
     private static final Logger log = LoggerFactory.getLogger(ServiceClient.class);
     private EndPoint endPoint;
     private Optional<Channel> channel;
+    private EventLoopGroup worker;
 
     public ServiceClient(EndPoint endPoint) {
         this.endPoint = endPoint;
     }
 
     public SettableFuture<Void> connect() {
-        EventLoopGroup worker = new NioEventLoopGroup(1);
+        worker = new NioEventLoopGroup(1);
         SettableFuture<Void> connectResultFuture = SettableFuture.create();
 
         Bootstrap bootstrap = new Bootstrap()
@@ -40,8 +40,8 @@ public class ServiceClient {
                 .handler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel ch) throws Exception {
-                        ch.pipeline().addLast(new KryoDecoder(new Kryo()));
-                        ch.pipeline().addLast(new KryoEncoder(new Kryo()));
+                        ch.pipeline().addLast(new KryoDecoder());
+                        ch.pipeline().addLast(new KryoEncoder());
                         ch.pipeline().addLast(new RpcInboundHandler());
                     }
                 });
@@ -65,6 +65,8 @@ public class ServiceClient {
                 channel.get().closeFuture().sync();
             } catch (InterruptedException e) {
                 //ignore
+            } finally {
+                worker.shutdownGracefully();
             }
         }
     }

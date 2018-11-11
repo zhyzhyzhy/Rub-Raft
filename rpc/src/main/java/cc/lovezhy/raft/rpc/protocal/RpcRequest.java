@@ -1,6 +1,4 @@
-package cc.lovezhy.raft.rpc.server.protocal;
-
-import java.util.List;
+package cc.lovezhy.raft.rpc.protocal;
 
 public class RpcRequest {
     private String requestId;
@@ -8,7 +6,7 @@ public class RpcRequest {
 
     private String clazz;
     private String method;
-    private List<Object> args;
+    private Object[] args;
 
     public String getRequestId() {
         return requestId;
@@ -42,11 +40,11 @@ public class RpcRequest {
         this.method = method;
     }
 
-    public List<Object> getArgs() {
+    public Object[] getArgs() {
         return args;
     }
 
-    public void setArgs(List<Object> args) {
+    public void setArgs(Object[] args) {
         this.args = args;
     }
 }

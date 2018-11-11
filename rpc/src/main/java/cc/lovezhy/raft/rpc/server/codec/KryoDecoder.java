@@ -10,11 +10,7 @@ import java.util.List;
 
 public class KryoDecoder extends ByteToMessageDecoder {
 
-    private final Kryo kryo;
-
-    public KryoDecoder(Kryo kryo) {
-        this.kryo = kryo;
-    }
+    private final Kryo kryo = new Kryo();
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {

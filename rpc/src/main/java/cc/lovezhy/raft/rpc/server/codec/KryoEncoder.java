@@ -10,11 +10,7 @@ import java.io.ByteArrayOutputStream;
 
 public class KryoEncoder extends MessageToByteEncoder {
 
-    private final Kryo kryo;
-
-    public KryoEncoder(Kryo kryo) {
-        this.kryo = kryo;
-    }
+    private final Kryo kryo = new Kryo();
 
     @Override
     protected void encode(ChannelHandlerContext ctx, Object msg, ByteBuf out) throws Exception {
