@@ -1,7 +1,7 @@
 package cc.lovezhy.raft.rpc.server.handler;
 
-import cc.lovezhy.raft.rpc.RpcRequest;
-import cc.lovezhy.raft.rpc.RpcResponse;
+import cc.lovezhy.raft.rpc.server.protocal.RpcRequest;
+import cc.lovezhy.raft.rpc.server.protocal.RpcResponse;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 

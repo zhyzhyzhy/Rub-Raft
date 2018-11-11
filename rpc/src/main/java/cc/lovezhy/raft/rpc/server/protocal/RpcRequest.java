@@ -1,6 +1,4 @@
-package cc.lovezhy.raft.rpc;
-
-import cc.lovezhy.raft.rpc.server.RpcRequestType;
+package cc.lovezhy.raft.rpc.server.protocal;
 
 import java.util.List;
 
