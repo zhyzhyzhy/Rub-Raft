@@ -52,6 +52,7 @@ public class NettyClient {
             if (f.isSuccess()) {
                 log.info("rpc client connected");
                 connectResultFuture.set(null);
+                Runtime.getRuntime().addShutdownHook(new Thread(this::closeSync));
             } else {
                 connectResultFuture.setException(f.cause());
                 worker.shutdownGracefully();
@@ -67,6 +68,7 @@ public class NettyClient {
     public void closeSync() {
         try {
             channel.close().sync();
+            log.debug("shutdown client");
         } catch (InterruptedException e) {
             // ignore
         } finally {

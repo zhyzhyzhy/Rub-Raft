@@ -13,7 +13,7 @@ public class ProxyFactory {
 
         Enhancer enhancer = new Enhancer();
         enhancer.setSuperclass(clazz);
-        enhancer.setCallback(new ProxyInterceptor(consumerRpcService));
+        enhancer.setCallback(new ProxyInterceptor(clazz, consumerRpcService));
         return (T) enhancer.create();
     }
 

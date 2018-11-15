@@ -62,6 +62,7 @@ public class NettyServer {
             if (f.isSuccess()) {
                 bindResultFuture.set(null);
                 log.info("start rpc server success");
+                Runtime.getRuntime().addShutdownHook(new Thread(this::closeSync));
             } else {
                 bindResultFuture.setException(f.cause());
                 boss.shutdownGracefully();
