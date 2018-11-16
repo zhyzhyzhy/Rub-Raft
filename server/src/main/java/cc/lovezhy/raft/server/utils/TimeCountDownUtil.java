@@ -7,12 +7,16 @@ import java.util.function.Supplier;
 
 public class TimeCountDownUtil {
 
-    public static void addSchedulerTask(long delay, TimeUnit timeUnit, Runnable task, Supplier<Boolean> doWhenReturnTrue) {
+    public static void addSchedulerTask(long delay,
+                                        TimeUnit timeUnit,
+                                        Runnable task,
+                                        Supplier<Boolean> doWhenReturnTrue,
+                                        Runnable listener) {
         RpcExecutors.listeningScheduledExecutor().schedule(() -> {
             if (doWhenReturnTrue.get()) {
                 task.run();
             }
-        }, delay, timeUnit);
+        }, delay, timeUnit).addListener(listener, RpcExecutors.commonExecutor());
     }
 
     public static void addSchedulerListener(long delay, TimeUnit timeUnit, Runnable task, Runnable listener) {

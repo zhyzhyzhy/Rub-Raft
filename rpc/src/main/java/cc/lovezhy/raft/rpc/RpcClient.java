@@ -6,12 +6,15 @@ import cc.lovezhy.raft.rpc.proxy.ConsumerRpcService;
 import cc.lovezhy.raft.rpc.proxy.ProxyFactory;
 import cc.lovezhy.raft.rpc.server.netty.NettyClient;
 import cc.lovezhy.raft.rpc.server.netty.RpcService;
+import cc.lovezhy.raft.rpc.util.LockObjectFactory.LockObject;
 import com.google.common.util.concurrent.FutureCallback;
 import io.netty.channel.Channel;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.LockSupport;
+import java.util.concurrent.TimeUnit;
+
+import static cc.lovezhy.raft.rpc.util.LockObjectFactory.getLockObject;
 
 public class RpcClient<T> implements ConsumerRpcService, RpcService {
 
@@ -21,9 +24,10 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     }
 
     private Class<T> clazz;
+
     private NettyClient nettyClient;
 
-    private Map<String, Thread> waitConditionMap = new ConcurrentHashMap<>();
+    private Map<String, LockObject> waitConditionMap = new ConcurrentHashMap<>();
     private Map<String, RpcResponse> rpcResponseMap = new ConcurrentHashMap<>();
 
     private RpcClient(Class<T> clazz, EndPoint endPoint) {
@@ -40,15 +44,22 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     public RpcResponse sendRequest(RpcRequest request) {
         String requestId = request.getRequestId();
         nettyClient.getChannel().writeAndFlush(request);
-        waitConditionMap.put(requestId, Thread.currentThread());
+        LockObject lockObject = getLockObject();
+        waitConditionMap.put(requestId, lockObject);
 
-        if (!rpcResponseMap.containsKey(requestId)) {
-            LockSupport.park();
+        synchronized (lockObject) {
+            if (!rpcResponseMap.containsKey(requestId)) {
+                try {
+                    lockObject.wait(TimeUnit.MILLISECONDS.toMillis(200));
+                } catch (InterruptedException e) {
+                    // ignore
+                }
+            }
         }
-
         RpcResponse rpcResponse = rpcResponseMap.get(requestId);
         waitConditionMap.remove(requestId);
         rpcResponseMap.remove(requestId);
+        lockObject.recycle();
         return rpcResponse;
     }
 
@@ -65,9 +76,11 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     @Override
     public void onResponse(RpcResponse response) {
         String requestId = response.getRequestId();
-        rpcResponseMap.put(requestId, response);
-        Thread thread = waitConditionMap.get(requestId);
-        LockSupport.unpark(thread);
+        LockObject lockObject = waitConditionMap.get(requestId);
+        synchronized (lockObject) {
+            rpcResponseMap.put(requestId, response);
+            lockObject.notify();
+        }
     }
 
     @Override

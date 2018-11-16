@@ -3,6 +3,8 @@ package cc.lovezhy.raft.server.node;
 import cc.lovezhy.raft.server.ClusterConfig;
 import cc.lovezhy.raft.server.service.RaftService;
 import cc.lovezhy.raft.server.service.RaftServiceImpl;
+import cc.lovezhy.raft.server.service.model.ReplicatedLogRequest;
+import cc.lovezhy.raft.server.service.model.ReplicatedLogResponse;
 import cc.lovezhy.raft.server.service.model.VoteRequest;
 import cc.lovezhy.raft.server.service.model.VoteResponse;
 import cc.lovezhy.raft.server.storage.StorageService;
@@ -13,14 +15,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static cc.lovezhy.raft.server.RaftConstants.DEFAULT_TIME_UNIT;
 import static cc.lovezhy.raft.server.RaftConstants.START_ELECTION_TIMEOUT;
 
-public class RaftNode {
+public class RaftNode implements RaftService {
 
     private static final Logger log = LoggerFactory.getLogger(RaftNode.class);
 
@@ -38,7 +39,7 @@ public class RaftNode {
 
     private List<PeerRaftNode> peerRaftNodes;
 
-    private AtomicBoolean heartbeat = new AtomicBoolean(false);
+    private AtomicLong heartbeat = new AtomicLong();
 
     private RaftService serverService;
 
@@ -55,16 +56,21 @@ public class RaftNode {
     public void init() {
         status = NodeStatus.FOLLOWER;
         currentTerm = new AtomicLong();
+        startElectionTimeOut();
+    }
 
-        boolean currentHeatBeat = heartbeat.get();
+    // TODO 应该不会栈溢出
+    private void startElectionTimeOut() {
+        Long currentHeatBeat = heartbeat.get();
         TimeCountDownUtil.addSchedulerTask(
                 START_ELECTION_TIMEOUT,
                 DEFAULT_TIME_UNIT,
                 this::prevote,
-                () -> currentHeatBeat == heartbeat.get());
+                () -> currentHeatBeat == heartbeat.get(),
+                this::startElectionTimeOut);
     }
 
-    public void prevote() {
+    private void prevote() {
         status = NodeStatus.CANDIDATE;
         currentTerm.incrementAndGet();
 
@@ -84,20 +90,50 @@ public class RaftNode {
         }
     }
 
-    public Long getCurrentTerm() {
+    private Long getCurrentTerm() {
         return currentTerm.get();
     }
 
-    public NodeId getVotedFor() {
+    private NodeId getVotedFor() {
         return votedFor;
     }
 
-    public void changeState(NodeStatus nodeStatus) {
+    public void setVotedFor(NodeId nodeId) {
+        this.votedFor = nodeId;
+    }
+
+    private void changeState(NodeStatus nodeStatus) {
         Preconditions.checkNotNull(nodeStatus);
         this.status = nodeStatus;
     }
 
-    public void appendLogs() {
+    private void appendLogs() {
 
+    }
+
+    private void receiveHeartBeat() {
+        this.heartbeat.incrementAndGet();
+    }
+
+    @Override
+    public synchronized VoteResponse requestVode(VoteRequest voteRequest) {
+        if (Objects.isNull(this.getVotedFor()) || voteRequest.getTerm() > this.getCurrentTerm()) {
+            this.setVotedFor(voteRequest.getCandidateId());
+            this.receiveHeartBeat();
+            return new VoteResponse(this.getCurrentTerm(), true);
+        }
+        return new VoteResponse(this.getCurrentTerm(), false);
+    }
+
+    @Override
+    public ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) {
+        if (replicatedLogRequest.getTerm() >= this.getCurrentTerm()) {
+            this.changeState(NodeStatus.FOLLOWER);
+            this.receiveHeartBeat();
+            this.appendLogs();
+            return new ReplicatedLogResponse(this.getCurrentTerm(), true);
+        } else {
+            return new ReplicatedLogResponse(this.getCurrentTerm(), false);
+        }
     }
 }

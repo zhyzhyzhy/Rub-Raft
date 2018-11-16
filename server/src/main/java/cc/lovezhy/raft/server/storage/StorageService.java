@@ -18,7 +18,12 @@ public class StorageService {
     }
 
     public void appendLogs(ReplicatedLogRequest replicatedLogRequest) {
-
+        List<LogEntry> entries = replicatedLogRequest.getEntries();
+        if (entries == null || entries.size() == 0) {
+            return;
+        }
+        commitIndex += entries.size();
+        logs.addAll(entries);
     }
 
     public List<LogEntry> getLogs() {
