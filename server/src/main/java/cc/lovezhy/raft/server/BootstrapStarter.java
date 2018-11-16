@@ -66,7 +66,7 @@ public class BootstrapStarter {
         Preconditions.checkState(localConfig.length == 3);
         EndPoint endPoint = EndPoint.create(localConfig[0], localConfig[1]);
         NodeId nodeId = NodeId.create(Integer.parseInt(localConfig[2]));
-        RaftNode raftNode = new RaftNode(nodeId, clusterConfig, peerRaftNodes);
+        localRaftNode = new RaftNode(nodeId, clusterConfig, peerRaftNodes);
     }
 
     private static void check() {

@@ -1,5 +1,6 @@
 package cc.lovezhy.raft.server.node;
 
+import cc.lovezhy.raft.rpc.RpcProvider;
 import cc.lovezhy.raft.server.ClusterConfig;
 import cc.lovezhy.raft.server.service.RaftService;
 import cc.lovezhy.raft.server.service.RaftServiceImpl;
@@ -51,6 +52,7 @@ public class RaftNode implements RaftService {
         this.peerRaftNodes = peerRaftNodes;
         log.info("peerRaftNodes={}", JSON.toJSONString(peerRaftNodes));
         serverService = new RaftServiceImpl(this);
+        RpcProvider.create(RaftServiceImpl.class);
     }
 
     public void init() {
