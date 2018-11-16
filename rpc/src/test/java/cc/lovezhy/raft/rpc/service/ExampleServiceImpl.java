@@ -8,6 +8,21 @@ public class ExampleServiceImpl implements ExampleService {
 
     @Override
     public int plusOne(int i) {
-        return i+1;
+        try {
+            Thread.sleep(300l);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        return i + 1;
+    }
+
+    @Override
+    public void sout(String name) {
+        try {
+            Thread.sleep(300L);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println(name);
     }
 }

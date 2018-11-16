@@ -1,5 +1,6 @@
 package cc.lovezhy.raft.rpc.proxy;
 
+import cc.lovezhy.raft.rpc.exception.RequestTimeoutException;
 import cc.lovezhy.raft.rpc.protocal.RpcRequest;
 import cc.lovezhy.raft.rpc.protocal.RpcResponse;
 import com.alibaba.fastjson.JSON;
@@ -10,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
 import java.util.UUID;
+import java.util.concurrent.TimeoutException;
 
 public class ProxyInterceptor implements MethodInterceptor {
 
@@ -24,14 +26,15 @@ public class ProxyInterceptor implements MethodInterceptor {
     }
 
     @Override
-    public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
+    public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws RequestTimeoutException {
         RpcRequest request = new RpcRequest();
         request.setRequestId(UUID.randomUUID().toString());
         request.setClazz(superClass.getName());
         request.setMethod(method.getName());
         request.setArgs(objects);
         log.info("{}", JSON.toJSONString(request));
-        RpcResponse rpcResponse = consumerRpcService.sendRequest(request);
+        RpcResponse rpcResponse = null;
+        rpcResponse = consumerRpcService.sendRequest(request);
         return rpcResponse.getResponseBody();
     }
 }

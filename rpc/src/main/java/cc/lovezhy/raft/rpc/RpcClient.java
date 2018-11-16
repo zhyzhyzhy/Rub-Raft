@@ -1,5 +1,6 @@
 package cc.lovezhy.raft.rpc;
 
+import cc.lovezhy.raft.rpc.exception.RequestTimeoutException;
 import cc.lovezhy.raft.rpc.protocal.RpcRequest;
 import cc.lovezhy.raft.rpc.protocal.RpcResponse;
 import cc.lovezhy.raft.rpc.proxy.ConsumerRpcService;
@@ -11,8 +12,10 @@ import com.google.common.util.concurrent.FutureCallback;
 import io.netty.channel.Channel;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static cc.lovezhy.raft.rpc.util.LockObjectFactory.getLockObject;
 
@@ -41,7 +44,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     }
 
     @Override
-    public RpcResponse sendRequest(RpcRequest request) {
+    public RpcResponse sendRequest(RpcRequest request) throws RequestTimeoutException {
         String requestId = request.getRequestId();
         nettyClient.getChannel().writeAndFlush(request);
         LockObject lockObject = getLockObject();
@@ -57,6 +60,9 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
             }
         }
         RpcResponse rpcResponse = rpcResponseMap.get(requestId);
+        if (Objects.isNull(rpcResponse)) {
+            throw new RequestTimeoutException("request time out");
+        }
         waitConditionMap.remove(requestId);
         rpcResponseMap.remove(requestId);
         lockObject.recycle();

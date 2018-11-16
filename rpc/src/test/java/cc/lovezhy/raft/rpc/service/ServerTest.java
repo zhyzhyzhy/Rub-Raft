@@ -33,11 +33,12 @@ public class ServerTest {
     public void testServerStart() {
         log.info(exampleService.echo("Hello,World"));
         log.info("{}", exampleService.plusOne(23));
+        exampleService.sout("zhuyichen");
     }
 
     @After
     public void closeServer() {
-       System.exit(0);
+        System.exit(0);
     }
 
 }

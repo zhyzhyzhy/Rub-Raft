@@ -18,7 +18,7 @@ public class ReflectUtils {
         METHOD_ANNOTATION_CACHE = Maps.newHashMap();
     }
 
-    public static boolean containsAnnotation(Annotation annotation, Method method) {
+    public static boolean containsAnnotation(Method method, Annotation annotation) {
         Preconditions.checkNotNull(annotation);
         Preconditions.checkNotNull(method);
         Set<Annotation> annotationSet = METHOD_ANNOTATION_CACHE.get(method);
