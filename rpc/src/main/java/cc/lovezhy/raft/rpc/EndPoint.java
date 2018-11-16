@@ -17,6 +17,10 @@ public class EndPoint {
         return new EndPoint(host, port);
     }
 
+    public static EndPoint create(String host, String port) {
+        return new EndPoint(host, Integer.parseInt(port));
+    }
+
     public String getHost() {
         return host;
     }

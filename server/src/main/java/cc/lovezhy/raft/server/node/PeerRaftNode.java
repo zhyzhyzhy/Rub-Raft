@@ -1,7 +1,9 @@
 package cc.lovezhy.raft.server.node;
 
 import cc.lovezhy.raft.rpc.EndPoint;
+import cc.lovezhy.raft.rpc.RpcClient;
 import cc.lovezhy.raft.server.service.RaftService;
+import com.google.common.base.Preconditions;
 
 public class PeerRaftNode {
 
@@ -14,6 +16,14 @@ public class PeerRaftNode {
     private Long matchIndex;
 
     private RaftService raftService;
+
+    public PeerRaftNode(NodeId nodeId, EndPoint endPoint) {
+        Preconditions.checkNotNull(nodeId);
+        Preconditions.checkNotNull(endPoint);
+        this.nodeId = nodeId;
+        this.endPoint = endPoint;
+        this.raftService = RpcClient.create(RaftService.class, endPoint);
+    }
 
     public NodeId getNodeId() {
         return nodeId;
