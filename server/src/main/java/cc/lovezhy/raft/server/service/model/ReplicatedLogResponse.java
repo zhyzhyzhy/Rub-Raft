@@ -6,6 +6,7 @@ public class ReplicatedLogResponse {
 
     private Boolean success;
 
+
     public ReplicatedLogResponse(Long term, Boolean success) {
         this.term = term;
         this.success = success;

@@ -6,7 +6,7 @@ import com.google.common.collect.Lists;
 
 import java.util.List;
 
-public class Bootstrap {
+public class BootstrapStarter {
 
     private List<PeerRaftNode> peerRaftNodes = Lists.newArrayList();
     private RaftNode localRaftNode;

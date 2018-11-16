@@ -12,14 +12,8 @@ public class VoteRequest {
 
     private Long lastLogTerm;
 
-    public VoteRequest() {
-    }
 
-    public VoteRequest(Long term, NodeId candidateId, Long lastLogIndex, Long lastLogTerm) {
-        this.term = term;
-        this.candidateId = candidateId;
-        this.lastLogIndex = lastLogIndex;
-        this.lastLogTerm = lastLogTerm;
+    public VoteRequest() {
     }
 
     public Long getTerm() {

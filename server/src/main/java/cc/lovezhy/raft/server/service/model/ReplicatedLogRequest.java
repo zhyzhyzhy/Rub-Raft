@@ -19,9 +19,6 @@ public class ReplicatedLogRequest {
 
     private Long leaderCommit;
 
-    public ReplicatedLogRequest() {
-    }
-
     public Long getTerm() {
         return term;
     }
