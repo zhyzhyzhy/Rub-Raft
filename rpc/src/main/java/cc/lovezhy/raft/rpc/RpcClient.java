@@ -8,6 +8,7 @@ import cc.lovezhy.raft.rpc.proxy.ProxyFactory;
 import cc.lovezhy.raft.rpc.server.netty.NettyClient;
 import cc.lovezhy.raft.rpc.server.netty.RpcService;
 import cc.lovezhy.raft.rpc.util.LockObjectFactory.LockObject;
+import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.FutureCallback;
 import io.netty.channel.Channel;
 
@@ -21,6 +22,8 @@ import static cc.lovezhy.raft.rpc.util.LockObjectFactory.getLockObject;
 public class RpcClient<T> implements ConsumerRpcService, RpcService {
 
     public static <T> T create(Class<T> clazz, EndPoint endPoint) {
+        Preconditions.checkNotNull(clazz);
+        Preconditions.checkNotNull(endPoint);
         RpcClient<T> rpcClient = new RpcClient<>(clazz, endPoint);
         return rpcClient.getInstance();
     }

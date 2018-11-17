@@ -2,6 +2,9 @@ package cc.lovezhy.raft.rpc.util;
 
 import io.netty.util.Recycler;
 
+import javax.annotation.concurrent.ThreadSafe;
+
+@ThreadSafe
 public class LockObjectFactory {
 
     private static final Recycler<LockObject> LOCK_OBJECT_RECYCLER = new Recycler<LockObject>() {

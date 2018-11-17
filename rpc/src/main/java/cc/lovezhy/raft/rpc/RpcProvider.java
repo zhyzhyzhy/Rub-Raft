@@ -1,5 +1,6 @@
 package cc.lovezhy.raft.rpc;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,10 +14,12 @@ public class RpcProvider<T> {
     private static final Logger log = LoggerFactory.getLogger(RpcProvider.class);
 
     static <T> RpcProvider<T> create(Class<T> providerClazz) {
+        Preconditions.checkNotNull(providerClazz);
         return new RpcProvider<T>(providerClazz);
     }
 
     static <T> RpcProvider<T> create(T providerBean) {
+        Preconditions.checkNotNull(providerBean);
         return new RpcProvider<>(providerBean);
     }
 

@@ -4,12 +4,15 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+@ThreadSafe
 public class ReflectUtils {
 
     private static final Map<Method, Set<Annotation>> METHOD_ANNOTATION_CACHE;
@@ -25,7 +28,7 @@ public class ReflectUtils {
         Preconditions.checkNotNull(method);
         Set<Annotation> annotationSet = METHOD_ANNOTATION_CACHE.get(method);
         if (Objects.isNull(annotationSet)) {
-            annotationSet = Sets.newHashSet(method.getAnnotations());
+            annotationSet = Sets.newConcurrentHashSet(Arrays.asList(method.getAnnotations()));
         } else if (annotationSet.equals(NOT_CONTAINS_SET)) {
             return false;
         }

@@ -1,7 +1,11 @@
 package cc.lovezhy.raft.rpc;
 
 import com.google.common.base.MoreObjects;
+import com.google.common.base.Preconditions;
 
+import javax.annotation.concurrent.Immutable;
+
+@Immutable
 public class EndPoint {
 
     private String host;
@@ -9,6 +13,7 @@ public class EndPoint {
     private int port;
 
     private EndPoint(String host, int port) {
+        Preconditions.checkNotNull(host);
         this.host = host;
         this.port = port;
     }
@@ -25,16 +30,8 @@ public class EndPoint {
         return host;
     }
 
-    public void setHost(String host) {
-        this.host = host;
-    }
-
     public int getPort() {
         return port;
-    }
-
-    public void setPort(int port) {
-        this.port = port;
     }
 
     @Override

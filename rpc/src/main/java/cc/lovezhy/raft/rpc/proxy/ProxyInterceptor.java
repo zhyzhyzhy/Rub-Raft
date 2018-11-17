@@ -20,7 +20,7 @@ public class ProxyInterceptor implements MethodInterceptor {
     private ConsumerRpcService consumerRpcService;
     private Class<?> superClass;
 
-    public ProxyInterceptor(Class<?> superClass, ConsumerRpcService consumerRpcService) {
+    ProxyInterceptor(Class<?> superClass, ConsumerRpcService consumerRpcService) {
         this.superClass = superClass;
         this.consumerRpcService = consumerRpcService;
     }
