@@ -13,9 +13,11 @@ import java.util.Set;
 public class ReflectUtils {
 
     private static final Map<Method, Set<Annotation>> METHOD_ANNOTATION_CACHE;
+    private static final Set<Annotation> NOT_CONTAINS_SET;
 
     static {
         METHOD_ANNOTATION_CACHE = Maps.newHashMap();
+        NOT_CONTAINS_SET = Sets.newHashSet();
     }
 
     public static boolean containsAnnotation(Method method, Annotation annotation) {
@@ -24,7 +26,13 @@ public class ReflectUtils {
         Set<Annotation> annotationSet = METHOD_ANNOTATION_CACHE.get(method);
         if (Objects.isNull(annotationSet)) {
             annotationSet = Sets.newHashSet(method.getAnnotations());
+        } else if (annotationSet.equals(NOT_CONTAINS_SET)) {
+            return false;
         }
-        return annotationSet.contains(annotation);
+        boolean contains = annotationSet.contains(annotation);
+        if (contains) {
+            METHOD_ANNOTATION_CACHE.put(method, annotationSet);
+        }
+        return contains;
     }
 }
