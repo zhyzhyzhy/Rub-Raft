@@ -85,6 +85,7 @@ public class RaftNode implements RaftService {
     //防止网络分区，term增大
     private void preVote() {
         int[] preVotedGrantedCount = new int[1];
+        status = NodeStatus.PRE_CANDIDATE;
         peerRaftNodes.forEach(peerRaftNode -> {
             VoteRequest voteRequest = new VoteRequest();
             voteRequest.setTerm(currentTerm.get() + 1);
