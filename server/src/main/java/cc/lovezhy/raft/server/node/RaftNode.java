@@ -19,8 +19,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static cc.lovezhy.raft.server.RaftConstants.DEFAULT_TIME_UNIT;
-import static cc.lovezhy.raft.server.RaftConstants.START_ELECTION_TIMEOUT;
+import static cc.lovezhy.raft.server.RaftConstants.*;
 
 public class RaftNode implements RaftService {
 
@@ -65,7 +64,7 @@ public class RaftNode implements RaftService {
     private void startElectionTimeOut() {
         Long currentHeatBeat = heartbeat.get();
         TimeCountDownUtil.addSchedulerTask(
-                START_ELECTION_TIMEOUT,
+                getRandomStartElectionTimeout(),
                 DEFAULT_TIME_UNIT,
                 this::prevote,
                 () -> currentHeatBeat == heartbeat.get(),

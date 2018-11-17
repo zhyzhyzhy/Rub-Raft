@@ -17,9 +17,9 @@ import java.util.Properties;
 
 import static cc.lovezhy.raft.server.PropertyConstants.*;
 
-public class BootstrapStarter {
+public class RaftStarter {
 
-    private static final Logger log = LoggerFactory.getLogger(BootstrapStarter.class);
+    private static final Logger log = LoggerFactory.getLogger(RaftStarter.class);
 
     private static final List<PeerRaftNode> peerRaftNodes = Lists.newArrayList();
 
@@ -28,7 +28,7 @@ public class BootstrapStarter {
     private static ClusterConfig clusterConfig;
 
     static {
-        InputStream serverPropertiesStream = BootstrapStarter.class.getResourceAsStream("server.properties");
+        InputStream serverPropertiesStream = RaftStarter.class.getResourceAsStream("server.properties");
         Properties properties = new Properties();
         try {
             properties.load(serverPropertiesStream);
