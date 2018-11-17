@@ -14,9 +14,11 @@ import cc.lovezhy.raft.server.storage.StorageService;
 import cc.lovezhy.raft.server.utils.TimeCountDownUtil;
 import com.alibaba.fastjson.JSON;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
@@ -72,7 +74,7 @@ public class RaftNode implements RaftService {
 
     // TODO 应该不会栈溢出
     private void startElectionTimeOut() {
-        TimeCountDownUtil.addSchedulerTask(
+        TimeCountDownUtil.addSchedulerTaskWithListener(
                 getRandomStartElectionTimeout(),
                 DEFAULT_TIME_UNIT,
                 this::preVote,
@@ -87,6 +89,7 @@ public class RaftNode implements RaftService {
             VoteRequest voteRequest = new VoteRequest();
             voteRequest.setTerm(currentTerm.get() + 1);
             voteRequest.setCandidateId(nodeId);
+            voteRequest.setLastLogTerm(storageService.getLastCommitLogTerm());
             voteRequest.setLastLogIndex(storageService.getCommitIndex());
             VoteResponse voteResponse = peerRaftNode.getRaftService().requestPreVote(voteRequest);
             if (voteResponse.getVoteGranted()) {
@@ -115,7 +118,20 @@ public class RaftNode implements RaftService {
         });
         if (votedCount[0] > clusterConfig.getNodeCount() / 2) {
             this.status = NodeStatus.LEADER;
+            startHeartbeat();
         }
+    }
+
+    private void startHeartbeat() {
+        peerRaftNodes.forEach(peerRaftNode -> {
+            ReplicatedLogRequest replicatedLogRequest = new ReplicatedLogRequest();
+            replicatedLogRequest.setEntries(Collections.emptyList());
+            replicatedLogRequest.setLeaderCommit(storageService.getCommitIndex());
+            replicatedLogRequest.setLeaderId(nodeId);
+            replicatedLogRequest.setTerm(currentTerm.get());
+            peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
+        });
+        TimeCountDownUtil.addSchedulerTask(HEART_BEAT_TIME_INTERVAL, DEFAULT_TIME_UNIT, this::startHeartbeat, (Supplier<Boolean>) () -> RaftNode.this.status == NodeStatus.LEADER);
     }
 
     private Long getCurrentTerm() {
@@ -144,7 +160,7 @@ public class RaftNode implements RaftService {
     }
 
     private boolean isLoseHeartbeat() {
-        return System.currentTimeMillis() - heartbeatTimeRecorder.get() > HEART_BEAT_TIME_INTERVAL;
+        return System.currentTimeMillis() - heartbeatTimeRecorder.get() > HEART_BEAT_TIME_INTERVAL_TIMEOUT;
     }
 
     public void close() {
