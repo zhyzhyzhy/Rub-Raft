@@ -16,8 +16,13 @@ public class RaftServiceImpl implements RaftService {
     }
 
     @Override
-    public VoteResponse requestVode(VoteRequest voteRequest) {
-        return raftService.requestVode(voteRequest);
+    public VoteResponse requestPreVote(VoteRequest voteRequest) {
+        return raftService.requestPreVote(voteRequest);
+    }
+
+    @Override
+    public VoteResponse requestVote(VoteRequest voteRequest) {
+        return raftService.requestVote(voteRequest);
     }
 
     @Override

@@ -13,10 +13,11 @@ public class TimeCountDownUtil {
                                         Supplier<Boolean> doWhenReturnTrue,
                                         Runnable listener) {
         RpcExecutors.listeningScheduledExecutor().schedule(() -> {
-            if (doWhenReturnTrue.get()) {
-                task.run();
-            }
-        }, delay, timeUnit).addListener(listener, RpcExecutors.commonExecutor());
+                    if (doWhenReturnTrue.get()) {
+                        task.run();
+                    }
+                },
+                delay, timeUnit).addListener(listener, RpcExecutors.commonExecutor());
     }
 
     public static void addSchedulerListener(long delay, TimeUnit timeUnit, Runnable task, Runnable listener) {

@@ -6,7 +6,10 @@ import cc.lovezhy.raft.server.service.model.VoteRequest;
 import cc.lovezhy.raft.server.service.model.VoteResponse;
 
 public interface RaftService {
-    VoteResponse requestVode(VoteRequest voteRequest);
+
+    VoteResponse requestPreVote(VoteRequest voteRequest);
+
+    VoteResponse requestVote(VoteRequest voteRequest);
 
     ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest);
 }

@@ -26,6 +26,11 @@ public class StorageService {
         logs.addAll(entries);
     }
 
+    //TODO int还是long
+    public Long getLastCommitLogTerm() {
+        return logs.get(commitIndex.intValue()).getTerm();
+    }
+
     public List<LogEntry> getLogs() {
         return logs;
     }

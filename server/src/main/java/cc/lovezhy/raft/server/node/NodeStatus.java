@@ -6,5 +6,7 @@ public enum NodeStatus {
 
     FOLLOWER,
 
+    PRE_CANDIDATE,
+
     CANDIDATE
 }
