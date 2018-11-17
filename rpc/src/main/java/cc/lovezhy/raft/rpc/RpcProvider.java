@@ -8,21 +8,35 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
 
-public class RpcProvider {
+public class RpcProvider<T> {
 
     private static final Logger log = LoggerFactory.getLogger(RpcProvider.class);
 
-    static RpcProvider create(Class<?> providerClazz) {
-        return new RpcProvider(providerClazz);
+    static <T> RpcProvider<T> create(Class<T> providerClazz) {
+        return new RpcProvider<T>(providerClazz);
+    }
+
+    static <T> RpcProvider<T> create(T providerBean) {
+        return new RpcProvider<>(providerBean);
     }
 
     private Object instance;
     private Map<String, Method> methodMap;
 
-    private RpcProvider(Class<?> providerClazz) {
+    private RpcProvider(T providerBean) {
         this.methodMap = Maps.newHashMap();
 
+        Class<?> providerClazz = providerBean.getClass().getInterfaces()[0];
         for (Method method : providerClazz.getDeclaredMethods()) {
+            methodMap.put(method.getName(), method);
+        }
+        this.instance = providerBean;
+    }
+
+    private RpcProvider(Class<T> providerClazz) {
+        this.methodMap = Maps.newHashMap();
+        Class<?> interfaceClazz = providerClazz.getInterfaces()[0];
+        for (Method method : interfaceClazz.getDeclaredMethods()) {
             methodMap.put(method.getName(), method);
         }
         try {

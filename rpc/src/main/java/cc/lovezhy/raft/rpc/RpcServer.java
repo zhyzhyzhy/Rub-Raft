@@ -55,6 +55,15 @@ public class RpcServer {
         log.info("register service serviceClass={}", serviceClass);
     }
 
+    public <T> void registerService(T serviceBean) {
+        Preconditions.checkNotNull(serviceBean);
+        Preconditions.checkState(serviceBean.getClass().getInterfaces().length == 1, "current rpcImpl class should have one interface and only one");
+        RpcProvider provider = RpcProvider.create(serviceBean);
+        serviceMap.put(serviceBean.getClass().getInterfaces()[0].getName(), provider);
+        providers.add(provider);
+        log.info("register service serviceClass={}", serviceBean.getClass());
+    }
+
     public void close() {
         nettyServer.closeSync();
     }

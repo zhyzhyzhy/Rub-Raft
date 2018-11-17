@@ -24,7 +24,9 @@ public class ServerTest {
     public void setUp() {
         endPoint = EndPoint.create("127.0.0.1", 5283);
         rpcServer = new RpcServer();
-        rpcServer.registerService(ExampleServiceImpl.class);
+//        rpcServer.registerService(ExampleServiceImpl.class);
+        ExampleService service = new ExampleServiceImpl();
+        rpcServer.registerService(service);
         rpcServer.start(endPoint);
         exampleService = RpcClient.create(ExampleService.class, endPoint);
     }
