@@ -43,8 +43,6 @@ public class RaftNode implements RaftService {
 
     private AtomicLong heartbeat = new AtomicLong();
 
-    private RaftService serverService;
-
     private RpcServer rpcServer;
 
     public RaftNode(NodeId nodeId, EndPoint endPoint, ClusterConfig clusterConfig, List<PeerRaftNode> peerRaftNodes) {
@@ -54,14 +52,14 @@ public class RaftNode implements RaftService {
         Preconditions.checkNotNull(peerRaftNodes);
         Preconditions.checkState(peerRaftNodes.size() >= 2, "raft cluster should init with at least 3 server!");
         log.info("peerRaftNodes={}", JSON.toJSONString(peerRaftNodes));
+
         this.nodeId = nodeId;
         this.peerRaftNodes = peerRaftNodes;
         this.clusterConfig = clusterConfig;
 
-        serverService = new RaftServiceImpl(this);
-
         rpcServer = new RpcServer();
-        rpcServer.registerService(RaftServiceImpl.class);
+        RaftService serverService = new RaftServiceImpl(this);
+        rpcServer.registerService(serverService);
         rpcServer.start(endPoint);
     }
 
@@ -69,7 +67,6 @@ public class RaftNode implements RaftService {
         status = NodeStatus.FOLLOWER;
         currentTerm = new AtomicLong();
         startElectionTimeOut();
-
     }
 
     // TODO 应该不会栈溢出
@@ -126,6 +123,10 @@ public class RaftNode implements RaftService {
 
     private void receiveHeartBeat() {
         this.heartbeat.incrementAndGet();
+    }
+
+    public void close() {
+        this.rpcServer.close();
     }
 
     @Override

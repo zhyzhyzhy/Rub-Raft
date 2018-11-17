@@ -74,7 +74,7 @@ public class RaftStarter {
         Preconditions.checkState(clusterConfig.getNodeCount() == (peerRaftNodes.size() + 1));
     }
 
-    public void start() {
-
+    public static void start() {
+        localRaftNode.init();
     }
 }

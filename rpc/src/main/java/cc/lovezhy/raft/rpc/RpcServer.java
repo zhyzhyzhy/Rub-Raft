@@ -61,7 +61,7 @@ public class RpcServer {
         RpcProvider provider = RpcProvider.create(serviceBean);
         serviceMap.put(serviceBean.getClass().getInterfaces()[0].getName(), provider);
         providers.add(provider);
-        log.info("register service serviceClass={}", serviceBean.getClass());
+        log.info("register service serviceClass={}", serviceBean.getClass().getInterfaces()[0]);
     }
 
     public void close() {
