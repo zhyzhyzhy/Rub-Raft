@@ -43,6 +43,7 @@ public class RaftStarter {
             check();
         } catch (IOException e) {
             log.error(e.getMessage(), e);
+            log.error("load config file error!");
         }
     }
 
@@ -66,7 +67,7 @@ public class RaftStarter {
         Preconditions.checkState(localConfig.length == 3);
         EndPoint endPoint = EndPoint.create(localConfig[0], localConfig[1]);
         NodeId nodeId = NodeId.create(Integer.parseInt(localConfig[2]));
-        localRaftNode = new RaftNode(nodeId, clusterConfig, peerRaftNodes);
+        localRaftNode = new RaftNode(nodeId, endPoint, clusterConfig, peerRaftNodes);
     }
 
     private static void check() {

@@ -1,6 +1,8 @@
 package cc.lovezhy.raft.server.node;
 
+import cc.lovezhy.raft.rpc.EndPoint;
 import cc.lovezhy.raft.rpc.RpcProvider;
+import cc.lovezhy.raft.rpc.RpcServer;
 import cc.lovezhy.raft.server.ClusterConfig;
 import cc.lovezhy.raft.server.service.RaftService;
 import cc.lovezhy.raft.server.service.RaftServiceImpl;
@@ -43,21 +45,31 @@ public class RaftNode implements RaftService {
 
     private RaftService serverService;
 
-    public RaftNode(NodeId nodeId, ClusterConfig clusterConfig, List<PeerRaftNode> peerRaftNodes) {
+    private RpcServer rpcServer;
+
+    public RaftNode(NodeId nodeId, EndPoint endPoint, ClusterConfig clusterConfig, List<PeerRaftNode> peerRaftNodes) {
         Preconditions.checkNotNull(nodeId);
+        Preconditions.checkNotNull(endPoint);
         Preconditions.checkNotNull(clusterConfig);
         Preconditions.checkNotNull(peerRaftNodes);
+        Preconditions.checkState(peerRaftNodes.size() >= 2, "raft cluster should init with at least 3 server!");
+        log.info("peerRaftNodes={}", JSON.toJSONString(peerRaftNodes));
         this.nodeId = nodeId;
         this.peerRaftNodes = peerRaftNodes;
-        log.info("peerRaftNodes={}", JSON.toJSONString(peerRaftNodes));
+        this.clusterConfig = clusterConfig;
+
         serverService = new RaftServiceImpl(this);
-        RpcProvider.create(RaftServiceImpl.class);
+
+        rpcServer = new RpcServer();
+        rpcServer.registerService(RaftServiceImpl.class);
+        rpcServer.start(endPoint);
     }
 
     public void init() {
         status = NodeStatus.FOLLOWER;
         currentTerm = new AtomicLong();
         startElectionTimeOut();
+
     }
 
     // TODO 应该不会栈溢出
