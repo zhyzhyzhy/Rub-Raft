@@ -28,6 +28,9 @@ public class StorageService {
 
     //TODO int还是long
     public Long getLastCommitLogTerm() {
+        if (commitIndex.equals(0L)) {
+            return 0L;
+        }
         return logs.get(commitIndex.intValue()).getTerm();
     }
 

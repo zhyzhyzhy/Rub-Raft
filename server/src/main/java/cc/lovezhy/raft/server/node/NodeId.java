@@ -14,6 +14,9 @@ public class NodeId {
 
     private Integer peerId;
 
+    private NodeId() {
+    }
+
     private NodeId(Integer peerId) {
         this.peerId = peerId;
     }

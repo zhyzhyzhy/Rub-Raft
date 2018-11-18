@@ -1,5 +1,6 @@
 package cc.lovezhy.raft.rpc;
 
+import cc.lovezhy.raft.rpc.common.RpcExecutors;
 import cc.lovezhy.raft.rpc.exception.RequestTimeoutException;
 import cc.lovezhy.raft.rpc.protocal.RpcRequest;
 import cc.lovezhy.raft.rpc.protocal.RpcResponse;
@@ -10,7 +11,10 @@ import cc.lovezhy.raft.rpc.server.netty.RpcService;
 import cc.lovezhy.raft.rpc.util.LockObjectFactory.LockObject;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.SettableFuture;
 import io.netty.channel.Channel;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.Map;
 import java.util.Objects;
@@ -38,7 +42,22 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     private RpcClient(Class<T> clazz, EndPoint endPoint) {
         this.clazz = clazz;
         nettyClient = new NettyClient(endPoint, this);
-        nettyClient.connect();
+        this.connect();
+    }
+
+    private void connect() {
+        SettableFuture<Void> connectResultFuture = nettyClient.connect();
+        Futures.addCallback(connectResultFuture, new FutureCallback<Void>() {
+            @Override
+            public void onSuccess(@Nullable Void result) {
+
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                RpcExecutors.commonScheduledExecutor().schedule(() -> connect(), 200, TimeUnit.MILLISECONDS);
+            }
+        }, RpcExecutors.listeningScheduledExecutor());
     }
 
     private T getInstance() {
@@ -55,7 +74,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
         synchronized (lockObject) {
             if (!rpcResponseMap.containsKey(requestId)) {
                 try {
-                    lockObject.wait(TimeUnit.MILLISECONDS.toMillis(200));
+                    lockObject.wait(TimeUnit.MILLISECONDS.toMillis(500));
                 } catch (InterruptedException e) {
                     // ignore
                 }

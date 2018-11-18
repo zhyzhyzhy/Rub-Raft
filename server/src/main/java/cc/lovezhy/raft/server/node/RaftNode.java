@@ -60,6 +60,7 @@ public class RaftNode implements RaftService {
         this.nodeId = nodeId;
         this.peerRaftNodes = peerRaftNodes;
         this.clusterConfig = clusterConfig;
+        storageService = new StorageService();
 
         rpcServer = new RpcServer();
         RaftService serverService = new RaftServiceImpl(this);
@@ -83,23 +84,33 @@ public class RaftNode implements RaftService {
                 getRandomStartElectionTimeout(),
                 DEFAULT_TIME_UNIT,
                 this::preVote,
-                this::isLoseHeartbeat,
+                () -> isLoseHeartbeat() && !isLeader(),
                 this::startElectionTimeOut);
+    }
+
+    public boolean isLeader() {
+        return this.status.equals(NodeStatus.LEADER);
     }
 
     //防止网络分区，term增大
     private void preVote() {
+        log.info("start preVote");
         int[] preVotedGrantedCount = new int[1];
         status = NodeStatus.PRE_CANDIDATE;
         peerRaftNodes.forEach(peerRaftNode -> {
-            VoteRequest voteRequest = new VoteRequest();
-            voteRequest.setTerm(currentTerm.get() + 1);
-            voteRequest.setCandidateId(nodeId);
-            voteRequest.setLastLogTerm(storageService.getLastCommitLogTerm());
-            voteRequest.setLastLogIndex(storageService.getCommitIndex());
-            VoteResponse voteResponse = peerRaftNode.getRaftService().requestPreVote(voteRequest);
-            if (voteResponse.getVoteGranted()) {
-                preVotedGrantedCount[0]++;
+            try {
+                VoteRequest voteRequest = new VoteRequest();
+                voteRequest.setTerm(currentTerm.get() + 1);
+                voteRequest.setCandidateId(nodeId);
+                voteRequest.setLastLogTerm(storageService.getLastCommitLogTerm());
+                voteRequest.setLastLogIndex(storageService.getCommitIndex());
+                VoteResponse voteResponse = peerRaftNode.getRaftService().requestPreVote(voteRequest);
+                log.info("voteResponse={}", JSON.toJSONString(voteResponse));
+                if (voteResponse.getVoteGranted()) {
+                    preVotedGrantedCount[0]++;
+                }
+            } catch (Exception e) {
+                log.error(e.getMessage(), e);
             }
         });
         if (preVotedGrantedCount[0] > clusterConfig.getNodeCount() / 2) {
@@ -181,19 +192,22 @@ public class RaftNode implements RaftService {
     @Override
     public VoteResponse requestPreVote(VoteRequest voteRequest) {
         VoteResponse voteResponse = new VoteResponse();
-        if (isLoseHeartbeat() && voteRequest.getTerm() > currentTerm.get()) {
-            if (voteRequest.getLastLogTerm() > storageService.getLastCommitLogTerm()) {
-                voteResponse.setVoteGranted(true);
+        if (isLoseHeartbeat()) {
+            if (voteRequest.getTerm() > currentTerm.get()) {
                 voteResponse.setTerm(currentTerm.get());
-            } else if (voteRequest.getLastLogTerm().equals(storageService.getLastCommitLogTerm())
-                    && voteRequest.getLastLogIndex() > storageService.getCommitIndex()) {
                 voteResponse.setVoteGranted(true);
+            } else if (voteRequest.getTerm() == currentTerm.get() && voteRequest.getLastLogIndex() > storageService.getCommitIndex()) {
                 voteResponse.setTerm(currentTerm.get());
+                voteResponse.setVoteGranted(true);
+            } else {
+                voteResponse.setTerm(currentTerm.get());
+                voteResponse.setVoteGranted(false);
             }
         } else {
             voteResponse.setTerm(currentTerm.get());
             voteResponse.setVoteGranted(false);
         }
+        log.info("voteRequest={}, voteResponse={}", JSON.toJSONString(voteRequest), JSON.toJSONString(voteResponse));
         return voteResponse;
     }
 

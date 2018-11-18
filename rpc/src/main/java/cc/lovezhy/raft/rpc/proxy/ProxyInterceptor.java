@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
 import java.util.UUID;
-import java.util.concurrent.TimeoutException;
 
 public class ProxyInterceptor implements MethodInterceptor {
 

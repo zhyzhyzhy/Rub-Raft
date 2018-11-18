@@ -21,13 +21,13 @@ public class RaftStarter {
 
     private static final Logger log = LoggerFactory.getLogger(RaftStarter.class);
 
-    private static final List<PeerRaftNode> peerRaftNodes = Lists.newArrayList();
+    private final List<PeerRaftNode> peerRaftNodes = Lists.newArrayList();
 
-    private static RaftNode localRaftNode;
+    private RaftNode localRaftNode;
 
-    private static ClusterConfig clusterConfig;
+    private ClusterConfig clusterConfig;
 
-    private static void loadPeerRaftNode(String value) {
+    private void loadPeerRaftNode(String value) {
         Preconditions.checkNotNull(value);
         String[] peerItems = value.split(",");
         Arrays.stream(peerItems)
@@ -41,7 +41,7 @@ public class RaftStarter {
                 });
     }
 
-    private static void loadLocalRaftNode(String value) {
+    private void loadLocalRaftNode(String value) {
         Preconditions.checkNotNull(value);
         String[] localConfig = value.split(":");
         Preconditions.checkState(localConfig.length == 3);
@@ -50,11 +50,11 @@ public class RaftStarter {
         localRaftNode = new RaftNode(nodeId, endPoint, clusterConfig, peerRaftNodes);
     }
 
-    private static void check() {
+    private void check() {
         Preconditions.checkState(clusterConfig.getNodeCount() == (peerRaftNodes.size() + 1));
     }
 
-    public static void start() {
+    public void start() {
         InputStream serverPropertiesStream = RaftStarter.class.getResourceAsStream("/server.properties");
         Properties properties = new Properties();
         try {
@@ -66,7 +66,7 @@ public class RaftStarter {
         }
     }
 
-    public static void start(Properties properties) {
+    public void start(Properties properties) {
         Preconditions.checkNotNull(properties);
         loadPeerRaftNode(properties.getProperty(PEER_SERVERS_KEY));
 
