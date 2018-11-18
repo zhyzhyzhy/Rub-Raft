@@ -7,7 +7,7 @@ public class ClusterConfig {
         return nodeCount;
     }
 
-    public void setNodeCount(int nodeCount) {
+    void setNodeCount(int nodeCount) {
         this.nodeCount = nodeCount;
     }
 }

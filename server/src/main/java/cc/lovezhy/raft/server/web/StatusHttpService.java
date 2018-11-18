@@ -4,7 +4,6 @@ import cc.lovezhy.raft.server.node.RaftNode;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServer;
@@ -23,10 +22,12 @@ public class StatusHttpService extends AbstractVerticle {
     private RaftNode raftNode;
     private HttpServer httpServer;
     private Router router;
+    private int port;
 
-    public StatusHttpService(RaftNode raftNode) {
+    public StatusHttpService(RaftNode raftNode, int port) {
         Preconditions.checkNotNull(raftNode);
         this.raftNode = raftNode;
+        this.port = port;
         this.vertx = Vertx.vertx();
     }
 
@@ -34,15 +35,15 @@ public class StatusHttpService extends AbstractVerticle {
         this.httpServer = vertx.createHttpServer();
         this.router = Router.router(vertx);
         createRouters();
-        this.httpServer.requestHandler(router::accept).listen(5282);
-        log.info("start httpServer at port={}", 5282);
+        this.httpServer.requestHandler(router::accept).listen(this.port);
+        log.info("start httpServer at port={}", this.port);
     }
 
     private void createRouters() {
         router.get("/status").handler(routingContext -> {
             HttpServerResponse response = routingContext.response();
             Map<String, String> map = Maps.newHashMap();
-            map.put("hello", "world");
+            map.put("status", raftNode.getStatus().toString());
             response.putHeader("content-type", "application/json");
             response.end(Json.encode(map));
         });

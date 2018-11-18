@@ -27,26 +27,6 @@ public class RaftStarter {
 
     private static ClusterConfig clusterConfig;
 
-    static {
-        InputStream serverPropertiesStream = RaftStarter.class.getResourceAsStream("/server.properties");
-        Properties properties = new Properties();
-        try {
-            properties.load(serverPropertiesStream);
-
-            loadPeerRaftNode(properties.getProperty(PEER_SERVERS_KEY));
-
-            clusterConfig = new ClusterConfig();
-            clusterConfig.setNodeCount(Integer.parseInt(properties.getProperty(CLUSTER_NODES)));
-
-            loadLocalRaftNode(properties.getProperty(LOCAL_SERVER_KEY));
-
-            check();
-        } catch (IOException e) {
-            log.error(e.getMessage(), e);
-            log.error("load config file error!");
-        }
-    }
-
     private static void loadPeerRaftNode(String value) {
         Preconditions.checkNotNull(value);
         String[] peerItems = value.split(",");
@@ -75,10 +55,29 @@ public class RaftStarter {
     }
 
     public static void start() {
+        InputStream serverPropertiesStream = RaftStarter.class.getResourceAsStream("/server.properties");
+        Properties properties = new Properties();
+        try {
+            properties.load(serverPropertiesStream);
+            start(properties);
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            log.error("load config file error!");
+        }
+    }
+
+    public static void start(Properties properties) {
+        Preconditions.checkNotNull(properties);
+        loadPeerRaftNode(properties.getProperty(PEER_SERVERS_KEY));
+
+        clusterConfig = new ClusterConfig();
+        clusterConfig.setNodeCount(Integer.parseInt(properties.getProperty(CLUSTER_NODES)));
+
+        loadLocalRaftNode(properties.getProperty(LOCAL_SERVER_KEY));
+
+        check();
+
         localRaftNode.init();
     }
 
-    public static void main(String[] args) {
-        RaftStarter.start();
-    }
 }

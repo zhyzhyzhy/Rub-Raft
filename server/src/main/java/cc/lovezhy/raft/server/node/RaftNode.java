@@ -66,7 +66,7 @@ public class RaftNode implements RaftService {
         rpcServer.registerService(serverService);
         rpcServer.start(endPoint);
 
-        httpService = new StatusHttpService(this);
+        httpService = new StatusHttpService(this, endPoint.getPort() + 1);
         httpService.start();
     }
 
@@ -138,6 +138,10 @@ public class RaftNode implements RaftService {
             peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
         });
         TimeCountDownUtil.addSchedulerTask(HEART_BEAT_TIME_INTERVAL, DEFAULT_TIME_UNIT, this::startHeartbeat, (Supplier<Boolean>) () -> RaftNode.this.status == NodeStatus.LEADER);
+    }
+
+    public NodeStatus getStatus() {
+        return this.status;
     }
 
     private Long getCurrentTerm() {
