@@ -74,7 +74,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
         synchronized (lockObject) {
             if (!rpcResponseMap.containsKey(requestId)) {
                 try {
-                    lockObject.wait(TimeUnit.MILLISECONDS.toMillis(500));
+                    lockObject.wait(TimeUnit.MILLISECONDS.toMillis(50));
                 } catch (InterruptedException e) {
                     // ignore
                 }
