@@ -28,7 +28,7 @@ public class RaftStarter {
     private static ClusterConfig clusterConfig;
 
     static {
-        InputStream serverPropertiesStream = RaftStarter.class.getResourceAsStream("server.properties");
+        InputStream serverPropertiesStream = RaftStarter.class.getResourceAsStream("/server.properties");
         Properties properties = new Properties();
         try {
             properties.load(serverPropertiesStream);
@@ -76,5 +76,9 @@ public class RaftStarter {
 
     public static void start() {
         localRaftNode.init();
+    }
+
+    public static void main(String[] args) {
+        RaftStarter.start();
     }
 }

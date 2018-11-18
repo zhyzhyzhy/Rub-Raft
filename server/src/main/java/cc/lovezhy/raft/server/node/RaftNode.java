@@ -12,6 +12,7 @@ import cc.lovezhy.raft.server.service.model.VoteRequest;
 import cc.lovezhy.raft.server.service.model.VoteResponse;
 import cc.lovezhy.raft.server.storage.StorageService;
 import cc.lovezhy.raft.server.utils.TimeCountDownUtil;
+import cc.lovezhy.raft.server.web.StatusHttpService;
 import com.alibaba.fastjson.JSON;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
@@ -46,6 +47,7 @@ public class RaftNode implements RaftService {
     private AtomicLong heartbeatTimeRecorder;
 
     private RpcServer rpcServer;
+    private StatusHttpService httpService;
 
     public RaftNode(NodeId nodeId, EndPoint endPoint, ClusterConfig clusterConfig, List<PeerRaftNode> peerRaftNodes) {
         Preconditions.checkNotNull(nodeId);
@@ -63,6 +65,9 @@ public class RaftNode implements RaftService {
         RaftService serverService = new RaftServiceImpl(this);
         rpcServer.registerService(serverService);
         rpcServer.start(endPoint);
+
+        httpService = new StatusHttpService(this);
+        httpService.start();
     }
 
     public void init() {
@@ -166,6 +171,7 @@ public class RaftNode implements RaftService {
 
     public void close() {
         this.rpcServer.close();
+        this.httpService.stop();
     }
 
     @Override
