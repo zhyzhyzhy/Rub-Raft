@@ -37,6 +37,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     private NettyClient nettyClient;
 
     private Map<String, LockObject> waitConditionMap = new ConcurrentHashMap<>();
+    private Map<String, SettableFuture> rpcResponseFutureMap = new ConcurrentHashMap<>();
     private Map<String, RpcResponse> rpcResponseMap = new ConcurrentHashMap<>();
 
     private RpcClient(Class<T> clazz, EndPoint endPoint) {
@@ -91,8 +92,13 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     }
 
     @Override
-    public void sendRequestAsync(RpcRequest request, FutureCallback futureCallback) {
-        // TODO
+    public RpcResponse sendRequestAsync(RpcRequest request, long timeOutMills) {
+        RpcResponse rpcResponse = new RpcResponse();
+        SettableFuture future = SettableFuture.create();
+        rpcResponse.setResponseBody(future);
+        nettyClient.getChannel().writeAndFlush(request);
+        rpcResponseFutureMap.put(request.getRequestId(), future);
+        return rpcResponse;
     }
 
     @Override
@@ -104,9 +110,16 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     public void onResponse(RpcResponse response) {
         String requestId = response.getRequestId();
         LockObject lockObject = waitConditionMap.get(requestId);
-        synchronized (lockObject) {
-            rpcResponseMap.put(requestId, response);
-            lockObject.notify();
+        if (Objects.isNull(lockObject)) {
+            synchronized (lockObject) {
+                rpcResponseMap.put(requestId, response);
+                lockObject.notify();
+            }
+        } else {
+            SettableFuture future = rpcResponseFutureMap.get(requestId);
+            if (Objects.nonNull(future)) {
+                future.set(response.getResponseBody());
+            }
         }
     }
 

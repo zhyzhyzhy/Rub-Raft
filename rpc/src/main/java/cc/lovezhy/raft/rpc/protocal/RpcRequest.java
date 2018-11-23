@@ -2,8 +2,6 @@ package cc.lovezhy.raft.rpc.protocal;
 
 import com.google.common.base.MoreObjects;
 
-import java.lang.reflect.Method;
-
 public class RpcRequest {
 
     private String requestId;

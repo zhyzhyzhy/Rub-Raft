@@ -1,5 +1,6 @@
 package cc.lovezhy.raft.rpc.util;
 
+import cc.lovezhy.raft.rpc.protocal.annotation.AsyncRequest;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -7,10 +8,7 @@ import com.google.common.collect.Sets;
 import javax.annotation.concurrent.ThreadSafe;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 @ThreadSafe
 public class ReflectUtils {
@@ -37,5 +35,15 @@ public class ReflectUtils {
             METHOD_ANNOTATION_CACHE.put(method, annotationSet);
         }
         return contains;
+    }
+
+    public static <T extends Annotation> Optional<Annotation> getAnnotation(Method method, Class<T> annotationClass) {
+        Preconditions.checkNotNull(method);
+        Preconditions.checkNotNull(annotationClass);
+        Annotation res = method.getAnnotation(annotationClass);
+        if (Objects.isNull(res)) {
+            return Optional.empty();
+        }
+        return Optional.of(res);
     }
 }
