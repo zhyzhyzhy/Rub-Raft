@@ -20,29 +20,17 @@ public class ReflectUtils {
         NOT_CONTAINS_SET = Sets.newHashSet();
     }
 
-    public static boolean containsAnnotation(Method method, Annotation annotation) {
-        Preconditions.checkNotNull(annotation);
+    public static <T extends Annotation> boolean containsAnnotation(Method method, Class<T> annotationClass) {
+        Preconditions.checkNotNull(annotationClass);
         Preconditions.checkNotNull(method);
-        Set<Annotation> annotationSet = METHOD_ANNOTATION_CACHE.get(method);
-        if (Objects.isNull(annotationSet)) {
-            annotationSet = Sets.newConcurrentHashSet(Arrays.asList(method.getAnnotations()));
-        } else if (annotationSet.equals(NOT_CONTAINS_SET)) {
-            return false;
-        }
-        boolean contains = annotationSet.contains(annotation);
-        if (contains) {
-            METHOD_ANNOTATION_CACHE.put(method, annotationSet);
-        }
-        return contains;
+        return !Objects.isNull(method.getAnnotation(annotationClass));
     }
 
-    public static <T extends Annotation> Optional<Annotation> getAnnotation(Method method, Class<T> annotationClass) {
+    public static <T extends Annotation> T getAnnotation(Method method, Class<T> annotationClass) {
         Preconditions.checkNotNull(method);
         Preconditions.checkNotNull(annotationClass);
-        Annotation res = method.getAnnotation(annotationClass);
-        if (Objects.isNull(res)) {
-            return Optional.empty();
-        }
-        return Optional.of(res);
+        T res = method.getAnnotation(annotationClass);
+        Preconditions.checkNotNull(res);
+        return res;
     }
 }
