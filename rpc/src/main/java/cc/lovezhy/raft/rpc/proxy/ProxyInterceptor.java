@@ -3,7 +3,7 @@ package cc.lovezhy.raft.rpc.proxy;
 import cc.lovezhy.raft.rpc.exception.RequestTimeoutException;
 import cc.lovezhy.raft.rpc.protocal.RpcRequest;
 import cc.lovezhy.raft.rpc.protocal.RpcResponse;
-import cc.lovezhy.raft.rpc.protocal.annotation.AsyncRequest;
+import cc.lovezhy.raft.rpc.protocal.annotation.Async;
 import cc.lovezhy.raft.rpc.util.ReflectUtils;
 import com.alibaba.fastjson.JSON;
 import com.google.common.base.Preconditions;
@@ -40,9 +40,9 @@ public class ProxyInterceptor implements MethodInterceptor {
         log.info("{}", JSON.toJSONString(request));
         RpcResponse rpcResponse;
 
-        Optional<Annotation> asyncAnnotation = ReflectUtils.getAnnotation(method, AsyncRequest.class);
+        Optional<Annotation> asyncAnnotation = ReflectUtils.getAnnotation(method, Async.class);
         if (asyncAnnotation.isPresent()) {
-            long timeOutMills = ((AsyncRequest)asyncAnnotation.get()).waitTimeOutMills();
+            long timeOutMills = ((Async)asyncAnnotation.get()).waitTimeOutMills();
             Preconditions.checkState(method.getReturnType().equals(Future.class));
             rpcResponse = consumerRpcService.sendRequestAsync(request, timeOutMills);
         } else {
