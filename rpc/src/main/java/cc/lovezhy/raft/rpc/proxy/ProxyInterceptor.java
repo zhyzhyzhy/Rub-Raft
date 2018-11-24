@@ -15,8 +15,9 @@ import org.slf4j.LoggerFactory;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.Future;
+
+import static cc.lovezhy.raft.rpc.util.IdFactory.generateId;
 
 public class ProxyInterceptor implements MethodInterceptor {
 
@@ -33,7 +34,7 @@ public class ProxyInterceptor implements MethodInterceptor {
     @Override
     public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws RequestTimeoutException {
         RpcRequest request = new RpcRequest();
-        request.setRequestId(UUID.randomUUID().toString());
+        request.setRequestId(generateId());
         request.setClazz(superClass.getName());
         request.setMethod(method.getName());
         request.setArgs(objects);

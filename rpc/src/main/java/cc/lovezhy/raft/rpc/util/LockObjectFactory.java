@@ -7,7 +7,7 @@ import javax.annotation.concurrent.ThreadSafe;
 @ThreadSafe
 public class LockObjectFactory {
 
-    private static final Recycler<LockObject> LOCK_OBJECT_RECYCLER = new Recycler<LockObject>() {
+    private static final Recycler<LockObject> LOCK_OBJECT_RECYCLE = new Recycler<LockObject>() {
         @Override
         protected LockObject newObject(Handle<LockObject> handle) {
             return new LockObject(handle);
@@ -15,7 +15,7 @@ public class LockObjectFactory {
     };
 
     public static LockObject getLockObject() {
-        return LOCK_OBJECT_RECYCLER.get();
+        return LOCK_OBJECT_RECYCLE.get();
     }
 
     public static class LockObject {
