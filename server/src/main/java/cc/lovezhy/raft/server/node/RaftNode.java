@@ -1,7 +1,6 @@
 package cc.lovezhy.raft.server.node;
 
 import cc.lovezhy.raft.rpc.EndPoint;
-import cc.lovezhy.raft.rpc.RpcProvider;
 import cc.lovezhy.raft.rpc.RpcServer;
 import cc.lovezhy.raft.server.ClusterConfig;
 import cc.lovezhy.raft.server.service.RaftService;
@@ -68,7 +67,7 @@ public class RaftNode implements RaftService {
         rpcServer.start(endPoint);
 
         httpService = new StatusHttpService(this, endPoint.getPort() + 1);
-        httpService.start();
+        httpService.createHttpServer();
     }
 
     public void init() {
@@ -92,7 +91,6 @@ public class RaftNode implements RaftService {
         return this.status.equals(NodeStatus.LEADER);
     }
 
-    //防止网络分区，term增大
     private void preVote() {
         log.info("start preVote");
         int[] preVotedGrantedCount = new int[1];
@@ -110,7 +108,7 @@ public class RaftNode implements RaftService {
                     preVotedGrantedCount[0]++;
                 }
             } catch (Exception e) {
-                log.error("ccccccccccccccc", e.getMessage(), e);
+                log.error(e.getMessage(), e);
             }
         });
         if (preVotedGrantedCount[0] > clusterConfig.getNodeCount() / 2) {
@@ -196,7 +194,7 @@ public class RaftNode implements RaftService {
 
     public void close() {
         this.rpcServer.close();
-        this.httpService.stop();
+        this.httpService.close();
     }
 
     @Override

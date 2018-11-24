@@ -1,6 +1,5 @@
 package cc.lovezhy.raft.rpc.util;
 
-import cc.lovezhy.raft.rpc.protocal.annotation.AsyncRequest;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
