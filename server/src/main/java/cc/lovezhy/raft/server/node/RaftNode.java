@@ -21,6 +21,9 @@ import org.slf4j.LoggerFactory;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static cc.lovezhy.raft.server.RaftConstants.*;
@@ -72,8 +75,6 @@ public class RaftNode implements RaftService {
 
     public void init() {
         this.status = NodeStatus.FOLLOWER;
-//        this.currentTerm = new AtomicLong();
-//        this.heartbeatTimeRecorder = new AtomicLong();
         startElectionTimeOut();
     }
 
@@ -95,22 +96,31 @@ public class RaftNode implements RaftService {
         log.info("start preVote");
         int[] preVotedGrantedCount = new int[1];
         status = NodeStatus.PRE_CANDIDATE;
+        CountDownLatch latch = new CountDownLatch(peerRaftNodes.size());
         peerRaftNodes.forEach(peerRaftNode -> {
-            try {
-                VoteRequest voteRequest = new VoteRequest();
-                voteRequest.setTerm(currentTerm.get() + 1);
-                voteRequest.setCandidateId(nodeId);
-                voteRequest.setLastLogTerm(storageService.getLastCommitLogTerm());
-                voteRequest.setLastLogIndex(storageService.getCommitIndex());
-                VoteResponse voteResponse = peerRaftNode.getRaftService().requestPreVote(voteRequest);
-                log.info("voteResponse={}", JSON.toJSONString(voteResponse));
-                if (voteResponse.getVoteGranted()) {
-                    preVotedGrantedCount[0]++;
+            CompletableFuture.runAsync(() -> {
+                try {
+                    VoteRequest voteRequest = new VoteRequest();
+                    voteRequest.setTerm(currentTerm.get() + 1);
+                    voteRequest.setCandidateId(nodeId);
+                    voteRequest.setLastLogTerm(storageService.getLastCommitLogTerm());
+                    voteRequest.setLastLogIndex(storageService.getCommitIndex());
+                    VoteResponse voteResponse = peerRaftNode.getRaftService().requestPreVote(voteRequest);
+                    log.info("voteResponse={}", JSON.toJSONString(voteResponse));
+                    latch.countDown();
+                    if (voteResponse.getVoteGranted()) {
+                        preVotedGrantedCount[0]++;
+                    }
+                } catch (Exception e) {
+                    log.error(e.getMessage(), e);
                 }
-            } catch (Exception e) {
-                log.error(e.getMessage(), e);
-            }
+            });
         });
+        try {
+            latch.wait(TimeUnit.MILLISECONDS.toMillis(500));
+        } catch (InterruptedException e) {
+            log.error(e.getMessage(), e);
+        }
         if (preVotedGrantedCount[0] > clusterConfig.getNodeCount() / 2) {
             log.info("start vote for leader");
             voteForLeader();
@@ -122,20 +132,29 @@ public class RaftNode implements RaftService {
         status = NodeStatus.CANDIDATE;
         currentTerm.incrementAndGet();
         int[] votedCount = new int[1];
+        CountDownLatch latch = new CountDownLatch(peerRaftNodes.size());
         peerRaftNodes.forEach(peerRaftNode -> {
-            try {
-                VoteRequest voteRequest = new VoteRequest();
-                voteRequest.setTerm(currentTerm.get());
-                voteRequest.setCandidateId(nodeId);
-                voteRequest.setLastLogIndex(storageService.getCommitIndex());
-                VoteResponse voteResponse = peerRaftNode.getRaftService().requestVote(voteRequest);
-                if (voteResponse.getVoteGranted()) {
-                    votedCount[0]++;
+            CompletableFuture.runAsync(() -> {
+                try {
+                    VoteRequest voteRequest = new VoteRequest();
+                    voteRequest.setTerm(currentTerm.get());
+                    voteRequest.setCandidateId(nodeId);
+                    voteRequest.setLastLogIndex(storageService.getCommitIndex());
+                    VoteResponse voteResponse = peerRaftNode.getRaftService().requestVote(voteRequest);
+                    latch.countDown();
+                    if (voteResponse.getVoteGranted()) {
+                        votedCount[0]++;
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            });
         });
+        try {
+            latch.wait(TimeUnit.MILLISECONDS.toMillis(500));
+        } catch (InterruptedException e) {
+            log.error(e.getMessage(), e);
+        }
         if (votedCount[0] > clusterConfig.getNodeCount() / 2) {
             this.status = NodeStatus.LEADER;
             startHeartbeat();

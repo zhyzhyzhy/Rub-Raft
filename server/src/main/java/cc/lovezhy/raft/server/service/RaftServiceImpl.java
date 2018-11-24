@@ -5,6 +5,7 @@ import cc.lovezhy.raft.server.service.model.ReplicatedLogResponse;
 import cc.lovezhy.raft.server.service.model.VoteRequest;
 import cc.lovezhy.raft.server.service.model.VoteResponse;
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.SettableFuture;
 
 public class RaftServiceImpl implements RaftService {
 

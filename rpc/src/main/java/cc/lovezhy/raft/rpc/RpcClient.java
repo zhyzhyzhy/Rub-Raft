@@ -2,6 +2,7 @@ package cc.lovezhy.raft.rpc;
 
 import cc.lovezhy.raft.rpc.common.RpcExecutors;
 import cc.lovezhy.raft.rpc.exception.RequestTimeoutException;
+import cc.lovezhy.raft.rpc.protocal.RpcProtocalUtils;
 import cc.lovezhy.raft.rpc.protocal.RpcRequest;
 import cc.lovezhy.raft.rpc.protocal.RpcResponse;
 import cc.lovezhy.raft.rpc.proxy.ConsumerRpcService;
@@ -41,6 +42,9 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     private Map<String, RpcResponse> rpcResponseMap = new ConcurrentHashMap<>();
 
     private RpcClient(Class<T> clazz, EndPoint endPoint) {
+        Preconditions.checkNotNull(clazz);
+        Preconditions.checkNotNull(endPoint);
+        RpcProtocalUtils.check(clazz);
         this.clazz = clazz;
         nettyClient = new NettyClient(endPoint, this);
         this.connect();
