@@ -24,7 +24,9 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static cc.lovezhy.raft.server.RaftConstants.*;
 
@@ -34,11 +36,11 @@ public class RaftNode implements RaftService {
 
     private NodeId nodeId;
 
-    private volatile NodeStatus status;
+    private volatile NodeStatus currentNodeStatus;
 
     private ClusterConfig clusterConfig;
 
-    private volatile AtomicLong currentTerm = new AtomicLong();
+    private volatile Long currentTerm = 0L;
 
     private volatile NodeId votedFor;
 
@@ -50,6 +52,8 @@ public class RaftNode implements RaftService {
 
     private RpcServer rpcServer;
     private StatusHttpService httpService;
+
+    private NodeScheduler nodeScheduler = new NodeScheduler();
 
     public RaftNode(NodeId nodeId, EndPoint endPoint, ClusterConfig clusterConfig, List<PeerRaftNode> peerRaftNodes) {
         Preconditions.checkNotNull(nodeId);
@@ -74,75 +78,75 @@ public class RaftNode implements RaftService {
     }
 
     public void init() {
-        this.status = NodeStatus.FOLLOWER;
+        nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
         startElectionTimeOut();
     }
 
-    private void startElectionTimeOut() {
-        TimeCountDownUtil.addSchedulerTaskWithListener(
-                getRandomStartElectionTimeout(),
+    private long startElectionTimeOut() {
+        long waitTimeOut = getRandomStartElectionTimeout();
+        TimeCountDownUtil.addSchedulerTask(
+                waitTimeOut,
                 DEFAULT_TIME_UNIT,
-                this::preVote,
-                () -> isLoseHeartbeat() && !isLeader(),
-                this::startElectionTimeOut);
+                () -> voteForLeader(currentTerm + 1),
+                () -> isLoseHeartbeat() && !nodeScheduler.isLeader());
+        return waitTimeOut;
     }
 
-    public boolean isLeader() {
-        return this.status.equals(NodeStatus.LEADER);
-    }
+//    private void preVote(Long currentTerm) {
+//        startElectionTimeOut();
+//        AtomicInteger preVotedGrantedCount = new AtomicInteger();
+//        CountDownLatch latch = new CountDownLatch(peerRaftNodes.size());
+//
+//        peerRaftNodes.forEach(peerRaftNode -> {
+//            CompletableFuture.runAsync(() -> {
+//                try {
+//                    VoteRequest voteRequest = new VoteRequest();
+//                    voteRequest.setTerm(currentTerm + 1);
+//                    voteRequest.setCandidateId(nodeId);
+//                    voteRequest.setLastLogTerm(storageService.getLastCommitLogTerm());
+//                    voteRequest.setLastLogIndex(storageService.getCommitIndex());
+//                    VoteResponse voteResponse = peerRaftNode.getRaftService().requestPreVote(voteRequest);
+//                    log.info("voteResponse={}", JSON.toJSONString(voteResponse));
+//                    latch.countDown();
+//                    if (voteResponse.getVoteGranted()) {
+//                        preVotedGrantedCount.incrementAndGet();
+//                    }
+//                } catch (Exception e) {
+//                    log.error(e.getMessage(), e);
+//                }
+//            });
+//        });
+//        try {
+//            latch.wait(TimeUnit.MILLISECONDS.toMillis(500));
+//        } catch (InterruptedException e) {
+//            log.error(e.getMessage(), e);
+//        }
+//        if (preVotedGrantedCount.get() > clusterConfig.getNodeCount() / 2) {
+//            log.info("start vote for leader");
+//            voteForLeader();
+//        }
+//    }
 
-    private void preVote() {
-        log.info("start preVote");
-        int[] preVotedGrantedCount = new int[1];
-        status = NodeStatus.PRE_CANDIDATE;
+
+    private void voteForLeader(Long voteTerm) {
+        if (!nodeScheduler.compareAndSetTerm(voteTerm - 1, voteTerm)) {
+            return;
+        }
+        nodeScheduler.changeNodeStatus(NodeStatus.PRE_CANDIDATE);
+        long nextWaitTimeOut = startElectionTimeOut();
+        AtomicInteger votedCount = new AtomicInteger();
         CountDownLatch latch = new CountDownLatch(peerRaftNodes.size());
         peerRaftNodes.forEach(peerRaftNode -> {
             CompletableFuture.runAsync(() -> {
                 try {
                     VoteRequest voteRequest = new VoteRequest();
-                    voteRequest.setTerm(currentTerm.get() + 1);
-                    voteRequest.setCandidateId(nodeId);
-                    voteRequest.setLastLogTerm(storageService.getLastCommitLogTerm());
-                    voteRequest.setLastLogIndex(storageService.getCommitIndex());
-                    VoteResponse voteResponse = peerRaftNode.getRaftService().requestPreVote(voteRequest);
-                    log.info("voteResponse={}", JSON.toJSONString(voteResponse));
-                    latch.countDown();
-                    if (voteResponse.getVoteGranted()) {
-                        preVotedGrantedCount[0]++;
-                    }
-                } catch (Exception e) {
-                    log.error(e.getMessage(), e);
-                }
-            });
-        });
-        try {
-            latch.wait(TimeUnit.MILLISECONDS.toMillis(500));
-        } catch (InterruptedException e) {
-            log.error(e.getMessage(), e);
-        }
-        if (preVotedGrantedCount[0] > clusterConfig.getNodeCount() / 2) {
-            log.info("start vote for leader");
-            voteForLeader();
-        }
-    }
-
-
-    private void voteForLeader() {
-        status = NodeStatus.CANDIDATE;
-        currentTerm.incrementAndGet();
-        int[] votedCount = new int[1];
-        CountDownLatch latch = new CountDownLatch(peerRaftNodes.size());
-        peerRaftNodes.forEach(peerRaftNode -> {
-            CompletableFuture.runAsync(() -> {
-                try {
-                    VoteRequest voteRequest = new VoteRequest();
-                    voteRequest.setTerm(currentTerm.get());
+                    voteRequest.setTerm(currentTerm);
                     voteRequest.setCandidateId(nodeId);
                     voteRequest.setLastLogIndex(storageService.getCommitIndex());
                     VoteResponse voteResponse = peerRaftNode.getRaftService().requestVote(voteRequest);
                     latch.countDown();
                     if (voteResponse.getVoteGranted()) {
-                        votedCount[0]++;
+                        votedCount.incrementAndGet();
                     }
                 } catch (Exception e) {
                     log.error(e.getMessage(), e);
@@ -150,39 +154,34 @@ public class RaftNode implements RaftService {
             });
         });
         try {
-            latch.wait(TimeUnit.MILLISECONDS.toMillis(500));
+            latch.wait(TimeUnit.MILLISECONDS.toMillis(nextWaitTimeOut));
         } catch (InterruptedException e) {
             log.error(e.getMessage(), e);
         }
-        if (votedCount[0] > clusterConfig.getNodeCount() / 2) {
-            this.status = NodeStatus.LEADER;
-            startHeartbeat();
+        if (votedCount.get() > clusterConfig.getNodeCount() / 2) {
+            boolean beLeaderSuccess = nodeScheduler.beLeader(currentTerm);
+            if (beLeaderSuccess) {
+                startHeartbeat();
+            }
         }
     }
 
     private void startHeartbeat() {
-        log.info("i am leader");
         peerRaftNodes.forEach(peerRaftNode -> {
-            try {
-                ReplicatedLogRequest replicatedLogRequest = new ReplicatedLogRequest();
-                replicatedLogRequest.setEntries(Collections.emptyList());
-                replicatedLogRequest.setLeaderCommit(storageService.getCommitIndex());
-                replicatedLogRequest.setLeaderId(nodeId);
-                replicatedLogRequest.setTerm(currentTerm.get());
-                peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            CompletableFuture.runAsync(() -> {
+                try {
+                    ReplicatedLogRequest replicatedLogRequest = new ReplicatedLogRequest();
+                    replicatedLogRequest.setEntries(Collections.emptyList());
+                    replicatedLogRequest.setLeaderCommit(storageService.getCommitIndex());
+                    replicatedLogRequest.setLeaderId(nodeId);
+                    replicatedLogRequest.setTerm(currentTerm);
+                    peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
         });
-        TimeCountDownUtil.addSchedulerTask(HEART_BEAT_TIME_INTERVAL, DEFAULT_TIME_UNIT, this::startHeartbeat, (Supplier<Boolean>) () -> RaftNode.this.status == NodeStatus.LEADER);
-    }
-
-    public NodeStatus getStatus() {
-        return this.status;
-    }
-
-    private Long getCurrentTerm() {
-        return currentTerm.get();
+        TimeCountDownUtil.addSchedulerTask(HEART_BEAT_TIME_INTERVAL, DEFAULT_TIME_UNIT, this::startHeartbeat, (Supplier<Boolean>) () -> nodeScheduler.isLeader());
     }
 
     private NodeId getVotedFor() {
@@ -191,11 +190,6 @@ public class RaftNode implements RaftService {
 
     public void setVotedFor(NodeId nodeId) {
         this.votedFor = nodeId;
-    }
-
-    private void changeState(NodeStatus nodeStatus) {
-        Preconditions.checkNotNull(nodeStatus);
-        this.status = nodeStatus;
     }
 
     private void appendLogs() {
@@ -217,45 +211,132 @@ public class RaftNode implements RaftService {
 
     @Override
     public VoteResponse requestPreVote(VoteRequest voteRequest) {
-        VoteResponse voteResponse = new VoteResponse();
-        if (isLoseHeartbeat()) {
-            if (voteRequest.getTerm() > currentTerm.get()) {
-                voteResponse.setTerm(currentTerm.get());
-                voteResponse.setVoteGranted(true);
-            } else if (voteRequest.getTerm() == currentTerm.get() && voteRequest.getLastLogIndex() > storageService.getCommitIndex()) {
-                voteResponse.setTerm(currentTerm.get());
-                voteResponse.setVoteGranted(true);
-            } else {
-                voteResponse.setTerm(currentTerm.get());
-                voteResponse.setVoteGranted(false);
-            }
-        } else {
-            voteResponse.setTerm(currentTerm.get());
-            voteResponse.setVoteGranted(false);
-        }
-        log.info("voteRequest={}, voteResponse={}", JSON.toJSONString(voteRequest), JSON.toJSONString(voteResponse));
-        return voteResponse;
+//        VoteResponse voteResponse = new VoteResponse();
+//        //自己已经是Pre_Candidate状态
+//        if (!this.status.equals(NodeStatus.FOLLOWER)) {
+//            voteResponse.setTerm(currentTerm.get());
+//            voteResponse.setVoteGranted(false);
+//            return voteResponse;
+//        }
+//        if (isLoseHeartbeat()) {
+//            if (voteRequest.getTerm() > currentTerm.get()) {
+//                voteResponse.setTerm(currentTerm.get());
+//                voteResponse.setVoteGranted(true);
+//            } else if (voteRequest.getTerm() == currentTerm.get() && voteRequest.getLastLogIndex() > storageService.getCommitIndex()) {
+//                voteResponse.setTerm(currentTerm.get());
+//                voteResponse.setVoteGranted(true);
+//            } else {
+//                voteResponse.setTerm(currentTerm.get());
+//                voteResponse.setVoteGranted(false);
+//            }
+//        } else {
+//            voteResponse.setTerm(currentTerm.get());
+//            voteResponse.setVoteGranted(false);
+//        }
+//        log.info("voteRequest={}, voteResponse={}", JSON.toJSONString(voteRequest), JSON.toJSONString(voteResponse));
+//        //开始超时
+//        startElectionTimeOut();
+//        return voteResponse;
     }
 
     @Override
     public synchronized VoteResponse requestVote(VoteRequest voteRequest) {
-        if (Objects.isNull(this.getVotedFor()) || voteRequest.getTerm() > this.getCurrentTerm()) {
+        Long term = currentTerm;
+        if (Objects.isNull(this.getVotedFor()) && voteRequest.getTerm() > term && nodeScheduler.compareAndSetTerm(term, voteRequest.getTerm())) {
             this.setVotedFor(voteRequest.getCandidateId());
-            return new VoteResponse(this.getCurrentTerm(), true);
+            return new VoteResponse(term, true);
+        } else {
+            return new VoteResponse(term, false);
         }
-        return new VoteResponse(this.getCurrentTerm(), false);
     }
 
     @Override
     public ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) {
-        log.info("receiveHeartbeat");
-        if (replicatedLogRequest.getTerm() >= this.getCurrentTerm()) {
-            this.changeState(NodeStatus.FOLLOWER);
+        Long term = currentTerm;
+
+        if (Objects.equals(replicatedLogRequest.getTerm(), term) && nodeScheduler.isFollower() && Objects.equals(replicatedLogRequest.getLeaderId(), this.getVotedFor())) {
             this.receiveHeartbeat();
             this.appendLogs();
-            return new ReplicatedLogResponse(this.getCurrentTerm(), true);
-        } else {
-            return new ReplicatedLogResponse(this.getCurrentTerm(), false);
+            return new ReplicatedLogResponse(term, true);
+        }
+
+        if (replicatedLogRequest.getTerm() > term && nodeScheduler.compareAndSetTerm(term, replicatedLogRequest.getTerm())) {
+            nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
+            this.receiveHeartbeat();
+            this.appendLogs();
+            return new ReplicatedLogResponse(term, true);
+        }
+
+        return new ReplicatedLogResponse(term, false);
+    }
+
+    class NodeScheduler {
+        private ReentrantLock lockScheduler = new ReentrantLock();
+
+        /**
+         * timeOut开始选举和收到其他节点信息之间存在竞态条件
+         * <p>
+         * 同时BeLeader和开始下一任选举之间也存在竞态条件
+         * 如果当前节点已经是Leader，那么也不允许修改任期
+         *
+         * @return 是否更新成功
+         * @see {@link NodeScheduler#beLeader(Long)}
+         */
+        public boolean incrementTerm(Long expectTerm) {
+            Preconditions.checkNotNull(expectTerm);
+            return compareAndSetTerm(expectTerm, expectTerm + 1);
+        }
+
+        private boolean compareAndSetTerm(Long expected, Long update) {
+            Preconditions.checkNotNull(expected);
+            Preconditions.checkNotNull(update);
+            if (!Objects.equals(expected, currentTerm) || Objects.equals(currentNodeStatus, NodeStatus.LEADER)) {
+                return false;
+            }
+            try {
+                lockScheduler.lock();
+                if (!Objects.equals(expected, currentTerm) || Objects.equals(currentNodeStatus, NodeStatus.LEADER)) {
+                    return false;
+                }
+                currentTerm = update;
+                return true;
+            } finally {
+                lockScheduler.unlock();
+            }
+        }
+
+        public void changeNodeStatus(NodeStatus update) {
+            Preconditions.checkNotNull(update);
+            currentNodeStatus = update;
+        }
+
+        public boolean isLeader() {
+            return Objects.equals(currentNodeStatus, NodeStatus.LEADER);
+        }
+
+        public boolean isFollower() {
+            return Objects.equals(currentNodeStatus, NodeStatus.FOLLOWER);
+        }
+
+        /**
+         * 因为开始选举之前会开始一个TimeOut
+         * 如果TimeOut之间，还未成为Leader，就把任期+1，重新进行选举
+         * TimeOut开始和新选举和上一个选举之间存在静态条件
+         * 所以在当前选举想要成为Leader，首先得确定当前任期还是选举开始时的任期
+         *
+         * @param term 成为Leader的任期
+         * @return
+         */
+        public boolean beLeader(Long term) {
+            if (!Objects.equals(currentNodeStatus, term)) {
+                return false;
+            }
+            try {
+                lockScheduler.lock();
+                return Objects.equals(currentNodeStatus, term);
+            } finally {
+                lockScheduler.unlock();
+            }
         }
     }
 }

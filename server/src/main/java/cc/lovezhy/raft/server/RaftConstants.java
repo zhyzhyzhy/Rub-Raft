@@ -7,7 +7,7 @@ public class RaftConstants {
     public static final TimeUnit DEFAULT_TIME_UNIT = TimeUnit.MILLISECONDS;
 
     //心跳时间
-    public static final long HEART_BEAT_TIME_INTERVAL = 200;
+    public static final long HEART_BEAT_TIME_INTERVAL = 100;
 
     public static final long HEART_BEAT_TIME_INTERVAL_TIMEOUT = 300;
 
