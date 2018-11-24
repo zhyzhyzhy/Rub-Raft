@@ -11,7 +11,7 @@ public class RaftConstantsTest {
     public void getRandomStartElectionTimeoutTest() {
         for (int i = 0; i < 100; i++) {
             long timeout = getRandomStartElectionTimeout();
-            Assert.assertTrue(timeout <= 200 && timeout >= 150);
+            Assert.assertTrue(timeout <= 300 && timeout >= 150);
         }
     }
 }

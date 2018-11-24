@@ -78,7 +78,6 @@ public class RaftNode implements RaftService {
         startElectionTimeOut();
     }
 
-    // TODO 应该不会栈溢出
     private void startElectionTimeOut() {
         TimeCountDownUtil.addSchedulerTaskWithListener(
                 getRandomStartElectionTimeout(),
@@ -146,7 +145,7 @@ public class RaftNode implements RaftService {
                         votedCount[0]++;
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    log.error(e.getMessage(), e);
                 }
             });
         });

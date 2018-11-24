@@ -13,6 +13,6 @@ public class RaftConstants {
 
     //选举超时时间,150 ~ 200ms之间
     public static long getRandomStartElectionTimeout() {
-        return (long) (150 + Math.random() * 50);
+        return (long) (150 + Math.random() * 150);
     }
 }
