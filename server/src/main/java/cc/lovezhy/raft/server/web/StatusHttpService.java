@@ -16,7 +16,6 @@ public class StatusHttpService extends AbstractVerticle {
     private static final Logger log = LoggerFactory.getLogger(StatusHttpService.class);
 
     private HttpServer httpServer;
-    private Router router;
     private int port;
 
     private RaftNode.NodeMonitor nodeMonitor;
@@ -30,13 +29,11 @@ public class StatusHttpService extends AbstractVerticle {
 
     public void createHttpServer() {
         this.httpServer = vertx.createHttpServer();
-        this.router = Router.router(vertx);
+        Router router = Router.router(vertx);
         router.get("/status").handler(routingContext -> {
             HttpServerResponse response = routingContext.response();
-            JsonObject jsonObject = new JsonObject();
-            jsonObject.put("status", nodeMonitor.getNodeStatus().toString());
             response.putHeader("content-type", "application/json");
-            response.end(jsonObject.toString());
+            response.end(nodeMonitor.getNodeStatus().toString());
         });
         this.httpServer.requestHandler(router::accept).listen(this.port);
         log.info("start httpServer at port={}", this.port);
@@ -44,7 +41,7 @@ public class StatusHttpService extends AbstractVerticle {
 
     public void close() {
         try {
-            stop();
+            this.httpServer.close();
         } catch (Exception e) {
             log.error(e.getMessage(), e);
         }

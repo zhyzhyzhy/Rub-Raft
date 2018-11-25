@@ -1,5 +1,6 @@
 package cc.lovezhy.raft.server.node;
 
+import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 
@@ -37,5 +38,12 @@ public class NodeId {
     @Override
     public int hashCode() {
         return Objects.hashCode(peerId);
+    }
+
+    @Override
+    public String toString() {
+        return MoreObjects.toStringHelper(this)
+                .add("peerId", peerId)
+                .toString();
     }
 }

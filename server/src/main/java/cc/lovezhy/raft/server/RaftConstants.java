@@ -9,7 +9,7 @@ public class RaftConstants {
     //心跳时间
     public static final long HEART_BEAT_TIME_INTERVAL = 100;
 
-    public static final long HEART_BEAT_TIME_INTERVAL_TIMEOUT = 300;
+    public static final long HEART_BEAT_TIME_INTERVAL_TIMEOUT = 80;
 
     //选举超时时间,150 ~ 200ms之间
     public static long getRandomStartElectionTimeout() {

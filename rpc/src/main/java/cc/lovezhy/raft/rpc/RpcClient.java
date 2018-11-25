@@ -79,7 +79,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
         synchronized (lockObject) {
             if (!rpcResponseMap.containsKey(requestId)) {
                 try {
-                    lockObject.wait(TimeUnit.MILLISECONDS.toMillis(50));
+                    lockObject.wait(TimeUnit.MILLISECONDS.toMillis(80));
                 } catch (InterruptedException e) {
                     // ignore
                 }
@@ -114,15 +114,10 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     public void onResponse(RpcResponse response) {
         String requestId = response.getRequestId();
         LockObject lockObject = waitConditionMap.get(requestId);
-        if (Objects.isNull(lockObject)) {
+        if (Objects.nonNull(lockObject)) {
             synchronized (lockObject) {
                 rpcResponseMap.put(requestId, response);
                 lockObject.notify();
-            }
-        } else {
-            SettableFuture future = rpcResponseFutureMap.get(requestId);
-            if (Objects.nonNull(future)) {
-                future.set(response.getResponseBody());
             }
         }
     }
