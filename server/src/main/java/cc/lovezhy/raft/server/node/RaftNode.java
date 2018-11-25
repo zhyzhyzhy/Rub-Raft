@@ -89,7 +89,7 @@ public class RaftNode implements RaftService {
                 waitTimeOut,
                 DEFAULT_TIME_UNIT,
                 () -> voteForLeader(currentTerm + 1),
-                () -> isLoseHeartbeat() && !nodeScheduler.isLeader());
+                () -> nodeScheduler.isLoseHeartbeat() && !nodeScheduler.isLeader());
         return waitTimeOut;
     }
 
@@ -189,13 +189,7 @@ public class RaftNode implements RaftService {
 
     }
 
-    private void receiveHeartbeat() {
-        this.heartbeatTimeRecorder.set(System.currentTimeMillis());
-    }
 
-    private boolean isLoseHeartbeat() {
-        return System.currentTimeMillis() - heartbeatTimeRecorder.get() > HEART_BEAT_TIME_INTERVAL_TIMEOUT;
-    }
 
     public void close() {
         this.rpcServer.close();
@@ -252,14 +246,14 @@ public class RaftNode implements RaftService {
         Long term = currentTerm;
 
         if (Objects.equals(replicatedLogRequest.getTerm(), term) && nodeScheduler.isFollower() && Objects.equals(replicatedLogRequest.getLeaderId(), nodeScheduler.getVotedFor(term))) {
-            this.receiveHeartbeat();
+            nodeScheduler.receiveHeartbeat();
             this.appendLogs();
             return new ReplicatedLogResponse(term, true);
         }
 
         if (replicatedLogRequest.getTerm() > term && nodeScheduler.compareAndSetTerm(term, replicatedLogRequest.getTerm())) {
             nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
-            this.receiveHeartbeat();
+            nodeScheduler.receiveHeartbeat();
             this.appendLogs();
             return new ReplicatedLogResponse(term, true);
         }
@@ -267,8 +261,8 @@ public class RaftNode implements RaftService {
         return new ReplicatedLogResponse(term, false);
     }
 
-    class NodeScheduler {
 
+    class NodeScheduler {
 
         //term -> votedFor
         private Map<Long, NodeId> termVotedForNodeMap = new ConcurrentHashMap<>();
@@ -284,12 +278,12 @@ public class RaftNode implements RaftService {
          * @return 是否更新成功
          * @see {@link NodeScheduler#beLeader(Long)}
          */
-        public boolean incrementTerm(Long expectTerm) {
+        boolean incrementTerm(Long expectTerm) {
             Preconditions.checkNotNull(expectTerm);
             return compareAndSetTerm(expectTerm, expectTerm + 1);
         }
 
-        private boolean compareAndSetTerm(Long expected, Long update) {
+        boolean compareAndSetTerm(Long expected, Long update) {
             Preconditions.checkNotNull(expected);
             Preconditions.checkNotNull(update);
             if (!Objects.equals(expected, currentTerm) || Objects.equals(currentNodeStatus, NodeStatus.LEADER)) {
@@ -312,7 +306,7 @@ public class RaftNode implements RaftService {
          *
          * @param update
          */
-        public void changeNodeStatus(NodeStatus update) {
+        void changeNodeStatus(NodeStatus update) {
             Preconditions.checkNotNull(update);
             currentNodeStatus.set(update);
         }
@@ -322,11 +316,11 @@ public class RaftNode implements RaftService {
          *
          * @return 是不是Leader
          */
-        public boolean isLeader() {
+        boolean isLeader() {
             return Objects.equals(currentNodeStatus, NodeStatus.LEADER);
         }
 
-        public boolean isFollower() {
+        boolean isFollower() {
             return Objects.equals(currentNodeStatus, NodeStatus.FOLLOWER);
         }
 
@@ -340,7 +334,7 @@ public class RaftNode implements RaftService {
          * @param term 成为Leader的任期
          * @return
          */
-        public boolean beLeader(Long term) {
+        boolean beLeader(Long term) {
             if (!Objects.equals(currentTerm, term)) {
                 return false;
             }
@@ -360,7 +354,7 @@ public class RaftNode implements RaftService {
          * @param nodeId NodeId
          * @return
          */
-        public boolean setTermVotedForIfAbsent(Long term, NodeId nodeId) {
+        boolean setTermVotedForIfAbsent(Long term, NodeId nodeId) {
             Preconditions.checkNotNull(term);
             Preconditions.checkNotNull(nodeId);
             return termVotedForNodeMap.putIfAbsent(term, nodeId) == null;
@@ -371,9 +365,31 @@ public class RaftNode implements RaftService {
          * @param term
          * @return {nullable} NodeId
          */
-        public NodeId getVotedFor(Long term) {
+        NodeId getVotedFor(Long term) {
             Preconditions.checkNotNull(term);
             return termVotedForNodeMap.get(term);
+        }
+
+
+        /**
+         * 接收到心跳
+         */
+        void receiveHeartbeat() {
+            heartbeatTimeRecorder.set(System.currentTimeMillis());
+        }
+
+
+        /**
+         * 判断是否丢失心跳
+         */
+        boolean isLoseHeartbeat() {
+            return System.currentTimeMillis() - heartbeatTimeRecorder.get() > HEART_BEAT_TIME_INTERVAL_TIMEOUT;
+        }
+    }
+
+    public class NodeMonitor {
+        public NodeStatus getNodeStatus() {
+            return currentNodeStatus.get();
         }
     }
 }
