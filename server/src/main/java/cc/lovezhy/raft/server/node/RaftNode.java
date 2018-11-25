@@ -29,9 +29,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,7 +68,7 @@ public class RaftNode implements RaftService {
         Preconditions.checkNotNull(clusterConfig);
         Preconditions.checkNotNull(peerRaftNodes);
         Preconditions.checkState(peerRaftNodes.size() >= 2, "raft cluster should init with at least 3 server!");
-        log.info("peerRaftNodes={}", JSON.toJSONString(peerRaftNodes));
+        log.info("nodeId={}, peerRaftNodes={}", nodeId, JSON.toJSONString(peerRaftNodes));
 
         this.nodeId = nodeId;
         this.peerRaftNodes = peerRaftNodes;
@@ -91,55 +91,63 @@ public class RaftNode implements RaftService {
 
     private long startElectionTimeOut() {
         long waitTimeOut = getRandomStartElectionTimeout();
-        nodeScheduler.setLastTimeOutInterval(waitTimeOut);
+        long voteTerm = currentTerm;
         TimeCountDownUtil.addSchedulerTask(
                 waitTimeOut,
                 DEFAULT_TIME_UNIT,
-                () -> voteForLeader(currentTerm + 1),
+                () -> preVote(voteTerm + 1),
                 () -> nodeScheduler.isLoseHeartbeat() && !nodeScheduler.isLeader());
         return waitTimeOut;
     }
 
-//    private void preVote(Long currentTerm) {
-//        startElectionTimeOut();
-//        AtomicInteger preVotedGrantedCount = new AtomicInteger();
-//        CountDownLatch latch = new CountDownLatch(peerRaftNodes.size());
-//
-//        peerRaftNodes.forEach(peerRaftNode -> {
-//            CompletableFuture.runAsync(() -> {
-//                try {
-//                    VoteRequest voteRequest = new VoteRequest();
-//                    voteRequest.setTerm(currentTerm + 1);
-//                    voteRequest.setCandidateId(nodeId);
-//                    voteRequest.setLastLogTerm(storageService.getLastCommitLogTerm());
-//                    voteRequest.setLastLogIndex(storageService.getCommitIndex());
-//                    VoteResponse voteResponse = peerRaftNode.getRaftService().requestPreVote(voteRequest);
-//                    log.info("voteResponse={}", JSON.toJSONString(voteResponse));
-//                    latch.countDown();
-//                    if (voteResponse.getVoteGranted()) {
-//                        preVotedGrantedCount.incrementAndGet();
-//                    }
-//                } catch (Exception e) {
-//                    log.error(e.getMessage(), e);
-//                }
-//            });
-//        });
-//        try {
-//            latch.wait(TimeUnit.MILLISECONDS.toMillis(500));
-//        } catch (InterruptedException e) {
-//            log.error(e.getMessage(), e);
-//        }
-//        if (preVotedGrantedCount.get() > clusterConfig.getNodeCount() / 2) {
-//            log.info("start vote for leader");
-//            voteForLeader();
-//        }
-//    }
+    private void preVote(Long voteTerm) {
+        long nextElectionTimeOut = startElectionTimeOut();
+        nodeScheduler.changeNodeStatus(NodeStatus.PRE_CANDIDATE);
+        AtomicInteger preVotedGrantedCount = new AtomicInteger(1);
+        CountDownLatch latch = new CountDownLatch(peerRaftNodes.size());
+        peerRaftNodes.forEach(peerRaftNode -> {
+            try {
+                VoteRequest voteRequest = new VoteRequest();
+                voteRequest.setTerm(voteTerm);
+                voteRequest.setCandidateId(nodeId);
+                voteRequest.setLastLogTerm(storageService.getLastCommitLogTerm());
+                voteRequest.setLastLogIndex(storageService.getCommitIndex());
+                peerRaftNode.getRaftService().requestPreVote(voteRequest);
+                SettableFuture<VoteResponse> voteResponseFuture = RpcContext.getContextFuture();
+                Futures.addCallback(voteResponseFuture, new FutureCallback<VoteResponse>() {
+                    @Override
+                    public void onSuccess(@Nullable VoteResponse result) {
+                        if (result.getVoteGranted()) {
+                            preVotedGrantedCount.incrementAndGet();
+                        }
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        latch.countDown();
+                    }
+                }, RpcExecutors.commonExecutor());
+            } catch (Exception e) {
+                log.error(e.getMessage(), e);
+            }
+        });
+        try {
+            latch.await(nextElectionTimeOut, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            log.error(e.getMessage(), e);
+        }
+        if (preVotedGrantedCount.get() > clusterConfig.getNodeCount() / 2) {
+            voteForLeader(voteTerm);
+        }
+    }
 
 
     private void voteForLeader(Long voteTerm) {
         if (!nodeScheduler.compareAndSetTerm(voteTerm - 1, voteTerm) || !nodeScheduler.setTermVotedForIfAbsent(voteTerm, nodeId)) {
             return;
         }
+        log.info("startElection term={}", currentTerm);
         nodeScheduler.changeNodeStatus(NodeStatus.CANDIDATE);
         long nextWaitTimeOut = startElectionTimeOut();
         //初始值为1，把自己加进去
@@ -157,7 +165,7 @@ public class RaftNode implements RaftService {
                     @Override
                     public void onSuccess(@Nullable VoteResponse result) {
                         if (result.getVoteGranted()) {
-                            log.info("receive vote from={}", peerRaftNode.getNodeId());
+                            log.info("nodeId={}, receive vote from={}, term={}", nodeId, peerRaftNode.getNodeId(), currentTerm);
                             votedCount.incrementAndGet();
                         }
                         latch.countDown();
@@ -180,6 +188,7 @@ public class RaftNode implements RaftService {
         if (votedCount.get() > clusterConfig.getNodeCount() / 2) {
             boolean beLeaderSuccess = nodeScheduler.beLeader(currentTerm);
             if (beLeaderSuccess) {
+                log.info("beLeaderSuccess");
                 nodeScheduler.changeNodeStatus(NodeStatus.LEADER);
                 startHeartbeat();
             }
@@ -195,6 +204,22 @@ public class RaftNode implements RaftService {
                 replicatedLogRequest.setLeaderId(nodeId);
                 replicatedLogRequest.setTerm(currentTerm);
                 peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
+                SettableFuture<ReplicatedLogResponse> responseSettableFuture = RpcContext.getContextFuture();
+                Futures.addCallback(responseSettableFuture, new FutureCallback<ReplicatedLogResponse>() {
+                    @Override
+                    public void onSuccess(@Nullable ReplicatedLogResponse result) {
+                        log.info("nodeid={},heartbeatTimeRecorder send", nodeId);
+                        if (!result.getSuccess()) {
+                            if (result.getTerm() > currentTerm) {
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+
+                    }
+                }, RpcExecutors.commonExecutor());
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -214,33 +239,13 @@ public class RaftNode implements RaftService {
 
     @Override
     public VoteResponse requestPreVote(VoteRequest voteRequest) {
-//        VoteResponse voteResponse = new VoteResponse();
-//        //自己已经是Pre_Candidate状态
-//        if (!this.status.equals(NodeStatus.FOLLOWER)) {
-//            voteResponse.setTerm(currentTerm.get());
-//            voteResponse.setVoteGranted(false);
-//            return voteResponse;
-//        }
-//        if (isLoseHeartbeat()) {
-//            if (voteRequest.getTerm() > currentTerm.get()) {
-//                voteResponse.setTerm(currentTerm.get());
-//                voteResponse.setVoteGranted(true);
-//            } else if (voteRequest.getTerm() == currentTerm.get() && voteRequest.getLastLogIndex() > storageService.getCommitIndex()) {
-//                voteResponse.setTerm(currentTerm.get());
-//                voteResponse.setVoteGranted(true);
-//            } else {
-//                voteResponse.setTerm(currentTerm.get());
-//                voteResponse.setVoteGranted(false);
-//            }
-//        } else {
-//            voteResponse.setTerm(currentTerm.get());
-//            voteResponse.setVoteGranted(false);
-//        }
-//        log.info("voteRequest={}, voteResponse={}", JSON.toJSONString(voteRequest), JSON.toJSONString(voteResponse));
-//        //开始超时
-//        startElectionTimeOut();
-//        return voteResponse;
-        return null;
+        Long term = currentTerm;
+        if (voteRequest.getTerm() > term) {
+            return new VoteResponse(term, true);
+        }
+        else {
+            return new VoteResponse(term, false);
+        }
     }
 
     @Override
@@ -248,9 +253,13 @@ public class RaftNode implements RaftService {
         Long term = currentTerm;
         if (voteRequest.getTerm() > term && nodeScheduler.compareAndSetTerm(term, voteRequest.getTerm()) && nodeScheduler.setTermVotedForIfAbsent(voteRequest.getTerm(), voteRequest.getCandidateId())) {
             nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
+            nodeScheduler.receiveHeartbeat();
+            log.info("voteForNodeId={}, term={}", voteRequest.getCandidateId(), currentTerm);
             return new VoteResponse(term, true);
         } else if (Objects.equals(term, voteRequest.getTerm()) && nodeScheduler.setTermVotedForIfAbsent(voteRequest.getTerm(), voteRequest.getCandidateId())) {
             nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
+            nodeScheduler.receiveHeartbeat();
+            log.info("voteForNodeId={}, term={}", voteRequest.getCandidateId(), currentTerm);
             return new VoteResponse(term, true);
         } else {
             return new VoteResponse(term, false);
@@ -262,13 +271,14 @@ public class RaftNode implements RaftService {
         Long term = currentTerm;
         if (Objects.equals(replicatedLogRequest.getTerm(), term) && nodeScheduler.isFollower() && Objects.equals(replicatedLogRequest.getLeaderId(), nodeScheduler.getVotedFor(term))) {
             nodeScheduler.receiveHeartbeat();
-            log.info("receiveHeartbeat");
+            log.info("nodeId={}, term={}, receiveHeartbeat", nodeId, currentTerm);
             this.appendLogs();
             startElectionTimeOut();
             return new ReplicatedLogResponse(term, true);
         }
 
-        if (replicatedLogRequest.getTerm() > term && nodeScheduler.compareAndSetTerm(term, replicatedLogRequest.getTerm())) {
+        if (replicatedLogRequest.getTerm() >= term && nodeScheduler.compareAndSetTerm(term, replicatedLogRequest.getTerm())) {
+            nodeScheduler.setTermVotedForce(replicatedLogRequest.getTerm(), replicatedLogRequest.getLeaderId());
             nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
             nodeScheduler.receiveHeartbeat();
             log.info("receiveHeartbeat");
@@ -307,12 +317,12 @@ public class RaftNode implements RaftService {
         boolean compareAndSetTerm(Long expected, Long update) {
             Preconditions.checkNotNull(expected);
             Preconditions.checkNotNull(update);
-            if (!Objects.equals(expected, currentTerm) || Objects.equals(currentNodeStatus, NodeStatus.LEADER)) {
+            if (!Objects.equals(expected, currentTerm) || Objects.equals(currentNodeStatus.get(), NodeStatus.LEADER)) {
                 return false;
             }
             try {
                 lockScheduler.lock();
-                if (!Objects.equals(expected, currentTerm) || Objects.equals(currentNodeStatus, NodeStatus.LEADER)) {
+                if (!Objects.equals(expected, currentTerm) || Objects.equals(currentNodeStatus.get(), NodeStatus.LEADER)) {
                     return false;
                 }
                 currentTerm = update;
@@ -381,6 +391,12 @@ public class RaftNode implements RaftService {
             return termVotedForNodeMap.putIfAbsent(term, nodeId) == null;
         }
 
+        void setTermVotedForce(Long term, NodeId nodeId) {
+            Preconditions.checkNotNull(term);
+            Preconditions.checkNotNull(nodeId);
+            termVotedForNodeMap.put(term, nodeId);
+        }
+
         /**
          * 得到指定任期的VotedFor
          *
@@ -405,15 +421,13 @@ public class RaftNode implements RaftService {
          * 判断是否丢失心跳
          */
         boolean isLoseHeartbeat() {
-            return System.currentTimeMillis() - heartbeatTimeRecorder.get() >= lastTimeOutInterval.get();
-        }
-
-        void setLastTimeOutInterval(Long timeOutInterval) {
-            Preconditions.checkNotNull(timeOutInterval);
-            lastTimeOutInterval.set(timeOutInterval);
+            return System.currentTimeMillis() - heartbeatTimeRecorder.get() > HEART_BEAT_TIME_INTERVAL_TIMEOUT;
         }
     }
 
+    /**
+     * for StatusHttpService
+     */
     public class NodeMonitor {
         public JsonObject getNodeStatus() {
             JsonObject jsonObject = new JsonObject();
