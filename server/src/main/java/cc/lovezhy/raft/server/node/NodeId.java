@@ -1,5 +1,6 @@
 package cc.lovezhy.raft.server.node;
 
+import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 
 import javax.annotation.concurrent.Immutable;
@@ -23,5 +24,18 @@ public class NodeId {
 
     public Integer getPeerId() {
         return peerId;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        NodeId nodeId = (NodeId) o;
+        return Objects.equal(peerId, nodeId.peerId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(peerId);
     }
 }
