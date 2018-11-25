@@ -12,11 +12,13 @@ import cc.lovezhy.raft.server.service.model.ReplicatedLogResponse;
 import cc.lovezhy.raft.server.service.model.VoteRequest;
 import cc.lovezhy.raft.server.service.model.VoteResponse;
 import cc.lovezhy.raft.server.storage.StorageService;
+import cc.lovezhy.raft.server.utils.Pair;
 import cc.lovezhy.raft.server.utils.TimeCountDownUtil;
 import cc.lovezhy.raft.server.web.StatusHttpService;
 import com.alibaba.fastjson.JSON;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
+import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.SettableFuture;
@@ -25,10 +27,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -41,7 +40,7 @@ import static cc.lovezhy.raft.server.RaftConstants.*;
 
 public class RaftNode implements RaftService {
 
-    private static final Logger log = LoggerFactory.getLogger(RaftNode.class);
+    private Logger log;
 
     private NodeId nodeId;
 
@@ -61,6 +60,7 @@ public class RaftNode implements RaftService {
     private StatusHttpService httpService;
 
     private NodeScheduler nodeScheduler = new NodeScheduler();
+    private WebLogger webLogger = new WebLogger();
 
     public RaftNode(NodeId nodeId, EndPoint endPoint, ClusterConfig clusterConfig, List<PeerRaftNode> peerRaftNodes) {
         Preconditions.checkNotNull(nodeId);
@@ -68,7 +68,10 @@ public class RaftNode implements RaftService {
         Preconditions.checkNotNull(clusterConfig);
         Preconditions.checkNotNull(peerRaftNodes);
         Preconditions.checkState(peerRaftNodes.size() >= 2, "raft cluster should init with at least 3 server!");
-        log.info("nodeId={}, peerRaftNodes={}", nodeId, JSON.toJSONString(peerRaftNodes));
+
+        log = LoggerFactory.getLogger(String.format(getClass().getName() + " node[%d]", nodeId.getPeerId()));
+
+        log.debug("peerRaftNodes={}", JSON.toJSONString(peerRaftNodes));
 
         this.nodeId = nodeId;
         this.peerRaftNodes = peerRaftNodes;
@@ -340,6 +343,7 @@ public class RaftNode implements RaftService {
         void changeNodeStatus(NodeStatus update) {
             Preconditions.checkNotNull(update);
             currentNodeStatus.set(update);
+            log.debug("change nodeStatus={}", update.toString());
         }
 
         /**
@@ -433,7 +437,19 @@ public class RaftNode implements RaftService {
             JsonObject jsonObject = new JsonObject();
             jsonObject.put("NodeStatus", currentNodeStatus.get().toString());
             jsonObject.put("term", currentTerm.toString());
+            jsonObject.put("Leader", RaftNode.this.nodeScheduler.getVotedFor(currentTerm).getPeerId());
             return jsonObject;
+        }
+    }
+
+    /**
+     * for the web logger
+     */
+    public class WebLogger {
+        private List<Pair<Long, String>> logEntry = Collections.synchronizedList(Lists.newArrayList());
+
+        public void addLog(String item) {
+            logEntry.add(Pair.of(System.currentTimeMillis(), item));
         }
     }
 }

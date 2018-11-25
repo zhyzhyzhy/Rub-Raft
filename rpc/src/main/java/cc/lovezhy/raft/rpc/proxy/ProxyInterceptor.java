@@ -36,8 +36,6 @@ public class ProxyInterceptor implements MethodInterceptor {
         request.setClazz(superClass.getName());
         request.setMethod(method.getName());
         request.setArgs(objects);
-        log.info("send RpcRequest={}", JSON.toJSONString(request));
-
         RpcRequestType requestType = rpcClientOptions.getRpcRequestType(method.getName());
         switch (requestType) {
             case NORMAL: {
