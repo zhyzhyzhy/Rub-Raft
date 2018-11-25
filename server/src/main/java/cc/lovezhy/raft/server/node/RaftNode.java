@@ -15,7 +15,6 @@ import cc.lovezhy.raft.server.storage.StorageService;
 import cc.lovezhy.raft.server.utils.Pair;
 import cc.lovezhy.raft.server.utils.TimeCountDownUtil;
 import cc.lovezhy.raft.server.web.StatusHttpService;
-import com.alibaba.fastjson.JSON;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import com.google.common.collect.Lists;
@@ -27,7 +26,10 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -71,8 +73,6 @@ public class RaftNode implements RaftService {
 
         log = LoggerFactory.getLogger(String.format(getClass().getName() + " node[%d]", nodeId.getPeerId()));
 
-        log.debug("peerRaftNodes={}", JSON.toJSONString(peerRaftNodes));
-
         this.nodeId = nodeId;
         this.peerRaftNodes = peerRaftNodes;
         this.clusterConfig = clusterConfig;
@@ -99,7 +99,7 @@ public class RaftNode implements RaftService {
                 waitTimeOut,
                 DEFAULT_TIME_UNIT,
                 () -> preVote(voteTerm + 1),
-                () -> nodeScheduler.isLoseHeartbeat() && !nodeScheduler.isLeader());
+                () -> nodeScheduler.isLoseHeartbeat(waitTimeOut) && !nodeScheduler.isLeader());
         return waitTimeOut;
     }
 
@@ -191,7 +191,6 @@ public class RaftNode implements RaftService {
         if (votedCount.get() > clusterConfig.getNodeCount() / 2) {
             boolean beLeaderSuccess = nodeScheduler.beLeader(currentTerm);
             if (beLeaderSuccess) {
-                log.info("beLeaderSuccess");
                 nodeScheduler.changeNodeStatus(NodeStatus.LEADER);
                 startHeartbeat();
             }
@@ -211,10 +210,10 @@ public class RaftNode implements RaftService {
                 Futures.addCallback(responseSettableFuture, new FutureCallback<ReplicatedLogResponse>() {
                     @Override
                     public void onSuccess(@Nullable ReplicatedLogResponse result) {
-                        log.info("nodeid={},heartbeatTimeRecorder send", nodeId);
-                        if (!result.getSuccess()) {
-                            if (result.getTerm() > currentTerm) {
-                            }
+                        //not happen
+                        if (result.getTerm() > currentTerm) {
+                            log.error("currentTerm={}, remoteServerTerm={}", currentTerm, result.getTerm());
+                            throw new IllegalStateException("BUG！！！！");
                         }
                     }
 
@@ -245,8 +244,7 @@ public class RaftNode implements RaftService {
         Long term = currentTerm;
         if (voteRequest.getTerm() > term) {
             return new VoteResponse(term, true);
-        }
-        else {
+        } else {
             return new VoteResponse(term, false);
         }
     }
@@ -257,12 +255,10 @@ public class RaftNode implements RaftService {
         if (voteRequest.getTerm() > term && nodeScheduler.compareAndSetTerm(term, voteRequest.getTerm()) && nodeScheduler.setTermVotedForIfAbsent(voteRequest.getTerm(), voteRequest.getCandidateId())) {
             nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
             nodeScheduler.receiveHeartbeat();
-            log.info("voteForNodeId={}, term={}", voteRequest.getCandidateId(), currentTerm);
             return new VoteResponse(term, true);
         } else if (Objects.equals(term, voteRequest.getTerm()) && nodeScheduler.setTermVotedForIfAbsent(voteRequest.getTerm(), voteRequest.getCandidateId())) {
             nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
             nodeScheduler.receiveHeartbeat();
-            log.info("voteForNodeId={}, term={}", voteRequest.getCandidateId(), currentTerm);
             return new VoteResponse(term, true);
         } else {
             return new VoteResponse(term, false);
@@ -274,7 +270,6 @@ public class RaftNode implements RaftService {
         Long term = currentTerm;
         if (Objects.equals(replicatedLogRequest.getTerm(), term) && nodeScheduler.isFollower() && Objects.equals(replicatedLogRequest.getLeaderId(), nodeScheduler.getVotedFor(term))) {
             nodeScheduler.receiveHeartbeat();
-            log.info("nodeId={}, term={}, receiveHeartbeat", nodeId, currentTerm);
             this.appendLogs();
             startElectionTimeOut();
             return new ReplicatedLogResponse(term, true);
@@ -284,7 +279,6 @@ public class RaftNode implements RaftService {
             nodeScheduler.setTermVotedForce(replicatedLogRequest.getTerm(), replicatedLogRequest.getLeaderId());
             nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
             nodeScheduler.receiveHeartbeat();
-            log.info("receiveHeartbeat");
             this.appendLogs();
             startElectionTimeOut();
             return new ReplicatedLogResponse(term, true);
@@ -343,7 +337,6 @@ public class RaftNode implements RaftService {
         void changeNodeStatus(NodeStatus update) {
             Preconditions.checkNotNull(update);
             currentNodeStatus.set(update);
-            log.debug("change nodeStatus={}", update.toString());
         }
 
         /**
@@ -424,8 +417,8 @@ public class RaftNode implements RaftService {
         /**
          * 判断是否丢失心跳
          */
-        boolean isLoseHeartbeat() {
-            return System.currentTimeMillis() - heartbeatTimeRecorder.get() > HEART_BEAT_TIME_INTERVAL_TIMEOUT;
+        boolean isLoseHeartbeat(long timeoutMills) {
+            return System.currentTimeMillis() - heartbeatTimeRecorder.get() > timeoutMills;
         }
     }
 
