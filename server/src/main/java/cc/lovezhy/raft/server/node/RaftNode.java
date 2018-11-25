@@ -120,14 +120,19 @@ public class RaftNode implements RaftService {
                 Futures.addCallback(voteResponseFuture, new FutureCallback<VoteResponse>() {
                     @Override
                     public void onSuccess(@Nullable VoteResponse result) {
-                        if (result.getVoteGranted()) {
-                            preVotedGrantedCount.incrementAndGet();
+                        if (Objects.nonNull(result)) {
+                            if (result.getVoteGranted()) {
+                                preVotedGrantedCount.incrementAndGet();
+                            } else if (result.getTerm() > voteTerm) {
+                                nodeScheduler.compareAndSetTerm(voteTerm, result.getTerm());
+                            }
                         }
                         latch.countDown();
                     }
 
                     @Override
                     public void onFailure(Throwable t) {
+                        log.error(t.getMessage(), t);
                         latch.countDown();
                     }
                 }, RpcExecutors.commonExecutor());
@@ -168,9 +173,13 @@ public class RaftNode implements RaftService {
                 Futures.addCallback(voteResponseFuture, new FutureCallback<VoteResponse>() {
                     @Override
                     public void onSuccess(@Nullable VoteResponse result) {
-                        if (result.getVoteGranted()) {
-                            log.info("nodeId={}, receive vote from={}, term={}", nodeId, peerRaftNode.getNodeId(), currentTerm);
-                            votedCount.incrementAndGet();
+                        if (Objects.nonNull(result)) {
+                            if (result.getVoteGranted()) {
+                                log.info("receive vote from={}, term={}", peerRaftNode.getNodeId(), currentTerm);
+                                votedCount.incrementAndGet();
+                            } else if (result.getTerm() > voteTerm) {
+                                nodeScheduler.compareAndSetTerm(voteTerm, result.getTerm());
+                            }
                         }
                         latch.countDown();
                     }
@@ -203,10 +212,10 @@ public class RaftNode implements RaftService {
             try {
                 log.info("send heartbeat to={}", peerRaftNode.getNodeId());
                 ReplicatedLogRequest replicatedLogRequest = new ReplicatedLogRequest();
+                replicatedLogRequest.setTerm(currentTerm);
+                replicatedLogRequest.setLeaderId(nodeId);
                 replicatedLogRequest.setEntries(Collections.emptyList());
                 replicatedLogRequest.setLeaderCommit(storageService.getLastCommitLogIndex());
-                replicatedLogRequest.setLeaderId(nodeId);
-                replicatedLogRequest.setTerm(currentTerm);
                 peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
                 SettableFuture<ReplicatedLogResponse> responseSettableFuture = RpcContext.getContextFuture();
                 Futures.addCallback(responseSettableFuture, new FutureCallback<ReplicatedLogResponse>() {
@@ -261,7 +270,7 @@ public class RaftNode implements RaftService {
             if (nodeScheduler.compareAndSetTerm(term, voteRequest.getTerm()) && (nodeScheduler.compareAndSetVotedFor(null, voteRequest.getCandidateId()) || nodeScheduler.compareAndSetVotedFor(voteRequest.getCandidateId(), voteRequest.getCandidateId()))) {
                 nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
                 nodeScheduler.receiveHeartbeat();
-                return new VoteResponse(term, true);
+                return new VoteResponse(voteRequest.getTerm(), true);
             }
         }
         return new VoteResponse(term, false);
@@ -270,22 +279,25 @@ public class RaftNode implements RaftService {
     @Override
     public ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) {
         Integer term = currentTerm;
-        if (Objects.equals(replicatedLogRequest.getTerm(), term) && nodeScheduler.isFollower() && Objects.equals(replicatedLogRequest.getLeaderId(), nodeScheduler.getVotedFor())) {
+
+        // normal
+        if (Objects.equals(replicatedLogRequest.getTerm(), term) && Objects.equals(replicatedLogRequest.getLeaderId(), nodeScheduler.getVotedFor())) {
+            Preconditions.checkState(!nodeScheduler.isLeader());
             nodeScheduler.receiveHeartbeat();
             this.appendLogs();
             startElectionTimeOut();
             return new ReplicatedLogResponse(term, true);
         }
 
+        // 落单的，发现更高Term的Leader，直接变成Follower
         if (replicatedLogRequest.getTerm() > term && nodeScheduler.compareAndSetTerm(term, replicatedLogRequest.getTerm())) {
             nodeScheduler.setVotedForForce(replicatedLogRequest.getLeaderId());
             nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
             nodeScheduler.receiveHeartbeat();
             this.appendLogs();
             startElectionTimeOut();
-            return new ReplicatedLogResponse(term, true);
+            return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), true);
         }
-
         return new ReplicatedLogResponse(term, false);
     }
 
@@ -351,10 +363,6 @@ public class RaftNode implements RaftService {
          */
         boolean isLeader() {
             return Objects.equals(currentNodeStatus.get(), NodeStatus.LEADER);
-        }
-
-        boolean isFollower() {
-            return Objects.equals(currentNodeStatus.get(), NodeStatus.FOLLOWER);
         }
 
         /**
