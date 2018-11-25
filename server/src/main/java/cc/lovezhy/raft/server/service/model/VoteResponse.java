@@ -2,23 +2,23 @@ package cc.lovezhy.raft.server.service.model;
 
 public class VoteResponse {
 
-    private Long term;
+    private Integer term;
 
     private Boolean voteGranted;
 
     public VoteResponse() {
     }
 
-    public VoteResponse(Long term, Boolean voteGranted) {
+    public VoteResponse(Integer term, Boolean voteGranted) {
         this.term = term;
         this.voteGranted = voteGranted;
     }
 
-    public Long getTerm() {
+    public Integer getTerm() {
         return term;
     }
 
-    public void setTerm(Long term) {
+    public void setTerm(Integer term) {
         this.term = term;
     }
 

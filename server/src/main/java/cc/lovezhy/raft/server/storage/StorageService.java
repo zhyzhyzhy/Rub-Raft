@@ -8,12 +8,12 @@ import java.util.List;
 public class StorageService {
     private List<LogEntry> logs;
 
-    private volatile int commitIndex;
-    private volatile int lastApplied;
+    private volatile Integer commitIndex;
+    private volatile Integer lastApplied;
 
     public StorageService() {
         logs = Lists.newLinkedList();
-        logs.add(new LogEntry(null, 0L));
+        logs.add(new LogEntry(null, 0));
         commitIndex = 0;
         lastApplied = 0;
     }
@@ -22,24 +22,24 @@ public class StorageService {
 
     }
 
-    public Long getLastCommitLogTerm() {
+    public Integer getLastCommitLogTerm() {
         return logs.get(commitIndex).getTerm();
     }
 
-    public int getLastCommitLogIndex() {
+    public Integer getLastCommitLogIndex() {
         return commitIndex;
     }
 
-    public int getLastLogIndex() {
+    public Integer getLastLogIndex() {
         return logs.size() - 1;
     }
 
-    public Long getLastLogTerm() {
+    public Integer getLastLogTerm() {
         return logs.get(logs.size() - 1).getTerm();
     }
 
     // 日志比较的原则是，如果本地的最后一条log entry的term更大，则term大的更新，如果term一样大，则log index更大的更新
-    public boolean isNewerThanMe(int lastLogIndex, Long lastLogTerm) {
+    public boolean isNewerThanMe(int lastLogIndex, Integer lastLogTerm) {
         if (lastLogTerm > getLastLogTerm()) {
             return true;
         }

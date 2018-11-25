@@ -2,11 +2,11 @@ package cc.lovezhy.raft.server.storage;
 
 public class LogEntry {
     private Command command;
-    private Long term;
+    private Integer term;
 
     public LogEntry() {}
 
-    public LogEntry(Command command, Long term) {
+    public LogEntry(Command command, Integer term) {
         this.command = command;
         this.term = term;
     }
@@ -19,11 +19,11 @@ public class LogEntry {
         this.command = command;
     }
 
-    public Long getTerm() {
+    public Integer getTerm() {
         return term;
     }
 
-    public void setTerm(Long term) {
+    public void setTerm(Integer term) {
         this.term = term;
     }
 }

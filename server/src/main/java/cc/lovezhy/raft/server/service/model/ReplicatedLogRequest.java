@@ -7,23 +7,23 @@ import java.util.List;
 
 public class ReplicatedLogRequest {
 
-    private Long term;
+    private Integer term;
 
     private NodeId leaderId;
 
-    private Long prevLogIndex;
+    private Integer prevLogIndex;
 
-    private Long prevLogTerm;
+    private Integer prevLogTerm;
 
     private List<LogEntry> entries;
 
     private Integer leaderCommit;
 
-    public Long getTerm() {
+    public Integer getTerm() {
         return term;
     }
 
-    public void setTerm(Long term) {
+    public void setTerm(Integer term) {
         this.term = term;
     }
 
@@ -35,19 +35,19 @@ public class ReplicatedLogRequest {
         this.leaderId = leaderId;
     }
 
-    public Long getPrevLogIndex() {
+    public Integer getPrevLogIndex() {
         return prevLogIndex;
     }
 
-    public void setPrevLogIndex(Long prevLogIndex) {
+    public void setPrevLogIndex(Integer prevLogIndex) {
         this.prevLogIndex = prevLogIndex;
     }
 
-    public Long getPrevLogTerm() {
+    public Integer getPrevLogTerm() {
         return prevLogTerm;
     }
 
-    public void setPrevLogTerm(Long prevLogTerm) {
+    public void setPrevLogTerm(Integer prevLogTerm) {
         this.prevLogTerm = prevLogTerm;
     }
 

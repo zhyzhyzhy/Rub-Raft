@@ -50,7 +50,7 @@ public class RaftNode implements RaftService {
 
     private ClusterConfig clusterConfig;
 
-    private volatile Long currentTerm = 0L;
+    private volatile Integer currentTerm = 0;
 
     private StorageService storageService;
 
@@ -94,7 +94,7 @@ public class RaftNode implements RaftService {
 
     private long startElectionTimeOut() {
         long waitTimeOut = getRandomStartElectionTimeout();
-        long voteTerm = currentTerm;
+        int voteTerm = currentTerm;
         TimeCountDownUtil.addSchedulerTask(
                 waitTimeOut,
                 DEFAULT_TIME_UNIT,
@@ -103,7 +103,7 @@ public class RaftNode implements RaftService {
         return waitTimeOut;
     }
 
-    private void preVote(Long voteTerm) {
+    private void preVote(Integer voteTerm) {
         long nextElectionTimeOut = startElectionTimeOut();
         nodeScheduler.changeNodeStatus(NodeStatus.PRE_CANDIDATE);
         AtomicInteger preVotedGrantedCount = new AtomicInteger(1);
@@ -146,7 +146,7 @@ public class RaftNode implements RaftService {
     }
 
 
-    private void voteForLeader(Long voteTerm) {
+    private void voteForLeader(Integer voteTerm) {
         if (!nodeScheduler.compareAndSetTerm(voteTerm - 1, voteTerm) || !nodeScheduler.compareAndSetVotedFor(null, nodeId)) {
             return;
         }
@@ -243,8 +243,8 @@ public class RaftNode implements RaftService {
 
     @Override
     public VoteResponse requestPreVote(VoteRequest voteRequest) {
-        Long term = currentTerm;
-        if (voteRequest.getTerm() > term) {
+        Integer term = currentTerm;
+        if (voteRequest.getTerm() > term && storageService.isNewerThanMe(voteRequest.getLastLogIndex(), voteRequest.getLastLogTerm())) {
             return new VoteResponse(term, true);
         } else {
             return new VoteResponse(term, false);
@@ -253,7 +253,10 @@ public class RaftNode implements RaftService {
 
     @Override
     public synchronized VoteResponse requestVote(VoteRequest voteRequest) {
-        Long term = currentTerm;
+        Integer term = currentTerm;
+        if (term > voteRequest.getTerm()) {
+            return new VoteResponse(term, false);
+        }
         if (storageService.isNewerThanMe(voteRequest.getLastLogIndex(), voteRequest.getLastLogTerm())) {
             if (nodeScheduler.compareAndSetTerm(term, voteRequest.getTerm()) && (nodeScheduler.compareAndSetVotedFor(null, voteRequest.getCandidateId()) || nodeScheduler.compareAndSetVotedFor(voteRequest.getCandidateId(), voteRequest.getCandidateId()))) {
                 nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
@@ -266,7 +269,7 @@ public class RaftNode implements RaftService {
 
     @Override
     public ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) {
-        Long term = currentTerm;
+        Integer term = currentTerm;
         if (Objects.equals(replicatedLogRequest.getTerm(), term) && nodeScheduler.isFollower() && Objects.equals(replicatedLogRequest.getLeaderId(), nodeScheduler.getVotedFor())) {
             nodeScheduler.receiveHeartbeat();
             this.appendLogs();
@@ -300,14 +303,9 @@ public class RaftNode implements RaftService {
          * 如果当前节点已经是Leader，那么也不允许修改任期
          *
          * @return 是否更新成功
-         * @see {@link NodeScheduler#beLeader(Long)}
+         * @see {@link NodeScheduler#beLeader(Integer)}
          */
-        boolean incrementTerm(Long expectTerm) {
-            Preconditions.checkNotNull(expectTerm);
-            return compareAndSetTerm(expectTerm, expectTerm + 1);
-        }
-
-        boolean compareAndSetTerm(Long expected, Long update) {
+        boolean compareAndSetTerm(Integer expected, Integer update) {
             Preconditions.checkNotNull(expected);
             Preconditions.checkNotNull(update);
             if (!Objects.equals(expected, currentTerm) || Objects.equals(currentNodeStatus.get(), NodeStatus.LEADER)) {
@@ -369,7 +367,7 @@ public class RaftNode implements RaftService {
          * @param term 成为Leader的任期
          * @return
          */
-        boolean beLeader(Long term) {
+        boolean beLeader(Integer term) {
             if (!Objects.equals(currentTerm, term)) {
                 return false;
             }

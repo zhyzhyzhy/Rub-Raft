@@ -2,23 +2,23 @@ package cc.lovezhy.raft.server.service.model;
 
 public class ReplicatedLogResponse {
 
-    private Long term;
+    private Integer term;
 
     private Boolean success;
 
     public ReplicatedLogResponse() {
     }
 
-    public ReplicatedLogResponse(Long term, Boolean success) {
+    public ReplicatedLogResponse(Integer term, Boolean success) {
         this.term = term;
         this.success = success;
     }
 
-    public Long getTerm() {
+    public Integer getTerm() {
         return term;
     }
 
-    public void setTerm(Long term) {
+    public void setTerm(Integer term) {
         this.term = term;
     }
 
