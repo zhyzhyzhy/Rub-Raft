@@ -1,11 +1,10 @@
 package cc.lovezhy.raft.rpc.proxy;
 
+import cc.lovezhy.raft.rpc.RpcClientOptions;
 import cc.lovezhy.raft.rpc.exception.RequestTimeoutException;
 import cc.lovezhy.raft.rpc.protocal.RpcRequest;
 import cc.lovezhy.raft.rpc.protocal.RpcRequestType;
 import cc.lovezhy.raft.rpc.protocal.RpcResponse;
-import cc.lovezhy.raft.rpc.protocal.annotation.Async;
-import cc.lovezhy.raft.rpc.util.ReflectUtils;
 import com.alibaba.fastjson.JSON;
 import net.sf.cglib.proxy.MethodInterceptor;
 import net.sf.cglib.proxy.MethodProxy;
@@ -22,10 +21,12 @@ public class ProxyInterceptor implements MethodInterceptor {
 
     private ConsumerRpcService consumerRpcService;
     private Class<?> superClass;
+    private RpcClientOptions rpcClientOptions;
 
-    ProxyInterceptor(Class<?> superClass, ConsumerRpcService consumerRpcService) {
+    ProxyInterceptor(Class<?> superClass, RpcClientOptions rpcClientOptions, ConsumerRpcService consumerRpcService) {
         this.superClass = superClass;
         this.consumerRpcService = consumerRpcService;
+        this.rpcClientOptions = rpcClientOptions;
     }
 
     @Override
@@ -37,19 +38,19 @@ public class ProxyInterceptor implements MethodInterceptor {
         request.setArgs(objects);
         log.info("send RpcRequest={}", JSON.toJSONString(request));
 
-        switch (RpcRequestType.getRpcRequestType(method)) {
+        RpcRequestType requestType = rpcClientOptions.getRpcRequestType(method.getName());
+        switch (requestType) {
+            case NORMAL: {
+                RpcResponse rpcResponse = consumerRpcService.sendRequest(request);
+                return rpcResponse.getResponseBody();
+            }
             case ONE_WAY: {
                 consumerRpcService.sendOneWayRequest(request);
                 return null;
             }
             case ASYNC: {
-                Async asyncAnnotation = ReflectUtils.getAnnotation(method, Async.class);
-                RpcResponse rpcResponse = consumerRpcService.sendRequestAsync(request, asyncAnnotation.waitTimeOutMills());
-                return rpcResponse.getResponseBody();
-            }
-            case NORMAL: {
-                RpcResponse rpcResponse = consumerRpcService.sendRequest(request);
-                return rpcResponse.getResponseBody();
+                RpcResponse rpcResponse = consumerRpcService.sendRequestAsync(request);
+                return null;
             }
         }
         throw new IllegalStateException("should not happen");

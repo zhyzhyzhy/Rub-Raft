@@ -132,10 +132,8 @@ public class RaftNode implements RaftService {
 
     private void voteForLeader(Long voteTerm) {
         if (!nodeScheduler.compareAndSetTerm(voteTerm - 1, voteTerm) || !nodeScheduler.setTermVotedForIfAbsent(voteTerm, nodeId)) {
-            log.info("cas fail");
             return;
         }
-        log.info("startElection");
         nodeScheduler.changeNodeStatus(NodeStatus.CANDIDATE);
         long nextWaitTimeOut = startElectionTimeOut();
         //初始值为1，把自己加进去

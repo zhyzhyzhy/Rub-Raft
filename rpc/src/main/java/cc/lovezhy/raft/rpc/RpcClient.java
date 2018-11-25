@@ -2,7 +2,6 @@ package cc.lovezhy.raft.rpc;
 
 import cc.lovezhy.raft.rpc.common.RpcExecutors;
 import cc.lovezhy.raft.rpc.exception.RequestTimeoutException;
-import cc.lovezhy.raft.rpc.protocal.RpcProtocalUtils;
 import cc.lovezhy.raft.rpc.protocal.RpcRequest;
 import cc.lovezhy.raft.rpc.protocal.RpcResponse;
 import cc.lovezhy.raft.rpc.proxy.ConsumerRpcService;
@@ -27,25 +26,27 @@ import static cc.lovezhy.raft.rpc.util.LockObjectFactory.getLockObject;
 public class RpcClient<T> implements ConsumerRpcService, RpcService {
 
     public static <T> T create(Class<T> clazz, EndPoint endPoint) {
+        return create(clazz, endPoint, new RpcClientOptions());
+    }
+
+    public static <T> T create(Class<T> clazz, EndPoint endPoint, RpcClientOptions rpcClientOptions) {
         Preconditions.checkNotNull(clazz);
         Preconditions.checkNotNull(endPoint);
-        RpcClient<T> rpcClient = new RpcClient<>(clazz, endPoint);
+        RpcClient<T> rpcClient = new RpcClient<>(clazz, endPoint, rpcClientOptions);
         return rpcClient.getInstance();
     }
 
     private Class<T> clazz;
-
     private NettyClient nettyClient;
+    private RpcClientOptions rpcClientOptions;
 
-    private Map<String, LockObject> waitConditionMap = new ConcurrentHashMap<>();
-    private Map<String, SettableFuture> rpcResponseFutureMap = new ConcurrentHashMap<>();
-    private Map<String, RpcResponse> rpcResponseMap = new ConcurrentHashMap<>();
 
-    private RpcClient(Class<T> clazz, EndPoint endPoint) {
+    private RpcClient(Class<T> clazz, EndPoint endPoint, RpcClientOptions rpcClientOptions) {
         Preconditions.checkNotNull(clazz);
         Preconditions.checkNotNull(endPoint);
-        RpcProtocalUtils.check(clazz);
+        Preconditions.checkNotNull(rpcClientOptions);
         this.clazz = clazz;
+        this.rpcClientOptions = rpcClientOptions;
         nettyClient = new NettyClient(endPoint, this);
         this.connect();
     }
@@ -66,8 +67,13 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     }
 
     private T getInstance() {
-        return ProxyFactory.createRpcProxy(clazz, this);
+        return ProxyFactory.createRpcProxy(clazz, this, rpcClientOptions);
     }
+
+
+    private Map<String, LockObject> waitConditionMap = new ConcurrentHashMap<>();
+    private Map<String, RpcResponse> rpcResponseMap = new ConcurrentHashMap<>();
+    private Map<String, SettableFuture<Object>> rpcFutureMap = new ConcurrentHashMap<>();
 
     @Override
     public RpcResponse sendRequest(RpcRequest request) throws RequestTimeoutException {
@@ -96,12 +102,14 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     }
 
     @Override
-    public RpcResponse sendRequestAsync(RpcRequest request, long timeOutMills) {
-        RpcResponse rpcResponse = new RpcResponse();
-        SettableFuture future = SettableFuture.create();
-        rpcResponse.setResponseBody(future);
+    public RpcResponse sendRequestAsync(RpcRequest request) {
+        String requestId = request.getRequestId();
         nettyClient.getChannel().writeAndFlush(request);
-        rpcResponseFutureMap.put(request.getRequestId(), future);
+        SettableFuture<Object> settableFuture = SettableFuture.create();
+        rpcFutureMap.put(requestId, settableFuture);
+        RpcContext.setAsyncResponse(settableFuture);
+        RpcResponse rpcResponse = new RpcResponse();
+        rpcResponse.setResponseBody(null);
         return rpcResponse;
     }
 
@@ -114,10 +122,18 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     public void onResponse(RpcResponse response) {
         String requestId = response.getRequestId();
         LockObject lockObject = waitConditionMap.get(requestId);
+        //normal
         if (Objects.nonNull(lockObject)) {
             synchronized (lockObject) {
                 rpcResponseMap.put(requestId, response);
                 lockObject.notify();
+            }
+        }
+        //async
+        else {
+            SettableFuture<Object> settableFuture = rpcFutureMap.get(requestId);
+            if (Objects.nonNull(settableFuture)) {
+                settableFuture.set(response.getResponseBody());
             }
         }
     }

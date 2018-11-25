@@ -11,7 +11,7 @@ public interface ConsumerRpcService {
 
     RpcResponse sendRequest(RpcRequest request) throws RequestTimeoutException;
 
-    RpcResponse sendRequestAsync(RpcRequest request, long timeOutMills);
+    RpcResponse sendRequestAsync(RpcRequest request);
 
     void sendOneWayRequest(RpcRequest request);
 }
