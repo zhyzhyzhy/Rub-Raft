@@ -8,7 +8,7 @@ public class VoteRequest {
 
     private NodeId candidateId;
 
-    private Long lastLogIndex;
+    private Integer lastLogIndex;
 
     private Long lastLogTerm;
 
@@ -32,11 +32,11 @@ public class VoteRequest {
         this.candidateId = candidateId;
     }
 
-    public Long getLastLogIndex() {
+    public Integer getLastLogIndex() {
         return lastLogIndex;
     }
 
-    public void setLastLogIndex(Long lastLogIndex) {
+    public void setLastLogIndex(Integer lastLogIndex) {
         this.lastLogIndex = lastLogIndex;
     }
 

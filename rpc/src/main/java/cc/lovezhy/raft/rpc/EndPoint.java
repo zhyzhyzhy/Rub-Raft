@@ -41,4 +41,8 @@ public class EndPoint {
                 .add("port", port)
                 .toString();
     }
+
+    public String toUrl() {
+        return "http://" + host + ":" + port;
+    }
 }

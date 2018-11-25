@@ -4,6 +4,13 @@ public class LogEntry {
     private Command command;
     private Long term;
 
+    public LogEntry() {}
+
+    public LogEntry(Command command, Long term) {
+        this.command = command;
+        this.term = term;
+    }
+
     public Command getCommand() {
         return command;
     }

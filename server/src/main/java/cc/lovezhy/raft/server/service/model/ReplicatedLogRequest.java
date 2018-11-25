@@ -17,7 +17,7 @@ public class ReplicatedLogRequest {
 
     private List<LogEntry> entries;
 
-    private Long leaderCommit;
+    private Integer leaderCommit;
 
     public Long getTerm() {
         return term;
@@ -59,11 +59,11 @@ public class ReplicatedLogRequest {
         this.entries = entries;
     }
 
-    public Long getLeaderCommit() {
+    public Integer getLeaderCommit() {
         return leaderCommit;
     }
 
-    public void setLeaderCommit(Long leaderCommit) {
+    public void setLeaderCommit(Integer leaderCommit) {
         this.leaderCommit = leaderCommit;
     }
 }

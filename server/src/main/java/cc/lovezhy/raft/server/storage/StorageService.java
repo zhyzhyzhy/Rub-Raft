@@ -8,53 +8,44 @@ import java.util.List;
 public class StorageService {
     private List<LogEntry> logs;
 
-    private volatile Long commitIndex;
-    private volatile Long lastApplied;
+    private volatile int commitIndex;
+    private volatile int lastApplied;
 
     public StorageService() {
         logs = Lists.newLinkedList();
-        commitIndex = 0L;
-        lastApplied = 0L;
+        logs.add(new LogEntry(null, 0L));
+        commitIndex = 0;
+        lastApplied = 0;
     }
 
     public void appendLogs(ReplicatedLogRequest replicatedLogRequest) {
-        List<LogEntry> entries = replicatedLogRequest.getEntries();
-        if (entries == null || entries.size() == 0) {
-            return;
-        }
-        commitIndex += entries.size();
-        logs.addAll(entries);
+
     }
 
-    //TODO int还是long
     public Long getLastCommitLogTerm() {
-        if (commitIndex.equals(0L)) {
-            return 0L;
-        }
-        return logs.get(commitIndex.intValue()).getTerm();
+        return logs.get(commitIndex).getTerm();
     }
 
-    public List<LogEntry> getLogs() {
-        return logs;
-    }
-
-    public void setLogs(List<LogEntry> logs) {
-        this.logs = logs;
-    }
-
-    public Long getCommitIndex() {
+    public int getLastCommitLogIndex() {
         return commitIndex;
     }
 
-    public void setCommitIndex(Long commitIndex) {
-        this.commitIndex = commitIndex;
+    public int getLastLogIndex() {
+        return logs.size() - 1;
     }
 
-    public Long getLastApplied() {
-        return lastApplied;
+    public Long getLastLogTerm() {
+        return logs.get(logs.size() - 1).getTerm();
     }
 
-    public void setLastApplied(Long lastApplied) {
-        this.lastApplied = lastApplied;
+    // 日志比较的原则是，如果本地的最后一条log entry的term更大，则term大的更新，如果term一样大，则log index更大的更新
+    public boolean isNewerThanMe(int lastLogIndex, Long lastLogTerm) {
+        if (lastLogTerm > getLastLogTerm()) {
+            return true;
+        }
+        if (lastLogTerm.equals(getLastLogTerm()) && lastLogIndex >= getLastLogIndex()) {
+            return true;
+        }
+        return false;
     }
 }
