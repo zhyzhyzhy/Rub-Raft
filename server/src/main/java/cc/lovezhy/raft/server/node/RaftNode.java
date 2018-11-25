@@ -1,7 +1,9 @@
 package cc.lovezhy.raft.server.node;
 
 import cc.lovezhy.raft.rpc.EndPoint;
+import cc.lovezhy.raft.rpc.RpcContext;
 import cc.lovezhy.raft.rpc.RpcServer;
+import cc.lovezhy.raft.rpc.common.RpcExecutors;
 import cc.lovezhy.raft.server.ClusterConfig;
 import cc.lovezhy.raft.server.service.RaftService;
 import cc.lovezhy.raft.server.service.RaftServiceImpl;
@@ -15,7 +17,11 @@ import cc.lovezhy.raft.server.web.StatusHttpService;
 import com.alibaba.fastjson.JSON;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.SettableFuture;
 import io.vertx.core.json.JsonObject;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -140,22 +146,31 @@ public class RaftNode implements RaftService {
         AtomicInteger votedCount = new AtomicInteger(1);
         CountDownLatch latch = new CountDownLatch(peerRaftNodes.size());
         peerRaftNodes.forEach(peerRaftNode -> {
-            CompletableFuture.runAsync(() -> {
-                try {
-                    VoteRequest voteRequest = new VoteRequest();
-                    voteRequest.setTerm(currentTerm);
-                    voteRequest.setCandidateId(nodeId);
-                    voteRequest.setLastLogIndex(storageService.getCommitIndex());
-                    VoteResponse voteResponse = peerRaftNode.getRaftService().requestVote(voteRequest);
-                    if (voteResponse.getVoteGranted()) {
-                        log.info("receive vote from={}", peerRaftNode.getNodeId());
-                        votedCount.incrementAndGet();
+            try {
+                VoteRequest voteRequest = new VoteRequest();
+                voteRequest.setTerm(currentTerm);
+                voteRequest.setCandidateId(nodeId);
+                voteRequest.setLastLogIndex(storageService.getCommitIndex());
+                peerRaftNode.getRaftService().requestVote(voteRequest);
+                SettableFuture<VoteResponse> voteResponseFuture = RpcContext.getContextFuture();
+                Futures.addCallback(voteResponseFuture, new FutureCallback<VoteResponse>() {
+                    @Override
+                    public void onSuccess(@Nullable VoteResponse result) {
+                        if (result.getVoteGranted()) {
+                            log.info("receive vote from={}", peerRaftNode.getNodeId());
+                            votedCount.incrementAndGet();
+                        }
+                        latch.countDown();
                     }
-                    latch.countDown();
-                } catch (Exception e) {
-                    log.error(e.getMessage(), e);
-                }
-            });
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        latch.countDown();
+                    }
+                }, RpcExecutors.commonExecutor());
+            } catch (Exception e) {
+                log.error(e.getMessage(), e);
+            }
         });
         try {
             latch.await(nextWaitTimeOut, DEFAULT_TIME_UNIT);
@@ -173,18 +188,16 @@ public class RaftNode implements RaftService {
 
     private void startHeartbeat() {
         peerRaftNodes.forEach(peerRaftNode -> {
-            CompletableFuture.runAsync(() -> {
-                try {
-                    ReplicatedLogRequest replicatedLogRequest = new ReplicatedLogRequest();
-                    replicatedLogRequest.setEntries(Collections.emptyList());
-                    replicatedLogRequest.setLeaderCommit(storageService.getCommitIndex());
-                    replicatedLogRequest.setLeaderId(nodeId);
-                    replicatedLogRequest.setTerm(currentTerm);
-                    peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
+            try {
+                ReplicatedLogRequest replicatedLogRequest = new ReplicatedLogRequest();
+                replicatedLogRequest.setEntries(Collections.emptyList());
+                replicatedLogRequest.setLeaderCommit(storageService.getCommitIndex());
+                replicatedLogRequest.setLeaderId(nodeId);
+                replicatedLogRequest.setTerm(currentTerm);
+                peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         });
         TimeCountDownUtil.addSchedulerTask(HEART_BEAT_TIME_INTERVAL, DEFAULT_TIME_UNIT, this::startHeartbeat, (Supplier<Boolean>) () -> nodeScheduler.isLeader());
     }
@@ -192,7 +205,6 @@ public class RaftNode implements RaftService {
     private void appendLogs() {
 
     }
-
 
 
     public void close() {
@@ -371,6 +383,7 @@ public class RaftNode implements RaftService {
 
         /**
          * 得到指定任期的VotedFor
+         *
          * @param term
          * @return {nullable} NodeId
          */

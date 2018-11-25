@@ -2,6 +2,8 @@ package cc.lovezhy.raft.server.node;
 
 import cc.lovezhy.raft.rpc.EndPoint;
 import cc.lovezhy.raft.rpc.RpcClient;
+import cc.lovezhy.raft.rpc.RpcClientOptions;
+import cc.lovezhy.raft.rpc.protocal.RpcRequestType;
 import cc.lovezhy.raft.server.service.RaftService;
 import com.google.common.base.Preconditions;
 
@@ -22,7 +24,11 @@ public class PeerRaftNode {
         Preconditions.checkNotNull(endPoint);
         this.nodeId = nodeId;
         this.endPoint = endPoint;
-        this.raftService = RpcClient.create(RaftService.class, endPoint);
+        RpcClientOptions rpcClientOptions = new RpcClientOptions();
+        rpcClientOptions.defineMethodRequestType("requestPreVote", RpcRequestType.ASYNC);
+        rpcClientOptions.defineMethodRequestType("requestVote", RpcRequestType.ASYNC);
+        rpcClientOptions.defineMethodRequestType("requestAppendLog", RpcRequestType.ASYNC);
+        this.raftService = RpcClient.create(RaftService.class, endPoint, rpcClientOptions);
     }
 
     public NodeId getNodeId() {
