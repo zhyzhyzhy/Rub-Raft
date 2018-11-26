@@ -1,9 +1,6 @@
 package cc.lovezhy.raft.server.service;
 
-import cc.lovezhy.raft.server.service.model.ReplicatedLogRequest;
-import cc.lovezhy.raft.server.service.model.ReplicatedLogResponse;
-import cc.lovezhy.raft.server.service.model.VoteRequest;
-import cc.lovezhy.raft.server.service.model.VoteResponse;
+import cc.lovezhy.raft.server.service.model.*;
 
 public interface RaftService {
 
@@ -12,4 +9,6 @@ public interface RaftService {
     VoteResponse requestVote(VoteRequest voteRequest);
 
     ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest);
+
+    InstallSnapShotResponse requestInstallSnapShot(InstallSnapShotRequest installSnapShotRequest);
 }

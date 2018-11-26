@@ -1,7 +1,8 @@
 package cc.lovezhy.raft.server;
 
-import cc.lovezhy.raft.server.storage.LogEntry;
+import cc.lovezhy.raft.server.log.Command;
 
 public interface StateMachine {
-    void apply(LogEntry entry);
+    boolean apply(Command command);
+    byte[] takeSnapShot();
 }

@@ -1,9 +1,6 @@
 package cc.lovezhy.raft.server.service;
 
-import cc.lovezhy.raft.server.service.model.ReplicatedLogRequest;
-import cc.lovezhy.raft.server.service.model.ReplicatedLogResponse;
-import cc.lovezhy.raft.server.service.model.VoteRequest;
-import cc.lovezhy.raft.server.service.model.VoteResponse;
+import cc.lovezhy.raft.server.service.model.*;
 import com.google.common.base.Preconditions;
 
 public class RaftServiceImpl implements RaftService {
@@ -28,5 +25,10 @@ public class RaftServiceImpl implements RaftService {
     @Override
     public ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) {
         return raftService.requestAppendLog(replicatedLogRequest);
+    }
+
+    @Override
+    public InstallSnapShotResponse requestInstallSnapShot(InstallSnapShotRequest installSnapShotRequest) {
+        return raftService.requestInstallSnapShot(installSnapShotRequest);
     }
 }

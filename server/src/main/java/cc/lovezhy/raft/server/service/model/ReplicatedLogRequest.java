@@ -1,29 +1,29 @@
 package cc.lovezhy.raft.server.service.model;
 
 import cc.lovezhy.raft.server.node.NodeId;
-import cc.lovezhy.raft.server.storage.LogEntry;
+import cc.lovezhy.raft.server.log.LogEntry;
 
 import java.util.List;
 
 public class ReplicatedLogRequest {
 
-    private Integer term;
+    private Long term;
 
     private NodeId leaderId;
 
-    private Integer prevLogIndex;
+    private Long prevLogIndex;
 
-    private Integer prevLogTerm;
+    private Long prevLogTerm;
 
     private List<LogEntry> entries;
 
-    private Integer leaderCommit;
+    private Long leaderCommit;
 
-    public Integer getTerm() {
+    public Long getTerm() {
         return term;
     }
 
-    public void setTerm(Integer term) {
+    public void setTerm(Long term) {
         this.term = term;
     }
 
@@ -35,19 +35,19 @@ public class ReplicatedLogRequest {
         this.leaderId = leaderId;
     }
 
-    public Integer getPrevLogIndex() {
+    public Long getPrevLogIndex() {
         return prevLogIndex;
     }
 
-    public void setPrevLogIndex(Integer prevLogIndex) {
+    public void setPrevLogIndex(Long prevLogIndex) {
         this.prevLogIndex = prevLogIndex;
     }
 
-    public Integer getPrevLogTerm() {
+    public Long getPrevLogTerm() {
         return prevLogTerm;
     }
 
-    public void setPrevLogTerm(Integer prevLogTerm) {
+    public void setPrevLogTerm(Long prevLogTerm) {
         this.prevLogTerm = prevLogTerm;
     }
 
@@ -59,11 +59,11 @@ public class ReplicatedLogRequest {
         this.entries = entries;
     }
 
-    public Integer getLeaderCommit() {
+    public Long getLeaderCommit() {
         return leaderCommit;
     }
 
-    public void setLeaderCommit(Integer leaderCommit) {
+    public void setLeaderCommit(Long leaderCommit) {
         this.leaderCommit = leaderCommit;
     }
 }

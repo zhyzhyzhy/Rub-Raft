@@ -4,23 +4,23 @@ import cc.lovezhy.raft.server.node.NodeId;
 
 public class VoteRequest {
 
-    private Integer term;
+    private Long term;
 
     private NodeId candidateId;
 
-    private Integer lastLogIndex;
+    private Long lastLogIndex;
 
-    private Integer lastLogTerm;
+    private Long lastLogTerm;
 
 
     public VoteRequest() {
     }
 
-    public Integer getTerm() {
+    public Long getTerm() {
         return term;
     }
 
-    public void setTerm(Integer term) {
+    public void setTerm(Long term) {
         this.term = term;
     }
 
@@ -32,19 +32,19 @@ public class VoteRequest {
         this.candidateId = candidateId;
     }
 
-    public Integer getLastLogIndex() {
+    public Long getLastLogIndex() {
         return lastLogIndex;
     }
 
-    public void setLastLogIndex(Integer lastLogIndex) {
+    public void setLastLogIndex(Long lastLogIndex) {
         this.lastLogIndex = lastLogIndex;
     }
 
-    public Integer getLastLogTerm() {
+    public Long getLastLogTerm() {
         return lastLogTerm;
     }
 
-    public void setLastLogTerm(Integer lastLogTerm) {
+    public void setLastLogTerm(Long lastLogTerm) {
         this.lastLogTerm = lastLogTerm;
     }
 }
