@@ -11,16 +11,16 @@ import io.vertx.ext.web.Router;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class StatusHttpService extends AbstractVerticle {
+public class ClientHttpService extends AbstractVerticle {
 
-    private static final Logger log = LoggerFactory.getLogger(StatusHttpService.class);
+    private static final Logger log = LoggerFactory.getLogger(ClientHttpService.class);
 
     private HttpServer httpServer;
     private int port;
 
     private RaftNode.NodeMonitor nodeMonitor;
 
-    public StatusHttpService(RaftNode.NodeMonitor nodeMonitor, int port) {
+    public ClientHttpService(RaftNode.NodeMonitor nodeMonitor, int port) {
         Preconditions.checkNotNull(nodeMonitor);
         this.nodeMonitor = nodeMonitor;
         this.port = port;
@@ -34,6 +34,13 @@ public class StatusHttpService extends AbstractVerticle {
             HttpServerResponse response = routingContext.response();
             response.putHeader("content-type", "application/json");
             response.end(nodeMonitor.getNodeStatus().toString());
+        });
+
+        router.post("/command").handler(routingContext -> {
+            JsonObject bodyJson = routingContext.getBodyAsJson();
+            String command = bodyJson.getString("command");
+            HttpServerResponse response = routingContext.response();
+            response.end(command);
         });
         this.httpServer.requestHandler(router::accept).listen(this.port);
         log.info("start httpServer at port={}", this.port);

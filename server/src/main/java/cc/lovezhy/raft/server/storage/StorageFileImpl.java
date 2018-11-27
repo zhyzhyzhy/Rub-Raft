@@ -8,19 +8,17 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.channels.FileChannel;
 
 public class StorageFileImpl implements StorageFile {
 
     private static final Logger log = LoggerFactory.getLogger(StorageFileImpl.class);
 
-    public StorageFile create(String category, String fileName) throws FileNotFoundException {
+    static StorageFile create(String category, String fileName) throws FileNotFoundException {
         return new StorageFileImpl(category, fileName);
     }
 
 
     private RandomAccessFile randomAccessFile;
-    private FileChannel fileChannel;
 
     private volatile long writePointer = 0;
 
@@ -36,12 +34,12 @@ public class StorageFileImpl implements StorageFile {
             log.error(e.getMessage(), e);
             throw e;
         }
-        fileChannel = randomAccessFile.getChannel();
         log.info("success create file, category={}, fileName={}", category, fileName);
     }
 
     @Override
     public void changeName(String name) {
+        //TODO
     }
 
     @Override
@@ -50,28 +48,41 @@ public class StorageFileImpl implements StorageFile {
     }
 
     @Override
-    public synchronized void writeLong(long value) throws IOException {
+    public void writeInt(int value) throws IOException {
         randomAccessFile.seek(writePointer);
-        randomAccessFile.writeLong(value);
+        randomAccessFile.write(value);
+        writePointer += 2;
     }
 
     @Override
-    public synchronized void writeBytes(byte[] values) throws IOException {
+    public void writeBytes(byte[] values) throws IOException {
         randomAccessFile.seek(writePointer);
         randomAccessFile.write(values);
+        writePointer += values.length;
     }
 
     @Override
-    public synchronized long getLong(long offset) throws IOException {
-        randomAccessFile.seek(offset);
-        return randomAccessFile.readLong();
+    public int readInt() throws IOException {
+        return randomAccessFile.readInt();
     }
 
     @Override
-    public synchronized byte[] getBytes(int offset, int len) throws IOException {
+    public byte[] getBytes(int offset, int len) throws IOException {
         byte[] values = new byte[len];
         randomAccessFile.read(values, offset, len);
         return values;
+    }
+
+    @Override
+    public byte[] getBytes(int len) throws IOException {
+        byte[] values = new byte[len];
+        randomAccessFile.read(values);
+        return values;
+    }
+
+    @Override
+    public void skip(int len) throws IOException {
+        randomAccessFile.skipBytes(len);
     }
 
     @Override
@@ -80,13 +91,23 @@ public class StorageFileImpl implements StorageFile {
     }
 
     @Override
-    public synchronized void resetWritePointer(long offset) {
+    public void resetWritePointer(long offset) {
         writePointer = offset;
     }
 
     @Override
     public long getWritePointer() {
         return writePointer;
+    }
+
+    @Override
+    public void resetReadPointer(long offset) throws IOException {
+        randomAccessFile.seek(offset);
+    }
+
+    @Override
+    public long getReadPointer() throws IOException {
+        return randomAccessFile.getFilePointer();
     }
 
     @Override

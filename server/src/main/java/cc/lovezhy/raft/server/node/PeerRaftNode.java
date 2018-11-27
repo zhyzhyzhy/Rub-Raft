@@ -19,15 +19,19 @@ public class PeerRaftNode {
 
     private RaftService raftService;
 
+    private PeerNodeStatus nodeStatus;
+
     public PeerRaftNode(NodeId nodeId, EndPoint endPoint) {
         Preconditions.checkNotNull(nodeId);
         Preconditions.checkNotNull(endPoint);
         this.nodeId = nodeId;
         this.endPoint = endPoint;
+        nodeStatus = PeerNodeStatus.NORMAL;
         RpcClientOptions rpcClientOptions = new RpcClientOptions();
         rpcClientOptions.defineMethodRequestType("requestPreVote", RpcRequestType.ASYNC);
         rpcClientOptions.defineMethodRequestType("requestVote", RpcRequestType.ASYNC);
         rpcClientOptions.defineMethodRequestType("requestAppendLog", RpcRequestType.ASYNC);
+        rpcClientOptions.defineMethodRequestType("requestInstallSnapShot", RpcRequestType.ASYNC);
         this.raftService = RpcClient.create(RaftService.class, endPoint, rpcClientOptions);
     }
 
@@ -35,16 +39,8 @@ public class PeerRaftNode {
         return nodeId;
     }
 
-    public void setNodeId(NodeId nodeId) {
-        this.nodeId = nodeId;
-    }
-
     public EndPoint getEndPoint() {
         return endPoint;
-    }
-
-    public void setEndPoint(EndPoint endPoint) {
-        this.endPoint = endPoint;
     }
 
     public Long getNextIndex() {
@@ -69,5 +65,12 @@ public class PeerRaftNode {
 
     public void setRaftService(RaftService raftService) {
         this.raftService = raftService;
+    }
+    public PeerNodeStatus getNodeStatus() {
+        return nodeStatus;
+    }
+
+    public void setNodeStatus(PeerNodeStatus nodeStatus) {
+        this.nodeStatus = nodeStatus;
     }
 }

@@ -134,6 +134,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
             SettableFuture<Object> settableFuture = rpcFutureMap.get(requestId);
             if (Objects.nonNull(settableFuture)) {
                 settableFuture.set(response.getResponseBody());
+                rpcFutureMap.remove(requestId);
             }
         }
     }

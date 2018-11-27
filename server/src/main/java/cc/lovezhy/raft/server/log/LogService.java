@@ -3,27 +3,32 @@ package cc.lovezhy.raft.server.log;
 import cc.lovezhy.raft.server.log.exception.HasCompactException;
 import cc.lovezhy.raft.server.service.model.ReplicatedLogRequest;
 
+import java.io.IOException;
+import java.util.List;
+
 public interface LogService {
 
-    LogEntry get(Long index) throws HasCompactException;
+    LogEntry get(long index) throws HasCompactException, IOException;
 
-    boolean set(Long index, LogEntry entry) throws HasCompactException;
+    List<LogEntry> get(long start, long end);
 
-    boolean commit(Long index);
+    boolean hasInSnapshot(long index);
 
-    void appendLog(ReplicatedLogRequest replicatedLogRequest);
+    boolean set(long index, LogEntry entry) throws HasCompactException, IOException;
 
-    Long getLastCommitLogTerm();
+    boolean commit(long index) throws IOException, HasCompactException;
+
+    void appendLog(ReplicatedLogRequest replicatedLogRequest) throws IOException;
+
+    Long getLastCommitLogTerm() throws IOException;
 
     Long getLastCommitLogIndex();
 
     Long getLastLogIndex();
 
-    Long getLastLogTerm();
+    Long getLastLogTerm() throws IOException;
 
-    boolean isNewerThanSelf(Long lastLogTerm, Long lastLogIndex);
+    boolean isNewerThanSelf(long lastLogTerm, long lastLogIndex) throws IOException;
 
-    SnapShot compactLog();
-
-    boolean applyLogRequest(ReplicatedLogRequest replicatedLogRequest);
+    Snapshot createSnapshot();
 }
