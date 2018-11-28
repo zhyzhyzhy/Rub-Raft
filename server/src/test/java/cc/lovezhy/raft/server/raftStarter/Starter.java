@@ -6,6 +6,14 @@ import java.util.Properties;
 
 public class Starter {
 
+    public static void main(String[] args) {
+        Starter1.main(args);
+        Starter2.main(args);
+        Starter3.main(args);
+        Starter4.main(args);
+        Starter5.main(args);
+    }
+
 }
 
 class Starter1 {

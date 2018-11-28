@@ -28,7 +28,7 @@ public class ServerTest {
         ExampleService service = new ExampleServiceImpl();
         rpcServer.registerService(service);
         rpcServer.start(endPoint);
-        exampleService = RpcClient.create(ExampleService.class, endPoint);
+        exampleService = RpcClient.create(ExampleService.class, endPoint).getInstance();
     }
 
     @Test

@@ -1,7 +1,10 @@
 package cc.lovezhy.raft.server.service;
 
+import cc.lovezhy.raft.server.log.exception.HasCompactException;
 import cc.lovezhy.raft.server.service.model.*;
 import com.google.common.base.Preconditions;
+
+import java.io.IOException;
 
 public class RaftServiceImpl implements RaftService {
 
@@ -23,7 +26,7 @@ public class RaftServiceImpl implements RaftService {
     }
 
     @Override
-    public ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) {
+    public ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) throws IOException, HasCompactException {
         return raftService.requestAppendLog(replicatedLogRequest);
     }
 

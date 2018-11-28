@@ -54,19 +54,20 @@ public class RaftStarter {
         Preconditions.checkState(clusterConfig.getNodeCount() == (peerRaftNodes.size() + 1));
     }
 
-    public void start() {
+    public RaftNode start() {
         InputStream serverPropertiesStream = RaftStarter.class.getResourceAsStream("/server.properties");
         Properties properties = new Properties();
         try {
             properties.load(serverPropertiesStream);
-            start(properties);
+            return start(properties);
         } catch (IOException e) {
             log.error(e.getMessage(), e);
             log.error("load config file error!");
         }
+        return null;
     }
 
-    public void start(Properties properties) {
+    public RaftNode start(Properties properties) {
         Preconditions.checkNotNull(properties);
         loadPeerRaftNode(properties.getProperty(PEER_SERVERS_KEY));
 
@@ -77,7 +78,7 @@ public class RaftStarter {
 
         check();
 
-        localRaftNode.init();
+        return localRaftNode;
     }
 
 }

@@ -5,6 +5,8 @@ import cc.lovezhy.raft.server.log.exception.HasCompactException;
 import cc.lovezhy.raft.server.service.model.ReplicatedLogRequest;
 import cc.lovezhy.raft.server.storage.*;
 import com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.FileNotFoundException;
@@ -14,6 +16,7 @@ import java.util.List;
 
 public class LogServiceImpl implements LogService {
 
+    private static final Logger log = LoggerFactory.getLogger(LogServiceImpl.class);
     private StorageService storageService;
     private StateMachine stateMachine;
     private volatile Long commitIndex;
@@ -48,15 +51,17 @@ public class LogServiceImpl implements LogService {
     public LogEntry get(long index) throws HasCompactException, IOException {
         //如果日志已经被压缩
         if (index < start) {
+            log.error("Log Has Been Compact, start={}, requestIndex={}", start, index);
             throw new HasCompactException();
         }
         //如果还未有这个Index，返回空
         if (index > start + storageService.getLen()) {
             return null;
         }
-        StorageEntry storageEntry = storageService.get((int) (index - start));
-        Preconditions.checkNotNull(storageEntry);
-        return storageEntry.toLogEntry();
+        return null;
+//        StorageEntry storageEntry = storageService.get((int) (index - start));
+//        Preconditions.checkNotNull(storageEntry);
+//        return storageEntry.toLogEntry();
     }
 
     @Override

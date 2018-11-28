@@ -7,9 +7,9 @@ import java.io.IOException;
 
 public interface RaftService {
 
-    VoteResponse requestPreVote(VoteRequest voteRequest) throws IOException;
+    VoteResponse requestPreVote(VoteRequest voteRequest);
 
-    VoteResponse requestVote(VoteRequest voteRequest) throws IOException;
+    VoteResponse requestVote(VoteRequest voteRequest);
 
     ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) throws IOException, HasCompactException;
 

@@ -33,7 +33,7 @@ public class ServerTest {
 
         RpcClientOptions rpcClientOptions = new RpcClientOptions();
         rpcClientOptions.defineMethodRequestType("getStdName", RpcRequestType.ASYNC);
-        asyncExampleService = RpcClient.create(AsyncExampleService.class, endPoint, rpcClientOptions);
+        asyncExampleService = RpcClient.create(AsyncExampleService.class, endPoint, rpcClientOptions).getInstance();
     }
 
     @Test

@@ -19,27 +19,29 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static cc.lovezhy.raft.rpc.util.LockObjectFactory.getLockObject;
 
 public class RpcClient<T> implements ConsumerRpcService, RpcService {
 
-    public static <T> T create(Class<T> clazz, EndPoint endPoint) {
+    public static <T> RpcClient<T> create(Class<T> clazz, EndPoint endPoint) {
         return create(clazz, endPoint, new RpcClientOptions());
     }
 
-    public static <T> T create(Class<T> clazz, EndPoint endPoint, RpcClientOptions rpcClientOptions) {
+    public static <T> RpcClient<T> create(Class<T> clazz, EndPoint endPoint, RpcClientOptions rpcClientOptions) {
         Preconditions.checkNotNull(clazz);
         Preconditions.checkNotNull(endPoint);
-        RpcClient<T> rpcClient = new RpcClient<>(clazz, endPoint, rpcClientOptions);
-        return rpcClient.getInstance();
+        return new RpcClient<>(clazz, endPoint, rpcClientOptions);
     }
 
     private Class<T> clazz;
     private NettyClient nettyClient;
     private RpcClientOptions rpcClientOptions;
 
+    //for close
+    private Future connectFuture;
 
     private RpcClient(Class<T> clazz, EndPoint endPoint, RpcClientOptions rpcClientOptions) {
         Preconditions.checkNotNull(clazz);
@@ -51,22 +53,33 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
         this.connect();
     }
 
-    private void connect() {
+    public void connect() {
         SettableFuture<Void> connectResultFuture = nettyClient.connect();
         Futures.addCallback(connectResultFuture, new FutureCallback<Void>() {
             @Override
             public void onSuccess(@Nullable Void result) {
-
+                connectFuture = null;
             }
 
             @Override
             public void onFailure(Throwable t) {
-                RpcExecutors.commonScheduledExecutor().schedule(() -> connect(), 200, TimeUnit.MILLISECONDS);
+                connectFuture = RpcExecutors.commonScheduledExecutor().schedule(() -> connect(), 200, TimeUnit.MILLISECONDS);
             }
         }, RpcExecutors.listeningScheduledExecutor());
     }
 
-    private T getInstance() {
+    /**
+     * shutdown NettyClient
+     */
+    public void close() {
+        //still try reconnect
+        if (Objects.nonNull(connectFuture)) {
+            connectFuture.cancel(true);
+        }
+        this.nettyClient.closeSync();
+    }
+
+    public T getInstance() {
         return ProxyFactory.createRpcProxy(clazz, this, rpcClientOptions);
     }
 

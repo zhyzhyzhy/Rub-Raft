@@ -77,9 +77,11 @@ public class NettyServer {
         return channel;
     }
 
-    public void closeSync() {
+    public synchronized void closeSync() {
         try {
-            channel.close().sync();
+            if (channel.isOpen()) {
+                channel.close().sync();
+            }
         } catch (InterruptedException e) {
             // ignore
         } finally {
@@ -88,7 +90,7 @@ public class NettyServer {
         }
     }
 
-    public void closeAsync() {
+    public synchronized void closeAsync() {
         try {
             channel.close();
         } finally {

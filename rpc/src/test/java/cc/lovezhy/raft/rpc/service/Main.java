@@ -10,7 +10,7 @@ public class Main {
         RpcServer rpcServer = new RpcServer();
         rpcServer.registerService(ExampleServiceImpl.class);
         rpcServer.start(endPoint);
-        ExampleService exampleService = RpcClient.create(ExampleService.class, endPoint);
+        ExampleService exampleService = RpcClient.create(ExampleService.class, endPoint).getInstance();
         System.out.println(exampleService.plusOne(23));
         exampleService.sout("zhuyichen");
     }

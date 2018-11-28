@@ -22,49 +22,24 @@ public class FileStorageService implements StorageService {
         this.storageFile = StorageFileImpl.create(category, fileName);
     }
 
+
     @Override
-    public synchronized StorageEntry get(long index) throws IOException {
-        storageFile.resetReadPointer(0);
-        while (index > 0) {
-            int entryLength = storageFile.readInt();
-            storageFile.skip(entryLength);
-            index--;
-        }
-        long offset = storageFile.getReadPointer();
-        int entryLength = storageFile.readInt();
-        byte[] values = storageFile.getBytes(entryLength);
-        StorageEntry storageEntry = new StorageEntry();
-        storageEntry.setOffset(offset);
-        storageEntry.setSize(entryLength);
-        storageEntry.setValues(values);
-        return storageEntry;
+    public StorageEntry get(int index) throws IOException {
+        return null;
     }
 
     @Override
-    public boolean set(long index, StorageEntry storageEntry) throws IOException {
-        storageFile.resetReadPointer(0);
-        while (index > 0) {
-            int entryLength = storageFile.readInt();
-            storageFile.skip(entryLength);
-            index--;
-        }
-        storageEntry.setOffset(storageFile.getReadPointer());
-        storageFile.writeInt(storageEntry.getSize());
-        storageFile.writeBytes(storageEntry.getValues());
-        return true;
+    public boolean set(int index, StorageEntry storageEntry) throws IOException {
+        return false;
     }
 
     @Override
     public boolean append(StorageEntry storageEntry) throws IOException {
-        storageEntry.setOffset(storageFile.getWritePointer());
-        storageFile.writeInt(storageEntry.getSize());
-        storageFile.writeBytes(storageEntry.getValues());
-        len++;
-        return true;
+        return false;
     }
 
     @Override
     public long getLen() {
-        return len;
+        return 0;
     }
 }
