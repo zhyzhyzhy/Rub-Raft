@@ -31,10 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -72,7 +69,7 @@ public class RaftNode implements RaftService {
 
     private PeerNodeScheduler peerNodeScheduler = new PeerNodeScheduler();
 
-    private TickFuture tickFuture = new TickFuture();
+    private TickManager tickManager = new TickManager();
 
     public RaftNode(NodeId nodeId, EndPoint endPoint, ClusterConfig clusterConfig, List<PeerRaftNode> peerRaftNodes) {
         Preconditions.checkNotNull(nodeId);
@@ -107,7 +104,7 @@ public class RaftNode implements RaftService {
     }
 
     public void init() {
-        tickFuture.init();
+        tickManager.init();
         currentTerm = 0L;
         heartbeatTimeRecorder.set(0L);
         rpcServer = new RpcServer();
@@ -119,7 +116,7 @@ public class RaftNode implements RaftService {
         httpService.createHttpServer();
         peerRaftNodes.forEach(PeerRaftNode::connect) ;
         nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
-        startElectionTimeOut();
+        tickManager.tickElectionTimeOut();
     }
 
     public void reconnect() {
@@ -127,21 +124,9 @@ public class RaftNode implements RaftService {
     }
 
 
-    private long startElectionTimeOut() {
-        long waitTimeOut = getRandomStartElectionTimeout();
-        long voteTerm = currentTerm;
-        Future future = TimeCountDownUtil.addSchedulerTask(
-                waitTimeOut,
-                DEFAULT_TIME_UNIT,
-                () -> preVote(voteTerm + 1),
-                () -> nodeScheduler.isLoseHeartbeat(waitTimeOut) && !nodeScheduler.isLeader());
-        tickFuture.setPrevoteFuture(future);
-        return waitTimeOut;
-    }
-
     private void preVote(Long voteTerm) {
         log.info("start preVote, voteTerm={}", voteTerm);
-        long nextElectionTimeOut = startElectionTimeOut();
+        long nextElectionTimeOut = tickManager.tickElectionTimeOut();
         if (!nodeScheduler.changeNodeStatusWhenNot(NodeStatus.LEADER, NodeStatus.PRE_CANDIDATE)) {
             return;
         }
@@ -196,7 +181,7 @@ public class RaftNode implements RaftService {
         }
         log.info("startElection term={}", currentTerm);
         nodeScheduler.changeNodeStatus(NodeStatus.CANDIDATE);
-        long nextWaitTimeOut = startElectionTimeOut();
+        long nextWaitTimeOut = tickManager.tickElectionTimeOut();
         //初始值为1，把自己加进去
         AtomicInteger votedCount = new AtomicInteger(1);
         CountDownLatch latch = new CountDownLatch(clusterConfig.getNodeCount() / 2 + 1);
@@ -317,8 +302,7 @@ public class RaftNode implements RaftService {
                 e.printStackTrace();
             }
         });
-        Future future = TimeCountDownUtil.addSchedulerTask(HEART_BEAT_TIME_INTERVAL, DEFAULT_TIME_UNIT, this::startHeartbeat, (Supplier<Boolean>) () -> nodeScheduler.isLeader());
-        tickFuture.setHeartBeatFuture(future);
+        tickManager.tickHeartbeat();
     }
 
     @Override
@@ -347,7 +331,7 @@ public class RaftNode implements RaftService {
                 if (nodeScheduler.compareAndSetTerm(term, voteRequest.getTerm()) && (nodeScheduler.compareAndSetVotedFor(null, voteRequest.getCandidateId()) || nodeScheduler.compareAndSetVotedFor(voteRequest.getCandidateId(), voteRequest.getCandidateId()))) {
                     nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
                     nodeScheduler.receiveHeartbeat();
-                    startElectionTimeOut();
+                    tickManager.tickElectionTimeOut();
                     return new VoteResponse(voteRequest.getTerm(), true);
                 }
             }
@@ -380,7 +364,7 @@ public class RaftNode implements RaftService {
             if (isSameTerm) {
                 logService.appendLog(replicatedLogRequest);
             }
-            startElectionTimeOut();
+            tickManager.tickElectionTimeOut();
             return new ReplicatedLogResponse(term, isSameTerm);
         }
 
@@ -399,7 +383,7 @@ public class RaftNode implements RaftService {
             if (isSameTerm) {
                 logService.appendLog(replicatedLogRequest);
             }
-            startElectionTimeOut();
+            tickManager.tickElectionTimeOut();
             return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), isSameTerm);
         }
         return new ReplicatedLogResponse(term, false);
@@ -415,7 +399,7 @@ public class RaftNode implements RaftService {
         this.nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
         this.rpcServer.close();
         this.httpService.close();
-        this.tickFuture.cancelAll();
+        this.tickManager.cancelAll();
     }
 
     @Override
@@ -592,29 +576,44 @@ public class RaftNode implements RaftService {
         }
     }
 
-    public class TickFuture {
-        private Future preVoteFuture = null;
-        private Future heartBeatFuture = null;
+    public class TickManager {
+        private Optional<Future> preVoteFuture = Optional.empty();
+        private Optional<Future> heartBeatFuture = Optional.empty();
 
         public void init() {
-            preVoteFuture = null;
-            heartBeatFuture = null;
+            preVoteFuture = Optional.empty();
+            heartBeatFuture = Optional.empty();
         }
 
         public void setHeartBeatFuture(Future heartBeatFuture) {
-            this.heartBeatFuture = heartBeatFuture;
+            this.heartBeatFuture = Optional.of(heartBeatFuture);
         }
 
-        public void setPrevoteFuture(Future preVoteFuture) {
-            this.preVoteFuture = preVoteFuture;
+        public void setPreVoteFuture(Future preVoteFuture) {
+            this.preVoteFuture = Optional.of(preVoteFuture);
         }
         public void cancelAll() {
-            if (Objects.nonNull(preVoteFuture)) {
-                preVoteFuture.cancel(true);
-            }
-            if (Objects.nonNull(heartBeatFuture)) {
-                heartBeatFuture.cancel(true);
-            }
+            preVoteFuture.ifPresent(future -> future.cancel(false));
+            heartBeatFuture.ifPresent(future -> future.cancel(false));
+        }
+
+        public long tickElectionTimeOut() {
+            preVoteFuture.ifPresent(future -> future.cancel(false));
+            long waitTimeOut = getRandomStartElectionTimeout();
+            long voteTerm = currentTerm;
+            Future future = TimeCountDownUtil.addSchedulerTask(
+                    waitTimeOut,
+                    DEFAULT_TIME_UNIT,
+                    () -> preVote(voteTerm + 1),
+                    () -> nodeScheduler.isLoseHeartbeat(waitTimeOut) && !nodeScheduler.isLeader());
+            this.preVoteFuture = Optional.of(future);
+            return waitTimeOut;
+        }
+
+        public void tickHeartbeat() {
+            heartBeatFuture.ifPresent(future -> future.cancel(false));
+            Future future = TimeCountDownUtil.addSchedulerTask(HEART_BEAT_TIME_INTERVAL, DEFAULT_TIME_UNIT, RaftNode.this::startHeartbeat, (Supplier<Boolean>) () -> nodeScheduler.isLeader());
+            heartBeatFuture = Optional.of(future);
         }
     }
 
