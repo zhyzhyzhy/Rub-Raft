@@ -92,7 +92,7 @@ public class PeerRaftNode implements Closeable {
     }
 
     public void connect() {
-        if (Objects.isNull(rpcClient)) {
+        if (Objects.isNull(rpcClient) || (Objects.nonNull(rpcClient.isConnectAlive()) && !rpcClient.isConnectAlive())) {
             this.rpcClient = RpcClient.create(RaftService.class, endPoint, rpcClientOptions);
             this.raftService = rpcClient.getInstance();
         } else {

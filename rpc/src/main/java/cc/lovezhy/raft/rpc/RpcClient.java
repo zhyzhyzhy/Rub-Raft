@@ -68,6 +68,10 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
         }, RpcExecutors.listeningScheduledExecutor());
     }
 
+    public boolean isConnectAlive() {
+        return nettyClient.getChannel().isRegistered();
+    }
+
     /**
      * shutdown NettyClient
      */

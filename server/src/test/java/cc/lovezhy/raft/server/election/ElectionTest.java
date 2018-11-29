@@ -1,13 +1,17 @@
-package cc.lovezhy.raft.server;
+package cc.lovezhy.raft.server.election;
 
+import cc.lovezhy.raft.server.RaftStarter;
 import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.node.RaftNode;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.text.MessageFormat;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 
 public class ElectionTest {
     @Test
@@ -39,6 +43,30 @@ public class ElectionTest {
         System.out.println("check one leader");
         election(raftNodes);
         raftNodes.forEach(RaftNode::close);
+    }
+
+    @Test
+    public void electionFollowerDownTest() throws InterruptedException {
+        List<RaftNode> raftNodes = create5RaftNodes();
+        raftNodes.forEach(RaftNode::init);
+        System.out.println("check one leader");
+        RaftNode leader = election(raftNodes);
+        Set<RaftNode> raftNodeSet = Sets.newHashSet(raftNodes);
+        raftNodeSet.remove(leader);
+        RaftNode follower = raftNodeSet.iterator().next();
+        System.out.println(MessageFormat.format("ready to down, follower={0}", follower.getNodeId().toString()));
+        follower.close();
+
+        System.out.println("check one leader");
+        Assert.assertEquals(election(raftNodes), leader);
+        System.out.println("leader is still " + leader.getNodeId());
+
+        Thread.sleep(3000);
+        System.out.println("try to reconnect");
+        follower.init();
+        raftNodes.forEach(RaftNode::reconnect);
+        System.out.println("check one leader");
+        Assert.assertEquals(election(raftNodes), leader);
     }
 
     //return leaderNode

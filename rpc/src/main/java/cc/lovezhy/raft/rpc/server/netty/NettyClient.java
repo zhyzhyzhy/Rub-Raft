@@ -4,6 +4,7 @@ import cc.lovezhy.raft.rpc.EndPoint;
 import cc.lovezhy.raft.rpc.server.codec.KryoDecoder;
 import cc.lovezhy.raft.rpc.server.codec.KryoEncoder;
 import cc.lovezhy.raft.rpc.server.handler.RpcInboundHandler;
+import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.SettableFuture;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
@@ -70,7 +71,8 @@ public class NettyClient {
         try {
             if (channel.isActive()) {
                 channel.close().sync();
-                log.debug("shutdown client");
+                Preconditions.checkState(!channel.isActive());
+                log.info("shutdown client");
             }
         } catch (InterruptedException e) {
             // ignore

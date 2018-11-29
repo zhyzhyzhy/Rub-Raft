@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -71,6 +72,8 @@ public class RaftNode implements RaftService {
 
     private PeerNodeScheduler peerNodeScheduler = new PeerNodeScheduler();
 
+    private TickFuture tickFuture = new TickFuture();
+
     public RaftNode(NodeId nodeId, EndPoint endPoint, ClusterConfig clusterConfig, List<PeerRaftNode> peerRaftNodes) {
         Preconditions.checkNotNull(nodeId);
         Preconditions.checkNotNull(endPoint);
@@ -104,7 +107,11 @@ public class RaftNode implements RaftService {
     }
 
     public void init() {
+        tickFuture.init();
+        currentTerm = 0L;
+        heartbeatTimeRecorder.set(0L);
         rpcServer = new RpcServer();
+        nodeScheduler.setVotedForForce(null);
         RaftService serverService = new RaftServiceImpl(this);
         rpcServer.registerService(serverService);
         rpcServer.start(endPoint);
@@ -115,14 +122,20 @@ public class RaftNode implements RaftService {
         startElectionTimeOut();
     }
 
+    public void reconnect() {
+        peerRaftNodes.forEach(PeerRaftNode::connect) ;
+    }
+
+
     private long startElectionTimeOut() {
         long waitTimeOut = getRandomStartElectionTimeout();
         long voteTerm = currentTerm;
-        TimeCountDownUtil.addSchedulerTask(
+        Future future = TimeCountDownUtil.addSchedulerTask(
                 waitTimeOut,
                 DEFAULT_TIME_UNIT,
                 () -> preVote(voteTerm + 1),
                 () -> nodeScheduler.isLoseHeartbeat(waitTimeOut) && !nodeScheduler.isLeader());
+        tickFuture.setPrevoteFuture(future);
         return waitTimeOut;
     }
 
@@ -304,7 +317,8 @@ public class RaftNode implements RaftService {
                 e.printStackTrace();
             }
         });
-        TimeCountDownUtil.addSchedulerTask(HEART_BEAT_TIME_INTERVAL, DEFAULT_TIME_UNIT, this::startHeartbeat, (Supplier<Boolean>) () -> nodeScheduler.isLeader());
+        Future future = TimeCountDownUtil.addSchedulerTask(HEART_BEAT_TIME_INTERVAL, DEFAULT_TIME_UNIT, this::startHeartbeat, (Supplier<Boolean>) () -> nodeScheduler.isLeader());
+        tickFuture.setHeartBeatFuture(future);
     }
 
     @Override
@@ -347,11 +361,15 @@ public class RaftNode implements RaftService {
     public ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) throws IOException, HasCompactException {
         Long term = currentTerm;
 
+        //感觉应该不会出现，除非是消息延迟
+        if (term > replicatedLogRequest.getTerm()) {
+            return new ReplicatedLogResponse(term, false);
+        }
+
+        Preconditions.checkState(!nodeScheduler.isLeader());
+
         // normal
-        if (Objects.equals(replicatedLogRequest.getTerm(), term) && Objects.equals(replicatedLogRequest.getLeaderId(), nodeScheduler.getVotedFor())) {
-            if (nodeScheduler.isLeader()) {
-                log.error("find two leader!");
-            }
+        if (Objects.equals(replicatedLogRequest.getLeaderId(), nodeScheduler.getVotedFor())) {
             log.info("receiveHeartbeat from={}", replicatedLogRequest.getLeaderId());
             nodeScheduler.receiveHeartbeat();
             LogEntry logEntry = logService.get(replicatedLogRequest.getPrevLogIndex());
@@ -368,7 +386,7 @@ public class RaftNode implements RaftService {
 
         // 落单的，发现更高Term的Leader，直接变成Follower
         // 三个人选举的情况
-        if (replicatedLogRequest.getTerm() >= term && nodeScheduler.compareAndSetTerm(term, replicatedLogRequest.getTerm())) {
+        if (nodeScheduler.compareAndSetTerm(term, replicatedLogRequest.getTerm())) {
             nodeScheduler.setVotedForForce(replicatedLogRequest.getLeaderId());
             nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
             nodeScheduler.receiveHeartbeat();
@@ -397,6 +415,20 @@ public class RaftNode implements RaftService {
         this.nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
         this.rpcServer.close();
         this.httpService.close();
+        this.tickFuture.cancelAll();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RaftNode raftNode = (RaftNode) o;
+        return com.google.common.base.Objects.equal(nodeId, raftNode.nodeId);
+    }
+
+    @Override
+    public int hashCode() {
+        return com.google.common.base.Objects.hashCode(nodeId);
     }
 
     public class NodeScheduler {
@@ -559,6 +591,33 @@ public class RaftNode implements RaftService {
             return jsonObject;
         }
     }
+
+    public class TickFuture {
+        private Future preVoteFuture = null;
+        private Future heartBeatFuture = null;
+
+        public void init() {
+            preVoteFuture = null;
+            heartBeatFuture = null;
+        }
+
+        public void setHeartBeatFuture(Future heartBeatFuture) {
+            this.heartBeatFuture = heartBeatFuture;
+        }
+
+        public void setPrevoteFuture(Future preVoteFuture) {
+            this.preVoteFuture = preVoteFuture;
+        }
+        public void cancelAll() {
+            if (Objects.nonNull(preVoteFuture)) {
+                preVoteFuture.cancel(true);
+            }
+            if (Objects.nonNull(heartBeatFuture)) {
+                heartBeatFuture.cancel(true);
+            }
+        }
+    }
+
 
     /**
      * for the web logger
