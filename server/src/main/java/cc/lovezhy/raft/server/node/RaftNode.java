@@ -114,13 +114,13 @@ public class RaftNode implements RaftService {
         rpcServer.start(endPoint);
         httpService = new ClientHttpService(new NodeMonitor(), endPoint.getPort() + 1);
         httpService.createHttpServer();
-        peerRaftNodes.forEach(PeerRaftNode::connect) ;
+        peerRaftNodes.forEach(PeerRaftNode::connect);
         nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
         tickManager.tickElectionTimeOut();
     }
 
     public void reconnect() {
-        peerRaftNodes.forEach(PeerRaftNode::connect) ;
+        peerRaftNodes.forEach(PeerRaftNode::connect);
     }
 
 
@@ -284,8 +284,7 @@ public class RaftNode implements RaftService {
 
                                         }
                                     }, RpcExecutors.commonExecutor());
-                                }
-                                else {
+                                } else {
                                     peerRaftNode.setNextIndex(peerRaftNode.getNextIndex() - 1);
                                 }
                             }
@@ -293,6 +292,7 @@ public class RaftNode implements RaftService {
                             peerRaftNode.setMatchIndex(peerRaftNode.getNextIndex() - 1);
                         }
                     }
+
                     @Override
                     public void onFailure(Throwable t) {
                         t.printStackTrace();
@@ -395,7 +395,7 @@ public class RaftNode implements RaftService {
     }
 
     public void close() {
-        peerRaftNodes.forEach(PeerRaftNode::close);
+        this.peerRaftNodes.forEach(PeerRaftNode::close);
         this.nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
         this.rpcServer.close();
         this.httpService.close();
@@ -580,24 +580,17 @@ public class RaftNode implements RaftService {
         private Optional<Future> preVoteFuture = Optional.empty();
         private Optional<Future> heartBeatFuture = Optional.empty();
 
-        public void init() {
+        void init() {
             preVoteFuture = Optional.empty();
             heartBeatFuture = Optional.empty();
         }
 
-        public void setHeartBeatFuture(Future heartBeatFuture) {
-            this.heartBeatFuture = Optional.of(heartBeatFuture);
-        }
-
-        public void setPreVoteFuture(Future preVoteFuture) {
-            this.preVoteFuture = Optional.of(preVoteFuture);
-        }
-        public void cancelAll() {
+        void cancelAll() {
             preVoteFuture.ifPresent(future -> future.cancel(false));
             heartBeatFuture.ifPresent(future -> future.cancel(false));
         }
 
-        public long tickElectionTimeOut() {
+        long tickElectionTimeOut() {
             preVoteFuture.ifPresent(future -> future.cancel(false));
             long waitTimeOut = getRandomStartElectionTimeout();
             long voteTerm = currentTerm;
@@ -610,7 +603,7 @@ public class RaftNode implements RaftService {
             return waitTimeOut;
         }
 
-        public void tickHeartbeat() {
+        void tickHeartbeat() {
             heartBeatFuture.ifPresent(future -> future.cancel(false));
             Future future = TimeCountDownUtil.addSchedulerTask(HEART_BEAT_TIME_INTERVAL, DEFAULT_TIME_UNIT, RaftNode.this::startHeartbeat, (Supplier<Boolean>) () -> nodeScheduler.isLeader());
             heartBeatFuture = Optional.of(future);
