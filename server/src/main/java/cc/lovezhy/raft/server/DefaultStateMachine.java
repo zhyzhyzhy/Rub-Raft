@@ -8,9 +8,12 @@ import com.esotericsoftware.kryo.io.Output;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.io.ByteArrayOutputStream;
 import java.util.Map;
+import java.util.Optional;
 
+@ThreadSafe
 public class DefaultStateMachine implements StateMachine {
 
     private final Map<String, String> map = Maps.newConcurrentMap();
@@ -53,5 +56,9 @@ public class DefaultStateMachine implements StateMachine {
         Map<String, String> snapShotMap = (Map<String, String>) kryo.readClassAndObject(input);
         map.putAll(snapShotMap);
         return true;
+    }
+
+    public Optional<String> getValue(String key) {
+        return Optional.ofNullable(map.get(key));
     }
 }

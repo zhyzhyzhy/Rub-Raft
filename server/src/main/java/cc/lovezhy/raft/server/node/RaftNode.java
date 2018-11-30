@@ -184,7 +184,7 @@ public class RaftNode implements RaftService {
         long nextWaitTimeOut = tickManager.tickElectionTimeOut();
         //初始值为1，把自己加进去
         AtomicInteger votedCount = new AtomicInteger(1);
-        CountDownLatch latch = new CountDownLatch(clusterConfig.getNodeCount() / 2 + 1);
+        CountDownLatch latch = new CountDownLatch(clusterConfig.getNodeCount() / 2);
         peerRaftNodes.forEach(peerRaftNode -> {
             try {
                 VoteRequest voteRequest = new VoteRequest();
