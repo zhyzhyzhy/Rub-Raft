@@ -10,7 +10,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 public class RpcExecutors {
 
-    private static final int RPC_FIXED_EXECUTE_THREADS = 50;
+    private static final int RPC_FIXED_EXECUTE_THREADS = 16;
 
     private static final int RPC_SCHEDULE_EXECUTE_THREADS = 3;
 

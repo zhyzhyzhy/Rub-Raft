@@ -6,6 +6,7 @@ import cc.lovezhy.raft.rpc.RpcServer;
 import cc.lovezhy.raft.rpc.common.RpcExecutors;
 import cc.lovezhy.raft.server.ClusterConfig;
 import cc.lovezhy.raft.server.DefaultStateMachine;
+import cc.lovezhy.raft.server.log.DefaultCommand;
 import cc.lovezhy.raft.server.log.LogEntry;
 import cc.lovezhy.raft.server.log.LogService;
 import cc.lovezhy.raft.server.log.LogServiceImpl;
@@ -48,28 +49,60 @@ public class RaftNode implements RaftService {
 
     private NodeId nodeId;
 
+    /**
+     * 节点的当前状态
+     */
     private AtomicReference<NodeStatus> currentNodeStatus = new AtomicReference<>();
 
+    /**
+     * 集群信息
+     */
     private ClusterConfig clusterConfig;
 
+    /**
+     * 当前任期
+     */
     private volatile Long currentTerm = 0L;
 
+    /**
+     * 日志服务
+     */
     private LogService logService;
 
     private List<PeerRaftNode> peerRaftNodes;
 
     private AtomicLong heartbeatTimeRecorder = new AtomicLong();
 
+    /**
+     * 为其他的节点提供Rpc服务
+     */
     private EndPoint endPoint;
-
     private RpcServer rpcServer;
+
+    /**
+     * http服务，可以查看节点的状态等信息
+     */
     private ClientHttpService httpService;
 
+    /**
+     * 提供一些与Node状态相关的原子操作，为选举，超时一些竞态条件服务
+     */
     private NodeScheduler nodeScheduler = new NodeScheduler();
 
+    /**
+     * PeerNode的一些状态更新，比如MatchIndex等
+     */
     private PeerNodeScheduler peerNodeScheduler = new PeerNodeScheduler();
 
+    /**
+     * 心跳和超时选举的定时任务的管理
+     */
     private TickManager tickManager = new TickManager();
+
+    /**
+     * 外界向服务进行Log的请求
+     */
+    private OuterService outerService = new OuterService();
 
     public RaftNode(NodeId nodeId, EndPoint endPoint, ClusterConfig clusterConfig, List<PeerRaftNode> peerRaftNodes) {
         Preconditions.checkNotNull(nodeId);
@@ -125,7 +158,7 @@ public class RaftNode implements RaftService {
 
 
     private void preVote(Long voteTerm) {
-        log.info("start preVote, voteTerm={}", voteTerm);
+        log.debug("start preVote, voteTerm={}", voteTerm);
         long nextElectionTimeOut = tickManager.tickElectionTimeOut();
         if (!nodeScheduler.changeNodeStatusWhenNot(NodeStatus.LEADER, NodeStatus.PRE_CANDIDATE)) {
             return;
@@ -179,7 +212,7 @@ public class RaftNode implements RaftService {
         if (!nodeScheduler.compareAndSetTerm(voteTerm - 1, voteTerm) || !nodeScheduler.compareAndSetVotedFor(null, nodeId)) {
             return;
         }
-        log.info("startElection term={}", currentTerm);
+        log.debug("startElection term={}", currentTerm);
         nodeScheduler.changeNodeStatus(NodeStatus.CANDIDATE);
         long nextWaitTimeOut = tickManager.tickElectionTimeOut();
         //初始值为1，把自己加进去
@@ -223,7 +256,7 @@ public class RaftNode implements RaftService {
             log.error(e.getMessage(), e);
         }
         if (votedCount.get() > clusterConfig.getNodeCount() / 2) {
-            log.info("try to be leader, term={}", voteTerm);
+            log.debug("try to be leader, term={}", voteTerm);
             boolean beLeaderSuccess = nodeScheduler.beLeader(voteTerm);
             if (beLeaderSuccess && nodeScheduler.changeNodeStatusWhenNot(NodeStatus.PRE_CANDIDATE, NodeStatus.LEADER)) {
                 log.info("be the leader sucess, currentTerm={}", voteTerm);
@@ -253,7 +286,7 @@ public class RaftNode implements RaftService {
                 }
                 replicatedLogRequest.setEntries(logService.get(peerRaftNode.getNextIndex(), logService.getLastLogIndex()));
                 peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
-                log.info("send heartbeat to={}", peerRaftNode.getNodeId());
+                log.debug("send heartbeat to={}", peerRaftNode.getNodeId());
                 SettableFuture<ReplicatedLogResponse> responseSettableFuture = RpcContext.getContextFuture();
                 Futures.addCallback(responseSettableFuture, new FutureCallback<ReplicatedLogResponse>() {
                     @Override
@@ -354,7 +387,7 @@ public class RaftNode implements RaftService {
 
         // normal
         if (Objects.equals(replicatedLogRequest.getLeaderId(), nodeScheduler.getVotedFor())) {
-            log.info("receiveHeartbeat from={}", replicatedLogRequest.getLeaderId());
+            log.debug("receiveHeartbeat from={}", replicatedLogRequest.getLeaderId());
             nodeScheduler.receiveHeartbeat();
             LogEntry logEntry = logService.get(replicatedLogRequest.getPrevLogIndex());
             boolean isSameTerm = false;
@@ -374,7 +407,7 @@ public class RaftNode implements RaftService {
             nodeScheduler.setVotedForForce(replicatedLogRequest.getLeaderId());
             nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
             nodeScheduler.receiveHeartbeat();
-            log.info("receiveHeartbeat from={}", replicatedLogRequest.getLeaderId());
+            log.debug("receiveHeartbeat from={}", replicatedLogRequest.getLeaderId());
             LogEntry logEntry = logService.get(replicatedLogRequest.getPrevLogIndex());
             boolean isSameTerm = false;
             if (Objects.nonNull(logEntry)) {
@@ -395,6 +428,7 @@ public class RaftNode implements RaftService {
     }
 
     public void close() {
+        log.info("close");
         this.peerRaftNodes.forEach(PeerRaftNode::close);
         this.nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
         this.rpcServer.close();
@@ -611,6 +645,12 @@ public class RaftNode implements RaftService {
     }
 
 
+    public class OuterService {
+        public boolean appendLog(DefaultCommand command) {
+
+            return true;
+        }
+    }
     /**
      * for the web logger
      */
