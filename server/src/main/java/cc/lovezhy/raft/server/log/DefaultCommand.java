@@ -1,23 +1,43 @@
 package cc.lovezhy.raft.server.log;
 
-import com.google.common.base.Preconditions;
-import jdk.nashorn.internal.ir.annotations.Immutable;
+
+import javax.annotation.concurrent.Immutable;
 
 @Immutable
 public class DefaultCommand implements Command {
 
-    private String command;
+    private static final String EMPTY_VALUE = "";
 
-    public static DefaultCommand create(String command) {
-        return new DefaultCommand(command);
+    private DefaultCommandEnum commandEnum;
+
+    private String key;
+
+    private String value;
+
+
+    public static DefaultCommand setValue(String key, String value) {
+        return new DefaultCommand(DefaultCommandEnum.SET, key, value);
     }
 
-    private DefaultCommand(String command) {
-        Preconditions.checkNotNull(command);
-        this.command = command;
+    public static DefaultCommand removeKey(String key) {
+        return new DefaultCommand(DefaultCommandEnum.REMOVE, key, EMPTY_VALUE);
     }
 
-    public String getCommand() {
-        return command;
+    private DefaultCommand(DefaultCommandEnum commandEnum, String key, String value) {
+        this.commandEnum = commandEnum;
+        this.key = key;
+        this.value = value;
+    }
+
+    public DefaultCommandEnum getCommandEnum() {
+        return commandEnum;
+    }
+
+    public String getKey() {
+        return key;
+    }
+
+    public String getValue() {
+        return value;
     }
 }

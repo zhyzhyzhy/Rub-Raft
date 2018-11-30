@@ -5,4 +5,5 @@ import cc.lovezhy.raft.server.log.Command;
 public interface StateMachine {
     boolean apply(Command command);
     byte[] takeSnapShot();
+    boolean fromSnapShot(byte[] bytes);
 }

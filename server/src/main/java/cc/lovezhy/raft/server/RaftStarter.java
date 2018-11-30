@@ -6,6 +6,7 @@ import cc.lovezhy.raft.server.node.PeerRaftNode;
 import cc.lovezhy.raft.server.node.RaftNode;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+import io.vertx.ext.web.handler.LoggerFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

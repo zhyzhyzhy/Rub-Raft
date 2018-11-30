@@ -15,7 +15,7 @@ import java.util.Objects;
 
 public class PeerRaftNode implements Closeable {
 
-    private final Logger log = LoggerFactory.getLogger(getClass());
+    private Logger log = LoggerFactory.getLogger(PeerRaftNode.class);
 
     private NodeId nodeId;
 
@@ -87,7 +87,7 @@ public class PeerRaftNode implements Closeable {
     public void close() {
         if (Objects.nonNull(rpcClient)) {
             rpcClient.close();
-            log.info("close rpcClient, nodeId={}", nodeId.getPeerId());
+            log.debug("close rpcClient, nodeId={}", nodeId.getPeerId());
         }
     }
 
