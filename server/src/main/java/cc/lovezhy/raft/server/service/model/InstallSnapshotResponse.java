@@ -1,13 +1,13 @@
 package cc.lovezhy.raft.server.service.model;
 
-public class InstallSnapShotResponse {
+public class InstallSnapshotResponse {
     private Long term;
     private Boolean success;
 
-    public InstallSnapShotResponse() {
+    public InstallSnapshotResponse() {
     }
 
-    public InstallSnapShotResponse(Long term, Boolean success) {
+    public InstallSnapshotResponse(Long term, Boolean success) {
         this.term = term;
         this.success = success;
     }

@@ -3,7 +3,7 @@ package cc.lovezhy.raft.server.service.model;
 import cc.lovezhy.raft.server.log.Snapshot;
 import cc.lovezhy.raft.server.node.NodeId;
 
-public class InstallSnapShotRequest {
+public class InstallSnapshotRequest {
     private Snapshot snapshot;
     private Long term;
     private NodeId leaderId;

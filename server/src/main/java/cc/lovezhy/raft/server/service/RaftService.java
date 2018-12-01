@@ -13,7 +13,5 @@ public interface RaftService {
 
     ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) throws IOException, HasCompactException;
 
-    InstallSnapShotResponse requestInstallSnapShot(InstallSnapShotRequest installSnapShotRequest);
-
-
+    InstallSnapshotResponse requestInstallSnapShot(InstallSnapshotRequest installSnapShotRequest);
 }

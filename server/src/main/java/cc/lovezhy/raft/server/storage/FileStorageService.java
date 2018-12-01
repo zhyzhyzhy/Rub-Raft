@@ -2,6 +2,7 @@ package cc.lovezhy.raft.server.storage;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * |index|len|values|len|index|len|values|len|
@@ -25,6 +26,11 @@ public class FileStorageService implements StorageService {
 
     @Override
     public StorageEntry get(int index) throws IOException {
+        return null;
+    }
+
+    @Override
+    public List<StorageEntry> range(int start, int end) throws IOException {
         return null;
     }
 

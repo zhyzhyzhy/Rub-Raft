@@ -117,7 +117,7 @@ public class RaftNode implements RaftService {
         try {
             logService = new LogServiceImpl(new DefaultStateMachine(), StorageType.MEMORY);
         } catch (FileNotFoundException e) {
-            e.printStackTrace();
+            log.error(e.getMessage(), e);
         }
     }
 
@@ -303,15 +303,15 @@ public class RaftNode implements RaftService {
                                 if (logService.hasInSnapshot(nextPreLogIndex)) {
                                     peerRaftNode.setNodeStatus(PeerNodeStatus.INSTALLSNAPSHOT);
                                     Snapshot snapShot = logService.getSnapShot();
-                                    InstallSnapShotRequest installSnapShotRequest = new InstallSnapShotRequest();
+                                    InstallSnapshotRequest installSnapShotRequest = new InstallSnapshotRequest();
                                     installSnapShotRequest.setLeaderId(nodeId);
                                     installSnapShotRequest.setTerm(currentTerm);
                                     installSnapShotRequest.setSnapshot(snapShot);
                                     peerRaftNode.getRaftService().requestInstallSnapShot(installSnapShotRequest);
-                                    SettableFuture<InstallSnapShotResponse> responseSettableFuture = RpcContext.getContextFuture();
-                                    Futures.addCallback(responseSettableFuture, new FutureCallback<InstallSnapShotResponse>() {
+                                    SettableFuture<InstallSnapshotResponse> responseSettableFuture = RpcContext.getContextFuture();
+                                    Futures.addCallback(responseSettableFuture, new FutureCallback<InstallSnapshotResponse>() {
                                         @Override
-                                        public void onSuccess(@Nullable InstallSnapShotResponse result) {
+                                        public void onSuccess(@Nullable InstallSnapshotResponse result) {
                                             if (result.getSuccess()) {
                                                 peerRaftNode.setNodeStatus(PeerNodeStatus.PROBE);
                                                 peerRaftNode.setMatchIndex(snapShot.getLastLogIndex());
@@ -448,13 +448,13 @@ public class RaftNode implements RaftService {
     }
 
     @Override
-    public InstallSnapShotResponse requestInstallSnapShot(InstallSnapShotRequest installSnapShotRequest) {
+    public InstallSnapshotResponse requestInstallSnapShot(InstallSnapshotRequest installSnapShotRequest) {
         Long term = currentTerm;
         if (installSnapShotRequest.getTerm() < term) {
-            return new InstallSnapShotResponse(term, false);
+            return new InstallSnapshotResponse(term, false);
         }
         logService.installSnapShot(installSnapShotRequest.getSnapshot());
-        return new InstallSnapShotResponse(term, true);
+        return new InstallSnapshotResponse(term, true);
     }
 
     public void close() {
@@ -492,7 +492,7 @@ public class RaftNode implements RaftService {
          * 如果当前节点已经是Leader，那么也不允许修改任期
          *
          * @return 是否更新成功
-         * @see {@link NodeScheduler#beLeader(Long)}
+         * @see NodeScheduler#beLeader(Long)
          */
         boolean compareAndSetTerm(Long expected, Long update) {
             Preconditions.checkNotNull(expected);

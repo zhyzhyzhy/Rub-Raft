@@ -2,6 +2,7 @@ package cc.lovezhy.raft.server.log;
 
 import cc.lovezhy.raft.server.StateMachine;
 import cc.lovezhy.raft.server.log.exception.HasCompactException;
+import cc.lovezhy.raft.server.log.exception.NoSuchLogException;
 import cc.lovezhy.raft.server.storage.*;
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
@@ -24,10 +25,14 @@ public class LogServiceImpl implements LogService {
     private static final Logger log = LoggerFactory.getLogger(LogServiceImpl.class);
     private StorageService storageService;
     private StateMachine stateMachine;
-    private volatile Long commitIndex;
-    private volatile Long lastApplied;
 
-    private Snapshot snapshot;
+    private volatile Long lastCommitLogIndex;
+    private volatile Long lastCommitLogTerm;
+
+    private volatile Long lastAppliedLogIndex;
+    private volatile Long lastAppliedLogTerm;
+
+    private volatile Snapshot snapshot;
 
     /**
      * 日志的开头，因为有些可能已经被压缩了
@@ -42,42 +47,52 @@ public class LogServiceImpl implements LogService {
         switch (storageType) {
             case FILE:
                 this.storageService = FileStorageService.create("/Users/zhuyichen/tmp/raft", "raft.log");
+                break;
             case MEMORY:
                 this.storageService = MemoryStorageService.create();
+                break;
+            default:
+                throw new IllegalStateException();
         }
         this.start = 0L;
-        this.commitIndex = LogConstants.ON_LOG;
-        this.lastApplied = LogConstants.ON_LOG;
+        this.lastCommitLogIndex = LogConstants.ON_LOG;
+        this.lastCommitLogTerm = 0L;
+        this.lastAppliedLogIndex = LogConstants.ON_LOG;
+        this.lastAppliedLogTerm = 0L;
         this.stateMachine = stateMachine;
     }
 
 
     @Override
     @Nullable
-    public LogEntry get(long index) throws HasCompactException, IOException {
+    public LogEntry get(long index) throws IOException {
+        Preconditions.checkState(index >= 0);
         //如果日志已经被压缩
         if (index < start) {
             log.error("Log Has Been Compact, start={}, requestIndex={}", start, index);
             throw new HasCompactException();
         }
         //如果还未有这个Index，返回空
-        if (index > start + storageService.getLen()) {
-            return null;
+        if (index >= start + storageService.getLen()) {
+            throw new NoSuchLogException();
         }
         StorageEntry storageEntry = storageService.get((int) (index - start));
         Preconditions.checkNotNull(storageEntry);
         return storageEntry.toLogEntry();
     }
 
+    /**
+     * [start, end]
+     */
     @Override
     public List<LogEntry> get(long start, long end) throws IOException, HasCompactException {
-        if (start >= end) {
+        if (start > end) {
             return Collections.emptyList();
         }
         if (start < this.start) {
             throw new HasCompactException();
         }
-        if (end > this.start + storageService.getLen()) {
+        if (end >= this.start + storageService.getLen()) {
             throw new IndexOutOfBoundsException();
         }
         List<StorageEntry> storageEntries = storageService.range((int) ((int) start - this.start), (int) ((int) end - this.start));
@@ -86,11 +101,15 @@ public class LogServiceImpl implements LogService {
 
     @Override
     public boolean hasInSnapshot(long index) {
+        Preconditions.checkState(index >= 0);
+        if (index >= start + storageService.getLen()) {
+            throw new NoSuchLogException();
+        }
         return start > index;
     }
 
     @Override
-    public boolean set(long index, LogEntry entry) throws HasCompactException, IOException {
+    public boolean set(long index, LogEntry entry) throws IOException {
         Preconditions.checkNotNull(entry);
         if (index < start) {
             throw new HasCompactException();
@@ -99,12 +118,12 @@ public class LogServiceImpl implements LogService {
     }
 
     @Override
-    public boolean commit(long index) throws IOException, HasCompactException {
+    public boolean commit(long index) throws IOException {
         LogEntry logEntry = get(index);
         if (Objects.nonNull(logEntry)) {
             this.stateMachine.apply(logEntry.getCommand());
         }
-        this.commitIndex = index;
+        this.lastCommitLogIndex = index;
         return true;
     }
 
@@ -127,20 +146,17 @@ public class LogServiceImpl implements LogService {
 
     @Override
     public Long getLastCommitLogTerm() throws IOException {
-        if (commitIndex.equals(LogConstants.ON_LOG)) {
-            return LogConstants.ON_LOG;
+        if (this.lastCommitLogIndex.equals(LogConstants.ON_LOG)) {
+            return 0L;
         }
-        StorageEntry storageEntry = storageService.get((int) (commitIndex - start));
+        StorageEntry storageEntry = storageService.get((int) (this.lastCommitLogIndex - start));
         Preconditions.checkNotNull(storageEntry);
         return storageEntry.toLogEntry().getTerm();
     }
 
     @Override
     public Long getLastCommitLogIndex() {
-        if (commitIndex.equals(LogConstants.ON_LOG)) {
-            return LogConstants.ON_LOG;
-        }
-        return commitIndex;
+        return lastCommitLogIndex;
     }
 
     @Override
@@ -180,12 +196,35 @@ public class LogServiceImpl implements LogService {
     }
 
     @Override
-    public void createSnapShot() {
-
+    public void createSnapshot() throws IOException {
+        try {
+            LOG_LOCK.lock();
+            byte[] snapshotValues = stateMachine.takeSnapShot();
+            Long lastCommitLogIndex = getLastCommitLogIndex();
+            Long lastCommitLogTerm = getLastCommitLogTerm();
+            Snapshot snapshot = new Snapshot();
+            snapshot.setData(snapshotValues);
+            snapshot.setLastLogIndex(lastCommitLogIndex);
+            snapshot.setLastLogTerm(lastCommitLogTerm);
+            this.snapshot = snapshot;
+        } finally {
+            LOG_LOCK.unlock();
+        }
     }
 
     @Override
     public boolean installSnapShot(Snapshot snapshot) {
-        return false;
+        Preconditions.checkNotNull(snapshot);
+        try {
+            LOG_LOCK.lock();
+            stateMachine.fromSnapShot(snapshot.getData());
+            this.lastCommitLogIndex = snapshot.getLastLogIndex();
+            this.lastAppliedLogIndex = snapshot.getLastLogIndex();
+            this.lastAppliedLogTerm = snapshot.getLastLogTerm();
+            this.lastAppliedLogIndex = snapshot.getLastLogTerm();
+        } finally {
+            LOG_LOCK.unlock();
+        }
+        return true;
     }
 }

@@ -8,15 +8,15 @@ import java.util.List;
 
 public interface LogService {
 
-    LogEntry get(long index) throws HasCompactException, IOException;
+    LogEntry get(long index) throws IOException;
 
-    List<LogEntry> get(long start, long end) throws IOException, HasCompactException;
+    List<LogEntry> get(long start, long end) throws IOException;
 
     boolean hasInSnapshot(long index);
 
-    boolean set(long index, LogEntry entry) throws HasCompactException, IOException;
+    boolean set(long index, LogEntry entry) throws IOException;
 
-    boolean commit(long index) throws IOException, HasCompactException;
+    boolean commit(long index) throws IOException;
 
     void appendLog(List<LogEntry> entries) throws IOException;
 
@@ -32,7 +32,7 @@ public interface LogService {
 
     Snapshot getSnapShot();
 
-    void createSnapShot();
+    void createSnapshot() throws IOException;
 
     boolean installSnapShot(Snapshot snapshot);
 }
