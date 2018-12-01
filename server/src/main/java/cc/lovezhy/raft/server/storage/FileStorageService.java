@@ -42,4 +42,9 @@ public class FileStorageService implements StorageService {
     public long getLen() {
         return 0;
     }
+
+    @Override
+    public void discard(int toIndex) throws IOException {
+        //TODO
+    }
 }

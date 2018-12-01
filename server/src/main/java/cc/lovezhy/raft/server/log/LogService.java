@@ -10,7 +10,7 @@ public interface LogService {
 
     LogEntry get(long index) throws HasCompactException, IOException;
 
-    List<LogEntry> get(long start, long end);
+    List<LogEntry> get(long start, long end) throws IOException, HasCompactException;
 
     boolean hasInSnapshot(long index);
 
@@ -18,7 +18,7 @@ public interface LogService {
 
     boolean commit(long index) throws IOException, HasCompactException;
 
-    void appendLog(ReplicatedLogRequest replicatedLogRequest) throws IOException;
+    void appendLog(List<LogEntry> entries) throws IOException;
 
     Long getLastCommitLogTerm() throws IOException;
 
@@ -30,5 +30,9 @@ public interface LogService {
 
     boolean isNewerThanSelf(long lastLogTerm, long lastLogIndex) throws IOException;
 
-    Snapshot createSnapshot();
+    Snapshot getSnapShot();
+
+    void createSnapShot();
+
+    boolean installSnapShot(Snapshot snapshot);
 }

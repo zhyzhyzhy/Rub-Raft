@@ -2,7 +2,6 @@ package cc.lovezhy.raft.server.log;
 
 import cc.lovezhy.raft.server.StateMachine;
 import cc.lovezhy.raft.server.log.exception.HasCompactException;
-import cc.lovezhy.raft.server.service.model.ReplicatedLogRequest;
 import cc.lovezhy.raft.server.storage.*;
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
@@ -13,7 +12,13 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
+/**
+ * 避免空指针问题，全部用NO_LOG表示没有Log
+ */
 public class LogServiceImpl implements LogService {
 
     private static final Logger log = LoggerFactory.getLogger(LogServiceImpl.class);
@@ -22,13 +27,14 @@ public class LogServiceImpl implements LogService {
     private volatile Long commitIndex;
     private volatile Long lastApplied;
 
-
-    public static final Long NO_LOG = -1L;
+    private Snapshot snapshot;
 
     /**
      * 日志的开头，因为有些可能已经被压缩了
      */
     private volatile Long start;
+
+    private ReentrantLock LOG_LOCK = new ReentrantLock(true);
 
     public LogServiceImpl(StateMachine stateMachine, StorageType storageType) throws FileNotFoundException {
         Preconditions.checkNotNull(stateMachine);
@@ -40,8 +46,8 @@ public class LogServiceImpl implements LogService {
                 this.storageService = MemoryStorageService.create();
         }
         this.start = 0L;
-        this.commitIndex = NO_LOG;
-        this.lastApplied = NO_LOG;
+        this.commitIndex = LogConstants.ON_LOG;
+        this.lastApplied = LogConstants.ON_LOG;
         this.stateMachine = stateMachine;
     }
 
@@ -58,19 +64,24 @@ public class LogServiceImpl implements LogService {
         if (index > start + storageService.getLen()) {
             return null;
         }
-        return null;
-//        StorageEntry storageEntry = storageService.get((int) (index - start));
-//        Preconditions.checkNotNull(storageEntry);
-//        return storageEntry.toLogEntry();
+        StorageEntry storageEntry = storageService.get((int) (index - start));
+        Preconditions.checkNotNull(storageEntry);
+        return storageEntry.toLogEntry();
     }
 
     @Override
-    public List<LogEntry> get(long start, long end) {
-        if (start == end) {
+    public List<LogEntry> get(long start, long end) throws IOException, HasCompactException {
+        if (start >= end) {
             return Collections.emptyList();
         }
-        //TODO
-        return Collections.emptyList();
+        if (start < this.start) {
+            throw new HasCompactException();
+        }
+        if (end > this.start + storageService.getLen()) {
+            throw new IndexOutOfBoundsException();
+        }
+        List<StorageEntry> storageEntries = storageService.range((int) ((int) start - this.start), (int) ((int) end - this.start));
+        return storageEntries.stream().map(StorageEntry::toLogEntry).collect(Collectors.toList());
     }
 
     @Override
@@ -90,22 +101,34 @@ public class LogServiceImpl implements LogService {
     @Override
     public boolean commit(long index) throws IOException, HasCompactException {
         LogEntry logEntry = get(index);
-        this.stateMachine.apply(logEntry.getCommand());
+        if (Objects.nonNull(logEntry)) {
+            this.stateMachine.apply(logEntry.getCommand());
+        }
+        this.commitIndex = index;
         return true;
     }
 
     @Override
-    public void appendLog(ReplicatedLogRequest replicatedLogRequest) throws IOException {
-        Preconditions.checkNotNull(replicatedLogRequest);
-        for (LogEntry entry : replicatedLogRequest.getEntries()) {
-            storageService.append(entry.toStorageEntry());
+    public void appendLog(List<LogEntry> entries) throws IOException {
+        Preconditions.checkNotNull(entries);
+        if (entries.isEmpty()) {
+            return;
         }
+        try {
+            LOG_LOCK.lock();
+            for (LogEntry entry : entries) {
+                storageService.append(entry.toStorageEntry());
+            }
+        } finally {
+            LOG_LOCK.unlock();
+        }
+
     }
 
     @Override
     public Long getLastCommitLogTerm() throws IOException {
-        if (commitIndex.equals(NO_LOG)) {
-            return NO_LOG;
+        if (commitIndex.equals(LogConstants.ON_LOG)) {
+            return LogConstants.ON_LOG;
         }
         StorageEntry storageEntry = storageService.get((int) (commitIndex - start));
         Preconditions.checkNotNull(storageEntry);
@@ -114,8 +137,8 @@ public class LogServiceImpl implements LogService {
 
     @Override
     public Long getLastCommitLogIndex() {
-        if (commitIndex.equals(NO_LOG)) {
-            return NO_LOG;
+        if (commitIndex.equals(LogConstants.ON_LOG)) {
+            return LogConstants.ON_LOG;
         }
         return commitIndex;
     }
@@ -123,7 +146,7 @@ public class LogServiceImpl implements LogService {
     @Override
     public Long getLastLogIndex() {
         if (storageService.getLen() == 0) {
-            return NO_LOG;
+            return LogConstants.ON_LOG;
         }
         return storageService.getLen() + start;
     }
@@ -131,7 +154,7 @@ public class LogServiceImpl implements LogService {
     @Override
     public Long getLastLogTerm() throws IOException {
         if (storageService.getLen() == 0) {
-            return NO_LOG;
+            return LogConstants.ON_LOG;
         }
         StorageEntry storageEntry = storageService.get((int) (storageService.getLen() - 1));
         Preconditions.checkNotNull(storageEntry);
@@ -151,8 +174,18 @@ public class LogServiceImpl implements LogService {
     }
 
     @Override
-    public Snapshot createSnapshot() {
-        stateMachine.takeSnapShot();
-        return new Snapshot();
+    public Snapshot getSnapShot() {
+        Preconditions.checkNotNull(snapshot);
+        return snapshot;
+    }
+
+    @Override
+    public void createSnapShot() {
+
+    }
+
+    @Override
+    public boolean installSnapShot(Snapshot snapshot) {
+        return false;
     }
 }

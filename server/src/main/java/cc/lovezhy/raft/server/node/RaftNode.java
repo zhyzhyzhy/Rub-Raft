@@ -6,10 +6,7 @@ import cc.lovezhy.raft.rpc.RpcServer;
 import cc.lovezhy.raft.rpc.common.RpcExecutors;
 import cc.lovezhy.raft.server.ClusterConfig;
 import cc.lovezhy.raft.server.DefaultStateMachine;
-import cc.lovezhy.raft.server.log.DefaultCommand;
-import cc.lovezhy.raft.server.log.LogEntry;
-import cc.lovezhy.raft.server.log.LogService;
-import cc.lovezhy.raft.server.log.LogServiceImpl;
+import cc.lovezhy.raft.server.log.*;
 import cc.lovezhy.raft.server.log.exception.HasCompactException;
 import cc.lovezhy.raft.server.service.RaftService;
 import cc.lovezhy.raft.server.service.RaftServiceImpl;
@@ -164,7 +161,7 @@ public class RaftNode implements RaftService {
             return;
         }
         AtomicInteger preVotedGrantedCount = new AtomicInteger(1);
-        CountDownLatch latch = new CountDownLatch(clusterConfig.getNodeCount() / 2 + 1);
+        CountDownLatch latch = new CountDownLatch(clusterConfig.getNodeCount() / 2);
         peerRaftNodes.forEach(peerRaftNode -> {
             try {
                 VoteRequest voteRequest = new VoteRequest();
@@ -274,16 +271,16 @@ public class RaftNode implements RaftService {
                 ReplicatedLogRequest replicatedLogRequest = new ReplicatedLogRequest();
                 replicatedLogRequest.setTerm(currentTerm);
                 replicatedLogRequest.setLeaderId(nodeId);
-                replicatedLogRequest.setEntries(Lists.newArrayList());
                 replicatedLogRequest.setLeaderCommit(logService.getLastCommitLogIndex());
                 long preLogIndex = peerRaftNode.getNextIndex() - 1;
-                if (preLogIndex >= 0) {
+                if (preLogIndex == LogConstants.ON_LOG) {
+                    replicatedLogRequest.setPrevLogIndex(LogConstants.ON_LOG);
+                    replicatedLogRequest.setPrevLogTerm(0L);
+                } else {
                     replicatedLogRequest.setPrevLogIndex(preLogIndex);
                     replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
-                } else {
-                    replicatedLogRequest.setPrevLogIndex(0L);
-                    replicatedLogRequest.setPrevLogTerm(0L);
                 }
+                long currentLastLogIndex = logService.getLastLogIndex();
                 replicatedLogRequest.setEntries(logService.get(peerRaftNode.getNextIndex(), logService.getLastLogIndex()));
                 peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
                 log.debug("send heartbeat to={}", peerRaftNode.getNodeId());
@@ -298,23 +295,35 @@ public class RaftNode implements RaftService {
                         }
                         if (!result.getSuccess()) {
                             if (!peerRaftNode.getNodeStatus().equals(PeerNodeStatus.INSTALLSNAPSHOT)) {
-                                long nextPreLogIndex = peerRaftNode.getNextIndex() - 2;
+                                long nextPreLogIndex = peerRaftNode.getNextIndex() - 1;
+                                if (nextPreLogIndex == LogConstants.ON_LOG) {
+                                    return;
+                                }
                                 //如果已经是在Snapshot中
                                 if (logService.hasInSnapshot(nextPreLogIndex)) {
                                     peerRaftNode.setNodeStatus(PeerNodeStatus.INSTALLSNAPSHOT);
-                                    //TODO
-                                    peerRaftNode.getRaftService().requestInstallSnapShot(new InstallSnapShotRequest());
-                                    SettableFuture<ReplicatedLogResponse> responseSettableFuture = RpcContext.getContextFuture();
-                                    Futures.addCallback(responseSettableFuture, new FutureCallback<ReplicatedLogResponse>() {
+                                    Snapshot snapShot = logService.getSnapShot();
+                                    InstallSnapShotRequest installSnapShotRequest = new InstallSnapShotRequest();
+                                    installSnapShotRequest.setLeaderId(nodeId);
+                                    installSnapShotRequest.setTerm(currentTerm);
+                                    installSnapShotRequest.setSnapshot(snapShot);
+                                    peerRaftNode.getRaftService().requestInstallSnapShot(installSnapShotRequest);
+                                    SettableFuture<InstallSnapShotResponse> responseSettableFuture = RpcContext.getContextFuture();
+                                    Futures.addCallback(responseSettableFuture, new FutureCallback<InstallSnapShotResponse>() {
                                         @Override
-                                        public void onSuccess(@Nullable ReplicatedLogResponse result) {
-                                            //TODO
-                                            peerRaftNode.setNodeStatus(PeerNodeStatus.PROBE);
+                                        public void onSuccess(@Nullable InstallSnapShotResponse result) {
+                                            if (result.getSuccess()) {
+                                                peerRaftNode.setNodeStatus(PeerNodeStatus.PROBE);
+                                                peerRaftNode.setMatchIndex(snapShot.getLastLogIndex());
+                                                peerRaftNode.setNextIndex(snapShot.getLastLogIndex() + 1);
+                                            } else {
+                                                throw new IllegalStateException("install SnapShot fail");
+                                            }
                                         }
 
                                         @Override
                                         public void onFailure(Throwable t) {
-
+                                            t.printStackTrace();
                                         }
                                     }, RpcExecutors.commonExecutor());
                                 } else {
@@ -322,7 +331,9 @@ public class RaftNode implements RaftService {
                                 }
                             }
                         } else {
-                            peerRaftNode.setMatchIndex(peerRaftNode.getNextIndex() - 1);
+                            peerRaftNode.setNodeStatus(PeerNodeStatus.NORMAL);
+                            peerRaftNode.setNextIndex(currentLastLogIndex + 1);
+                            peerRaftNode.setMatchIndex(currentLastLogIndex);
                         }
                     }
 
@@ -375,7 +386,7 @@ public class RaftNode implements RaftService {
     }
 
     @Override
-    public ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) throws IOException, HasCompactException {
+    public ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) throws IOException {
         Long term = currentTerm;
 
         //感觉应该不会出现，除非是消息延迟
@@ -385,20 +396,17 @@ public class RaftNode implements RaftService {
 
         Preconditions.checkState(!nodeScheduler.isLeader());
 
+        tickManager.tickElectionTimeOut();
+
         // normal
         if (Objects.equals(replicatedLogRequest.getLeaderId(), nodeScheduler.getVotedFor())) {
             log.debug("receiveHeartbeat from={}", replicatedLogRequest.getLeaderId());
             nodeScheduler.receiveHeartbeat();
-            LogEntry logEntry = logService.get(replicatedLogRequest.getPrevLogIndex());
-            boolean isSameTerm = false;
-            if (Objects.nonNull(logEntry)) {
-                isSameTerm = logEntry.getTerm().equals(replicatedLogRequest.getTerm());
+            //状态机处于空Log的状态
+            if (replicatedLogRequest.getPrevLogIndex().equals(LogConstants.ON_LOG)) {
+                return new ReplicatedLogResponse(term, true);
             }
-            if (isSameTerm) {
-                logService.appendLog(replicatedLogRequest);
-            }
-            tickManager.tickElectionTimeOut();
-            return new ReplicatedLogResponse(term, isSameTerm);
+            return appendLog(replicatedLogRequest);
         }
 
         // 落单的，发现更高Term的Leader，直接变成Follower
@@ -408,23 +416,45 @@ public class RaftNode implements RaftService {
             nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
             nodeScheduler.receiveHeartbeat();
             log.debug("receiveHeartbeat from={}", replicatedLogRequest.getLeaderId());
-            LogEntry logEntry = logService.get(replicatedLogRequest.getPrevLogIndex());
-            boolean isSameTerm = false;
-            if (Objects.nonNull(logEntry)) {
-                isSameTerm = logEntry.getTerm().equals(replicatedLogRequest.getTerm());
+            //状态机处于空Log的状态
+            if (replicatedLogRequest.getPrevLogIndex().equals(LogConstants.ON_LOG)) {
+                return new ReplicatedLogResponse(term, true);
             }
-            if (isSameTerm) {
-                logService.appendLog(replicatedLogRequest);
-            }
-            tickManager.tickElectionTimeOut();
-            return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), isSameTerm);
+            return appendLog(replicatedLogRequest);
         }
         return new ReplicatedLogResponse(term, false);
     }
 
+    private ReplicatedLogResponse appendLog(ReplicatedLogRequest replicatedLogRequest) throws IOException {
+        LogEntry logEntry = null;
+        try {
+            logEntry = logService.get(replicatedLogRequest.getPrevLogIndex());
+        } catch (HasCompactException e) {
+            throw new IllegalStateException("not happen");
+        }
+        boolean isSameTerm = false;
+        if (Objects.nonNull(logEntry)) {
+            isSameTerm = logEntry.getTerm().equals(replicatedLogRequest.getTerm());
+        }
+        if (isSameTerm) {
+            logService.appendLog(replicatedLogRequest.getEntries());
+        }
+        try {
+            logService.commit(replicatedLogRequest.getLeaderCommit());
+        } catch (HasCompactException e) {
+            throw new IllegalStateException("not happedn");
+        }
+        return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), isSameTerm);
+    }
+
     @Override
     public InstallSnapShotResponse requestInstallSnapShot(InstallSnapShotRequest installSnapShotRequest) {
-        return null;
+        Long term = currentTerm;
+        if (installSnapShotRequest.getTerm() < term) {
+            return new InstallSnapShotResponse(term, false);
+        }
+        logService.installSnapShot(installSnapShotRequest.getSnapshot());
+        return new InstallSnapShotResponse(term, true);
     }
 
     public void close() {
@@ -638,7 +668,6 @@ public class RaftNode implements RaftService {
         }
 
         void tickHeartbeat() {
-            heartBeatFuture.ifPresent(future -> future.cancel(false));
             Future future = TimeCountDownUtil.addSchedulerTask(HEART_BEAT_TIME_INTERVAL, DEFAULT_TIME_UNIT, RaftNode.this::startHeartbeat, (Supplier<Boolean>) () -> nodeScheduler.isLeader());
             heartBeatFuture = Optional.of(future);
         }
@@ -647,10 +676,10 @@ public class RaftNode implements RaftService {
 
     public class OuterService {
         public boolean appendLog(DefaultCommand command) {
-
             return true;
         }
     }
+
     /**
      * for the web logger
      */

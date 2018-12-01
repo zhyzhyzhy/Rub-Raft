@@ -26,6 +26,11 @@ public class MemoryStorageService implements StorageService {
     }
 
     @Override
+    public List<StorageEntry> range(int start, int end) throws IOException {
+        return entries.subList(start, end + 1);
+    }
+
+    @Override
     public synchronized boolean set(int index, StorageEntry storageEntry) throws IOException {
         Preconditions.checkState(entries.size() > index);
         entries.set(index, storageEntry);
@@ -41,5 +46,10 @@ public class MemoryStorageService implements StorageService {
     @Override
     public long getLen() {
         return entries.size();
+    }
+
+    @Override
+    public void discard(int toIndex) throws IOException {
+        //TODO
     }
 }
