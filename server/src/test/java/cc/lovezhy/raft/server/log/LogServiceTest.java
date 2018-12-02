@@ -11,7 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.util.List;
 
 public class LogServiceTest {
@@ -35,41 +34,41 @@ public class LogServiceTest {
     }
 
     @Test(expected = IllegalStateException.class)
-    public void getEntryTestOfWrongIndex() throws IOException {
+    public void getEntryTestOfWrongIndex() {
         logService.get(-1);
     }
 
-    @Test(expected = NoSuchLogException.class)
-    public void getEntryTestOfNull() throws IOException {
-        Assert.assertNull(logService.get(0));
+    @Test
+    public void getEntryTestOfNull() {
+        Assert.assertNotNull(logService.get(0));
     }
 
     @Test
-    public void appendLogEntriesTest() throws IOException {
+    public void appendLogEntriesTest() {
         logService.appendLog(this.logEntries);
     }
 
     @Test
-    public void getEntryTestOfNotNull() throws IOException {
+    public void getEntryTestOfNotNull() {
         logService.appendLog(this.logEntries);
         for (int i = 0; i < this.logEntries.size(); i++) {
-            Assert.assertEquals(this.logEntries.get(i), logService.get(i));
+            Assert.assertEquals(this.logEntries.get(i), logService.get(i + 1));
         }
     }
 
     @Test
-    public void getEntryTestOfRange() throws IOException {
+    public void getEntryTestOfRange() {
         logService.appendLog(this.logEntries);
         for (int i = 0; i < this.logEntries.size(); i++) {
             for (int j = i; j < this.logEntries.size(); j++) {
                 log.info("i={}, j={}", i, j);
-                Assert.assertEquals(this.logEntries.subList(i, j), logService.get(i, j - 1));
+                Assert.assertEquals(this.logEntries.subList(i, j), logService.get(i + 1, j));
             }
         }
     }
 
     @Test
-    public void hasInSnapshotTest() throws IOException {
+    public void hasInSnapshotTest() {
         logService.appendLog(this.logEntries);
         for (int i = 0; i < this.logEntries.size(); i++) {
             Assert.assertFalse(logService.hasInSnapshot(i));

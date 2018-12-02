@@ -8,8 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -42,11 +40,7 @@ public class LogServiceImpl implements LogService {
         Preconditions.checkNotNull(storageType);
         switch (storageType) {
             case FILE:
-                try {
-                    this.storageService = FileStorageService.create("/Users/zhuyichen/tmp/raft", "raft.log");
-                } catch (FileNotFoundException e) {
-                    throw new IllegalStateException();
-                }
+                this.storageService = FileStorageService.create("/Users/zhuyichen/tmp/raft", "raft.log");
                 break;
             case MEMORY:
                 this.storageService = MemoryStorageService.create();
@@ -149,33 +143,29 @@ public class LogServiceImpl implements LogService {
     }
 
     @Override
-    @Nullable
-    public LogEntry getLastCommitLog() {
-        if (this.lastCommitLogIndex.equals(LogConstants.NO_LOG)) {
-            return null;
-        }
-        StorageEntry storageEntry = storageService.get((int) (this.lastAppliedLogIndex - this.start));
-        Preconditions.checkNotNull(storageEntry);
-        return storageEntry.toLogEntry();
+    public long getLastCommitLogTerm() {
+        return this.lastCommitLogTerm;
     }
 
     @Override
-    @Nullable
-    public LogEntry getLastLog() throws IOException {
-        if (storageService.getLen() == 0) {
-            return null;
-        }
-        StorageEntry storageEntry = storageService.get((int) (storageService.getLen() - 1));
-        Preconditions.checkNotNull(storageEntry);
-        return storageEntry.toLogEntry();
+    public long getLastCommitLogIndex() {
+        return this.lastCommitLogIndex;
+    }
+
+    @Override
+    public long getLastLogTerm() {
+        LogEntry logEntry = storageService.get(storageService.getLen() - 1).toLogEntry();
+        return logEntry.getTerm();
+    }
+
+    @Override
+    public long getLastLogIndex() {
+        return storageService.getLen() - 1 +  start;
     }
 
     // 日志比较的原则是，如果本地的最后一条log entry的term更大，则term大的更新，如果term一样大，则log index更大的更新
     @Override
-    public boolean isNewerThanSelf(long lastLogTerm, long lastLogIndex) throws IOException {
-        LogEntry lastLog = getLastLog();
-        long selfLastLogTerm = Objects.isNull(lastLog) ? 0L : lastLog.getTerm();
-        long selfLastLogIndex = storageService.getLen() - 1 + start;
+    public boolean isNewerThanSelf(long lastLogTerm, long lastLogIndex) {
         if (lastLogTerm > getLastLogTerm()) {
             return true;
         }
@@ -192,7 +182,7 @@ public class LogServiceImpl implements LogService {
     }
 
     @Override
-    public void createSnapshot() throws IOException {
+    public void createSnapshot() {
         try {
             LOG_LOCK.lock();
             byte[] snapshotValues = stateMachine.takeSnapShot();

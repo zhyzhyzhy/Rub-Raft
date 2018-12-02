@@ -43,7 +43,7 @@ public class MemoryStorageService implements StorageService {
     }
 
     @Override
-    public long getLen() {
+    public int getLen() {
         return entries.size();
     }
 

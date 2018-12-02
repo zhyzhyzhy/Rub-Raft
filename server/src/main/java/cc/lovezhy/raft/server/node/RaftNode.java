@@ -114,11 +114,7 @@ public class RaftNode implements RaftService {
         this.peerRaftNodes = peerRaftNodes;
         this.clusterConfig = clusterConfig;
         this.endPoint = endPoint;
-        try {
-            logService = new LogServiceImpl(new DefaultStateMachine(), StorageType.MEMORY);
-        } catch (FileNotFoundException e) {
-            log.error(e.getMessage(), e);
-        }
+        logService = new LogServiceImpl(new DefaultStateMachine(), StorageType.MEMORY);
     }
 
     public NodeScheduler getNodeScheduler() {
@@ -273,13 +269,10 @@ public class RaftNode implements RaftService {
                 replicatedLogRequest.setLeaderId(nodeId);
                 replicatedLogRequest.setLeaderCommit(logService.getLastCommitLogIndex());
                 long preLogIndex = peerRaftNode.getNextIndex() - 1;
-                if (preLogIndex == LogConstants.ON_LOG) {
-                    replicatedLogRequest.setPrevLogIndex(LogConstants.ON_LOG);
-                    replicatedLogRequest.setPrevLogTerm(0L);
-                } else {
-                    replicatedLogRequest.setPrevLogIndex(preLogIndex);
-                    replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
-                }
+
+                replicatedLogRequest.setPrevLogIndex(preLogIndex);
+                replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
+
                 long currentLastLogIndex = logService.getLastLogIndex();
                 replicatedLogRequest.setEntries(logService.get(peerRaftNode.getNextIndex(), logService.getLastLogIndex()));
                 peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
@@ -296,9 +289,6 @@ public class RaftNode implements RaftService {
                         if (!result.getSuccess()) {
                             if (!peerRaftNode.getNodeStatus().equals(PeerNodeStatus.INSTALLSNAPSHOT)) {
                                 long nextPreLogIndex = peerRaftNode.getNextIndex() - 1;
-                                if (nextPreLogIndex == LogConstants.ON_LOG) {
-                                    return;
-                                }
                                 //如果已经是在Snapshot中
                                 if (logService.hasInSnapshot(nextPreLogIndex)) {
                                     peerRaftNode.setNodeStatus(PeerNodeStatus.INSTALLSNAPSHOT);
@@ -352,14 +342,9 @@ public class RaftNode implements RaftService {
     @Override
     public VoteResponse requestPreVote(VoteRequest voteRequest) {
         Long term = currentTerm;
-        try {
-            if (voteRequest.getTerm() > term && logService.isNewerThanSelf(voteRequest.getLastLogTerm(), voteRequest.getLastLogIndex())) {
-                return new VoteResponse(term, true);
-            } else {
-                return new VoteResponse(term, false);
-            }
-        } catch (IOException e) {
-            log.error(e.getMessage(), e);
+        if (voteRequest.getTerm() > term && logService.isNewerThanSelf(voteRequest.getLastLogTerm(), voteRequest.getLastLogIndex())) {
+            return new VoteResponse(term, true);
+        } else {
             return new VoteResponse(term, false);
         }
     }
@@ -370,23 +355,19 @@ public class RaftNode implements RaftService {
         if (term > voteRequest.getTerm()) {
             return new VoteResponse(term, false);
         }
-        try {
-            if (logService.isNewerThanSelf(voteRequest.getLastLogIndex(), voteRequest.getLastLogTerm())) {
-                if (nodeScheduler.compareAndSetTerm(term, voteRequest.getTerm()) && (nodeScheduler.compareAndSetVotedFor(null, voteRequest.getCandidateId()) || nodeScheduler.compareAndSetVotedFor(voteRequest.getCandidateId(), voteRequest.getCandidateId()))) {
-                    nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
-                    nodeScheduler.receiveHeartbeat();
-                    tickManager.tickElectionTimeOut();
-                    return new VoteResponse(voteRequest.getTerm(), true);
-                }
+        if (logService.isNewerThanSelf(voteRequest.getLastLogIndex(), voteRequest.getLastLogTerm())) {
+            if (nodeScheduler.compareAndSetTerm(term, voteRequest.getTerm()) && (nodeScheduler.compareAndSetVotedFor(null, voteRequest.getCandidateId()) || nodeScheduler.compareAndSetVotedFor(voteRequest.getCandidateId(), voteRequest.getCandidateId()))) {
+                nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
+                nodeScheduler.receiveHeartbeat();
+                tickManager.tickElectionTimeOut();
+                return new VoteResponse(voteRequest.getTerm(), true);
             }
-        } catch (IOException e) {
-            log.error(e.getMessage(), e);
         }
         return new VoteResponse(term, false);
     }
 
     @Override
-    public ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) throws IOException {
+    public ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) {
         Long term = currentTerm;
 
         //感觉应该不会出现，除非是消息延迟
@@ -402,10 +383,6 @@ public class RaftNode implements RaftService {
         if (Objects.equals(replicatedLogRequest.getLeaderId(), nodeScheduler.getVotedFor())) {
             log.debug("receiveHeartbeat from={}", replicatedLogRequest.getLeaderId());
             nodeScheduler.receiveHeartbeat();
-            //状态机处于空Log的状态
-            if (replicatedLogRequest.getPrevLogIndex().equals(LogConstants.ON_LOG)) {
-                return new ReplicatedLogResponse(term, true);
-            }
             return appendLog(replicatedLogRequest);
         }
 
@@ -416,16 +393,12 @@ public class RaftNode implements RaftService {
             nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
             nodeScheduler.receiveHeartbeat();
             log.debug("receiveHeartbeat from={}", replicatedLogRequest.getLeaderId());
-            //状态机处于空Log的状态
-            if (replicatedLogRequest.getPrevLogIndex().equals(LogConstants.ON_LOG)) {
-                return new ReplicatedLogResponse(term, true);
-            }
             return appendLog(replicatedLogRequest);
         }
         return new ReplicatedLogResponse(term, false);
     }
 
-    private ReplicatedLogResponse appendLog(ReplicatedLogRequest replicatedLogRequest) throws IOException {
+    private ReplicatedLogResponse appendLog(ReplicatedLogRequest replicatedLogRequest) {
         LogEntry logEntry = null;
         try {
             logEntry = logService.get(replicatedLogRequest.getPrevLogIndex());
@@ -453,7 +426,7 @@ public class RaftNode implements RaftService {
         if (installSnapShotRequest.getTerm() < term) {
             return new InstallSnapshotResponse(term, false);
         }
-        logService.installSnapShot(installSnapShotRequest.getSnapshot());
+        logService.installSnapshot(installSnapShotRequest.getSnapshot());
         return new InstallSnapshotResponse(term, true);
     }
 

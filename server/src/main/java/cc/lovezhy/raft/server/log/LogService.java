@@ -1,32 +1,32 @@
 package cc.lovezhy.raft.server.log;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.function.Consumer;
 
 public interface LogService {
 
-    LogEntry get(long index) throws IOException;
+    LogEntry get(long index);
 
-    List<LogEntry> get(long start, long end) throws IOException;
+    List<LogEntry> get(long start, long end);
 
     boolean hasInSnapshot(long index);
 
-    boolean set(long index, LogEntry entry) throws IOException;
+    boolean set(long index, LogEntry entry);
 
-    boolean commit(long index) throws IOException;
+    boolean commit(long index);
 
-    void appendLog(List<LogEntry> entries) throws IOException;
+    void appendLog(List<LogEntry> entries);
 
-    LogEntry getLastCommitLog() throws IOException;
+    long getLastCommitLogTerm();
+    long getLastCommitLogIndex();
 
-    LogEntry getLastLog() throws IOException;
+    long getLastLogTerm();
+    long getLastLogIndex();
 
-    boolean isNewerThanSelf(long lastLogTerm, long lastLogIndex) throws IOException;
+    boolean isNewerThanSelf(long lastLogTerm, long lastLogIndex);
 
     Snapshot getSnapShot();
 
-    void createSnapshot() throws IOException;
+    void createSnapshot();
 
     boolean installSnapshot(Snapshot snapshot);
 

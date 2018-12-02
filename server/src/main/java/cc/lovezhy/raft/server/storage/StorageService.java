@@ -25,7 +25,7 @@ public interface StorageService {
     /**
      * storage存的长度
      */
-    long getLen();
+    int getLen();
 
     void discard(int toIndex);
 }

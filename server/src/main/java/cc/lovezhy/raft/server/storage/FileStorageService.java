@@ -1,7 +1,5 @@
 package cc.lovezhy.raft.server.storage;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.util.List;
 
 /**
@@ -45,7 +43,7 @@ public class FileStorageService implements StorageService {
     }
 
     @Override
-    public long getLen() {
+    public int getLen() {
         return 0;
     }
 
