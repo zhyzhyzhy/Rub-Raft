@@ -323,9 +323,11 @@ public class RaftNode implements RaftService {
                                 }
                             }
                         } else {
-                            peerRaftNode.setNodeStatus(PeerNodeStatus.NORMAL);
-                            peerRaftNode.setNextIndex(currentLastLogIndex + 1);
-                            peerRaftNode.setMatchIndex(currentLastLogIndex);
+                            if (!peerRaftNode.getNodeStatus().equals(PeerNodeStatus.NORMAL)) {
+                                peerRaftNode.setNodeStatus(PeerNodeStatus.NORMAL);
+                                peerRaftNode.setNextIndex(currentLastLogIndex + 1);
+                                peerRaftNode.setMatchIndex(currentLastLogIndex);
+                            }
                         }
                     }
 
@@ -404,13 +406,13 @@ public class RaftNode implements RaftService {
         LogEntry logEntry = logService.get(replicatedLogRequest.getPrevLogIndex());
         boolean isSameTerm = false;
         if (Objects.nonNull(logEntry)) {
-            isSameTerm = logEntry.getTerm().equals(replicatedLogRequest.getTerm());
+            isSameTerm = logEntry.getTerm().equals(replicatedLogRequest.getPrevLogTerm());
         }
         if (isSameTerm) {
             logService.appendLog(replicatedLogRequest.getEntries());
         }
         logService.commit(replicatedLogRequest.getLeaderCommit());
-        log.info("/appendLog, isSameTerm={}", isSameTerm);
+        log.debug("/appendLog, isSameTerm={}", isSameTerm);
         return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), isSameTerm);
     }
 

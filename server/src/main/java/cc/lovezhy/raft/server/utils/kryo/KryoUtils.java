@@ -17,7 +17,10 @@ public class KryoUtils {
 
     public static LogEntry deserializeLogEntry(byte[] bytes) {
         Preconditions.checkNotNull(bytes);
-        return threadLocalKryo.get().readObject(new Input(bytes), LogEntry.class);
+        Input input = new Input(bytes);
+        LogEntry logEntry =  threadLocalKryo.get().readObject(input, LogEntry.class);
+        input.close();
+        return logEntry;
     }
 
     public static byte[] serializeLogEntry(LogEntry logEntry) {
