@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 public class LogServiceImpl implements LogService {
 
     private static final Logger log = LoggerFactory.getLogger(LogServiceImpl.class);
+
     private StorageService storageService;
     private StateMachine stateMachine;
 
@@ -65,7 +66,7 @@ public class LogServiceImpl implements LogService {
     @Override
     @Nullable
     public LogEntry get(long index) {
-        Preconditions.checkState(index >= 0);
+        Preconditions.checkState(index >= 0, "index=" + index);
         //如果日志已经被压缩
         if (index < start) {
             log.error("Log Has Been Compact, start={}, requestIndex={}", start, index);
@@ -118,6 +119,9 @@ public class LogServiceImpl implements LogService {
 
     @Override
     public boolean commit(long index) {
+        if (index == this.lastCommitLogIndex) {
+            return true;
+        }
         LogEntry logEntry = get(index);
         if (Objects.nonNull(logEntry)) {
             this.stateMachine.apply(logEntry.getCommand());

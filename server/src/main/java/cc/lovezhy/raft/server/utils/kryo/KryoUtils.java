@@ -9,22 +9,22 @@ import com.google.common.base.Preconditions;
 import java.io.ByteArrayOutputStream;
 
 public class KryoUtils {
-    private static final Kryo kryo;
+    private static final ThreadLocal<Kryo> threadLocalKryo;
 
     static {
-        kryo = new Kryo();
+        threadLocalKryo = ThreadLocal.withInitial(Kryo::new);
     }
 
     public static LogEntry deserializeLogEntry(byte[] bytes) {
         Preconditions.checkNotNull(bytes);
-        return kryo.readObject(new Input(bytes), LogEntry.class);
+        return threadLocalKryo.get().readObject(new Input(bytes), LogEntry.class);
     }
 
     public static byte[] serializeLogEntry(LogEntry logEntry) {
         Preconditions.checkNotNull(logEntry);
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         Output output = new Output(byteArrayOutputStream);
-        kryo.writeObject(output, logEntry);
+        threadLocalKryo.get().writeObject(output, logEntry);
         output.flush();
         output.close();
         return byteArrayOutputStream.toByteArray();

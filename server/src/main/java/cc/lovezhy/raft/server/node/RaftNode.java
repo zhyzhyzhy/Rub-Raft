@@ -7,7 +7,6 @@ import cc.lovezhy.raft.rpc.common.RpcExecutors;
 import cc.lovezhy.raft.server.ClusterConfig;
 import cc.lovezhy.raft.server.DefaultStateMachine;
 import cc.lovezhy.raft.server.log.*;
-import cc.lovezhy.raft.server.log.exception.HasCompactException;
 import cc.lovezhy.raft.server.service.RaftService;
 import cc.lovezhy.raft.server.service.RaftServiceImpl;
 import cc.lovezhy.raft.server.service.model.*;
@@ -27,8 +26,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
@@ -252,11 +249,11 @@ public class RaftNode implements RaftService {
             log.debug("try to be leader, term={}", voteTerm);
             boolean beLeaderSuccess = nodeScheduler.beLeader(voteTerm);
             if (beLeaderSuccess && nodeScheduler.changeNodeStatusWhenNot(NodeStatus.PRE_CANDIDATE, NodeStatus.LEADER)) {
-                log.info("be the leader sucess, currentTerm={}", voteTerm);
+                log.debug("be the leader sucess, currentTerm={}", voteTerm);
                 peerNodeScheduler.updatePeerLogIndex();
                 startHeartbeat();
             } else {
-                log.info("be the leader fail, currentTerm={}", voteTerm);
+                log.debug("be the leader fail, currentTerm={}", voteTerm);
             }
         }
     }
@@ -281,10 +278,15 @@ public class RaftNode implements RaftService {
                 Futures.addCallback(responseSettableFuture, new FutureCallback<ReplicatedLogResponse>() {
                     @Override
                     public void onSuccess(@Nullable ReplicatedLogResponse result) {
-                        //not happen
+                        /*
+                         * 可能发生
+                         * 成为Leader后直接被网络分区了
+                         * 然后又好了，此时另外一个分区已经有Leader且Term比自己大
+                         */
                         if (result.getTerm() > currentTerm) {
                             log.error("currentTerm={}, remoteServerTerm={}", currentTerm, result.getTerm());
-                            throw new IllegalStateException("BUG！！！！");
+                            log.debug("may have network isolate");
+                            //TODO
                         }
                         if (!result.getSuccess()) {
                             if (!peerRaftNode.getNodeStatus().equals(PeerNodeStatus.INSTALLSNAPSHOT)) {
@@ -399,12 +401,7 @@ public class RaftNode implements RaftService {
     }
 
     private ReplicatedLogResponse appendLog(ReplicatedLogRequest replicatedLogRequest) {
-        LogEntry logEntry = null;
-        try {
-            logEntry = logService.get(replicatedLogRequest.getPrevLogIndex());
-        } catch (HasCompactException e) {
-            throw new IllegalStateException("not happen");
-        }
+        LogEntry logEntry = logService.get(replicatedLogRequest.getPrevLogIndex());
         boolean isSameTerm = false;
         if (Objects.nonNull(logEntry)) {
             isSameTerm = logEntry.getTerm().equals(replicatedLogRequest.getTerm());
@@ -412,11 +409,8 @@ public class RaftNode implements RaftService {
         if (isSameTerm) {
             logService.appendLog(replicatedLogRequest.getEntries());
         }
-        try {
-            logService.commit(replicatedLogRequest.getLeaderCommit());
-        } catch (HasCompactException e) {
-            throw new IllegalStateException("not happedn");
-        }
+        logService.commit(replicatedLogRequest.getLeaderCommit());
+        log.info("/appendLog, isSameTerm={}", isSameTerm);
         return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), isSameTerm);
     }
 
@@ -585,7 +579,7 @@ public class RaftNode implements RaftService {
         /**
          * 成为Leader之后，更新peer节点的NextIndex和MatchIndex
          */
-        public void updatePeerLogIndex() {
+        void updatePeerLogIndex() {
             peerRaftNodes.forEach(peerRaftNode -> {
                 peerRaftNode.setNextIndex(logService.getLastLogIndex() + 1);
                 peerRaftNode.setMatchIndex(0L);
