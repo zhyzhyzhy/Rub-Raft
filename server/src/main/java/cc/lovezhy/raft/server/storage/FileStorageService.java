@@ -11,7 +11,7 @@ import java.util.List;
  */
 public class FileStorageService implements StorageService {
 
-    public static StorageService create(String category, String fileName) throws FileNotFoundException {
+    public static StorageService create(String category, String fileName) {
         return new FileStorageService(category, fileName);
     }
 
@@ -19,28 +19,28 @@ public class FileStorageService implements StorageService {
 
     private volatile long len = 0;
 
-    private FileStorageService(String category, String fileName) throws FileNotFoundException {
+    private FileStorageService(String category, String fileName) {
         this.storageFile = StorageFileImpl.create(category, fileName);
     }
 
 
     @Override
-    public StorageEntry get(int index) throws IOException {
+    public StorageEntry get(int index) {
         return null;
     }
 
     @Override
-    public List<StorageEntry> range(int start, int end) throws IOException {
+    public List<StorageEntry> range(int start, int end) {
         return null;
     }
 
     @Override
-    public boolean set(int index, StorageEntry storageEntry) throws IOException {
+    public boolean set(int index, StorageEntry storageEntry) {
         return false;
     }
 
     @Override
-    public boolean append(StorageEntry storageEntry) throws IOException {
+    public boolean append(StorageEntry storageEntry) {
         return false;
     }
 
@@ -50,7 +50,7 @@ public class FileStorageService implements StorageService {
     }
 
     @Override
-    public void discard(int toIndex) throws IOException {
+    public void discard(int toIndex) {
         //TODO
     }
 }

@@ -1,10 +1,8 @@
 package cc.lovezhy.raft.server.log;
 
-import cc.lovezhy.raft.server.log.exception.HasCompactException;
-import cc.lovezhy.raft.server.service.model.ReplicatedLogRequest;
-
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Consumer;
 
 public interface LogService {
 
@@ -20,13 +18,9 @@ public interface LogService {
 
     void appendLog(List<LogEntry> entries) throws IOException;
 
-    Long getLastCommitLogTerm() throws IOException;
+    LogEntry getLastCommitLog() throws IOException;
 
-    Long getLastCommitLogIndex();
-
-    Long getLastLogIndex();
-
-    Long getLastLogTerm() throws IOException;
+    LogEntry getLastLog() throws IOException;
 
     boolean isNewerThanSelf(long lastLogTerm, long lastLogIndex) throws IOException;
 
@@ -34,5 +28,7 @@ public interface LogService {
 
     void createSnapshot() throws IOException;
 
-    boolean installSnapShot(Snapshot snapshot);
+    boolean installSnapshot(Snapshot snapshot);
+
+    void execInLock(Runnable action);
 }

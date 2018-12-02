@@ -2,7 +2,6 @@ package cc.lovezhy.raft.server.log;
 
 import cc.lovezhy.raft.server.DefaultStateMachine;
 import cc.lovezhy.raft.server.StateMachine;
-import cc.lovezhy.raft.server.log.exception.NoSuchLogException;
 import cc.lovezhy.raft.server.storage.StorageType;
 import com.google.common.collect.Lists;
 import org.junit.Assert;

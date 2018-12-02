@@ -3,7 +3,6 @@ package cc.lovezhy.raft.server.storage;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
-import java.io.IOException;
 import java.util.List;
 
 public class MemoryStorageService implements StorageService {
@@ -20,25 +19,25 @@ public class MemoryStorageService implements StorageService {
     }
 
     @Override
-    public synchronized StorageEntry get(int index) throws IOException {
+    public synchronized StorageEntry get(int index) {
         Preconditions.checkState(entries.size() > index);
         return entries.get(index);
     }
 
     @Override
-    public List<StorageEntry> range(int start, int end) throws IOException {
+    public List<StorageEntry> range(int start, int end) {
         return entries.subList(start, end + 1);
     }
 
     @Override
-    public synchronized boolean set(int index, StorageEntry storageEntry) throws IOException {
+    public synchronized boolean set(int index, StorageEntry storageEntry) {
         Preconditions.checkState(entries.size() > index);
         entries.set(index, storageEntry);
         return true;
     }
 
     @Override
-    public synchronized boolean append(StorageEntry storageEntry) throws IOException {
+    public synchronized boolean append(StorageEntry storageEntry) {
         entries.add(storageEntry);
         return true;
     }
@@ -49,7 +48,7 @@ public class MemoryStorageService implements StorageService {
     }
 
     @Override
-    public void discard(int toIndex) throws IOException {
+    public void discard(int toIndex) {
         //TODO
     }
 }

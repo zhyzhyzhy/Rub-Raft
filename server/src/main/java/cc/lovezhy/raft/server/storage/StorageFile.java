@@ -1,39 +1,37 @@
 package cc.lovezhy.raft.server.storage;
 
-import java.io.IOException;
-
 public interface StorageFile {
 
     void changeName(String name);
 
-    long getLength() throws IOException;
+    long getLength();
 
-    void writeInt(int value) throws IOException;
+    void writeInt(int value);
 
-    void writeBytes(byte[] values) throws IOException;
+    void writeBytes(byte[] values);
 
     /**
      * 从读指针位置拿到一个int
      */
-    int readInt() throws IOException;
+    int readInt();
     /**
      * 取指定位置的bytes
      * @param offset 偏移位置
      * @param len 长度
      */
-    byte[] getBytes(int offset, int len) throws IOException;
+    byte[] getBytes(int offset, int len);
 
     /**
      * 取当前读位置的bytes
      * @param len 长度
      */
-    byte[] getBytes(int len) throws IOException;
+    byte[] getBytes(int len);
 
     /**
      * 跳过多少字节
      * @param len 长度
      */
-    void skip(int len) throws IOException;
+    void skip(int len);
     /**
      * 从指定位置开始dup一个新文件
      *
@@ -56,12 +54,12 @@ public interface StorageFile {
     /**
      * 重置读指针位置
      */
-    void resetReadPointer(long offset) throws IOException;
+    void resetReadPointer(long offset);
 
     /**
      * 得到读指针位置
      */
-    long getReadPointer() throws IOException;
+    long getReadPointer();
     /**
      * 清除自己
      */

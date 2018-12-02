@@ -2,7 +2,6 @@ package cc.lovezhy.raft.server.log;
 
 import cc.lovezhy.raft.server.StateMachine;
 import cc.lovezhy.raft.server.log.exception.HasCompactException;
-import cc.lovezhy.raft.server.log.exception.NoSuchLogException;
 import cc.lovezhy.raft.server.storage.*;
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
@@ -17,9 +16,6 @@ import java.util.Objects;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
-/**
- * 避免空指针问题，全部用NO_LOG表示没有Log
- */
 public class LogServiceImpl implements LogService {
 
     private static final Logger log = LoggerFactory.getLogger(LogServiceImpl.class);
@@ -41,12 +37,16 @@ public class LogServiceImpl implements LogService {
 
     private ReentrantLock LOG_LOCK = new ReentrantLock(true);
 
-    public LogServiceImpl(StateMachine stateMachine, StorageType storageType) throws FileNotFoundException {
+    public LogServiceImpl(StateMachine stateMachine, StorageType storageType) {
         Preconditions.checkNotNull(stateMachine);
         Preconditions.checkNotNull(storageType);
         switch (storageType) {
             case FILE:
-                this.storageService = FileStorageService.create("/Users/zhuyichen/tmp/raft", "raft.log");
+                try {
+                    this.storageService = FileStorageService.create("/Users/zhuyichen/tmp/raft", "raft.log");
+                } catch (FileNotFoundException e) {
+                    throw new IllegalStateException();
+                }
                 break;
             case MEMORY:
                 this.storageService = MemoryStorageService.create();
@@ -55,17 +55,22 @@ public class LogServiceImpl implements LogService {
                 throw new IllegalStateException();
         }
         this.start = 0L;
-        this.lastCommitLogIndex = LogConstants.ON_LOG;
-        this.lastCommitLogTerm = 0L;
-        this.lastAppliedLogIndex = LogConstants.ON_LOG;
-        this.lastAppliedLogTerm = 0L;
         this.stateMachine = stateMachine;
-    }
+        /*
+          提交一个DUMMY的LogEntry
+         */
+        this.stateMachine.apply(LogConstants.INITIAL_LOG_ENTRY.getCommand());
+        this.storageService.append(LogConstants.INITIAL_LOG_ENTRY.toStorageEntry());
+        this.lastCommitLogIndex = 0L;
+        this.lastCommitLogTerm = 0L;
+        this.lastAppliedLogIndex = 0L;
+        this.lastAppliedLogTerm = 0L;
 
+    }
 
     @Override
     @Nullable
-    public LogEntry get(long index) throws IOException {
+    public LogEntry get(long index) {
         Preconditions.checkState(index >= 0);
         //如果日志已经被压缩
         if (index < start) {
@@ -73,8 +78,8 @@ public class LogServiceImpl implements LogService {
             throw new HasCompactException();
         }
         //如果还未有这个Index，返回空
-        if (index >= start + storageService.getLen()) {
-            throw new NoSuchLogException();
+        if (index > start + storageService.getLen()) {
+            throw new IndexOutOfBoundsException();
         }
         StorageEntry storageEntry = storageService.get((int) (index - start));
         Preconditions.checkNotNull(storageEntry);
@@ -85,14 +90,14 @@ public class LogServiceImpl implements LogService {
      * [start, end]
      */
     @Override
-    public List<LogEntry> get(long start, long end) throws IOException, HasCompactException {
+    public List<LogEntry> get(long start, long end) {
         if (start > end) {
             return Collections.emptyList();
         }
         if (start < this.start) {
             throw new HasCompactException();
         }
-        if (end >= this.start + storageService.getLen()) {
+        if (end > this.start + storageService.getLen()) {
             throw new IndexOutOfBoundsException();
         }
         List<StorageEntry> storageEntries = storageService.range((int) ((int) start - this.start), (int) ((int) end - this.start));
@@ -102,14 +107,14 @@ public class LogServiceImpl implements LogService {
     @Override
     public boolean hasInSnapshot(long index) {
         Preconditions.checkState(index >= 0);
-        if (index >= start + storageService.getLen()) {
-            throw new NoSuchLogException();
+        if (index > start + storageService.getLen()) {
+            throw new IndexOutOfBoundsException();
         }
         return start > index;
     }
 
     @Override
-    public boolean set(long index, LogEntry entry) throws IOException {
+    public boolean set(long index, LogEntry entry) {
         Preconditions.checkNotNull(entry);
         if (index < start) {
             throw new HasCompactException();
@@ -118,7 +123,7 @@ public class LogServiceImpl implements LogService {
     }
 
     @Override
-    public boolean commit(long index) throws IOException {
+    public boolean commit(long index) {
         LogEntry logEntry = get(index);
         if (Objects.nonNull(logEntry)) {
             this.stateMachine.apply(logEntry.getCommand());
@@ -128,7 +133,7 @@ public class LogServiceImpl implements LogService {
     }
 
     @Override
-    public void appendLog(List<LogEntry> entries) throws IOException {
+    public void appendLog(List<LogEntry> entries) {
         Preconditions.checkNotNull(entries);
         if (entries.isEmpty()) {
             return;
@@ -141,45 +146,36 @@ public class LogServiceImpl implements LogService {
         } finally {
             LOG_LOCK.unlock();
         }
-
     }
 
     @Override
-    public Long getLastCommitLogTerm() throws IOException {
-        if (this.lastCommitLogIndex.equals(LogConstants.ON_LOG)) {
-            return 0L;
+    @Nullable
+    public LogEntry getLastCommitLog() {
+        if (this.lastCommitLogIndex.equals(LogConstants.NO_LOG)) {
+            return null;
         }
-        StorageEntry storageEntry = storageService.get((int) (this.lastCommitLogIndex - start));
+        StorageEntry storageEntry = storageService.get((int) (this.lastAppliedLogIndex - this.start));
         Preconditions.checkNotNull(storageEntry);
-        return storageEntry.toLogEntry().getTerm();
+        return storageEntry.toLogEntry();
     }
 
     @Override
-    public Long getLastCommitLogIndex() {
-        return lastCommitLogIndex;
-    }
-
-    @Override
-    public Long getLastLogIndex() {
+    @Nullable
+    public LogEntry getLastLog() throws IOException {
         if (storageService.getLen() == 0) {
-            return LogConstants.ON_LOG;
-        }
-        return storageService.getLen() + start;
-    }
-
-    @Override
-    public Long getLastLogTerm() throws IOException {
-        if (storageService.getLen() == 0) {
-            return LogConstants.ON_LOG;
+            return null;
         }
         StorageEntry storageEntry = storageService.get((int) (storageService.getLen() - 1));
         Preconditions.checkNotNull(storageEntry);
-        return storageEntry.toLogEntry().getTerm();
+        return storageEntry.toLogEntry();
     }
 
     // 日志比较的原则是，如果本地的最后一条log entry的term更大，则term大的更新，如果term一样大，则log index更大的更新
     @Override
     public boolean isNewerThanSelf(long lastLogTerm, long lastLogIndex) throws IOException {
+        LogEntry lastLog = getLastLog();
+        long selfLastLogTerm = Objects.isNull(lastLog) ? 0L : lastLog.getTerm();
+        long selfLastLogIndex = storageService.getLen() - 1 + start;
         if (lastLogTerm > getLastLogTerm()) {
             return true;
         }
@@ -213,7 +209,7 @@ public class LogServiceImpl implements LogService {
     }
 
     @Override
-    public boolean installSnapShot(Snapshot snapshot) {
+    public boolean installSnapshot(Snapshot snapshot) {
         Preconditions.checkNotNull(snapshot);
         try {
             LOG_LOCK.lock();
@@ -226,5 +222,15 @@ public class LogServiceImpl implements LogService {
             LOG_LOCK.unlock();
         }
         return true;
+    }
+
+    @Override
+    public void execInLock(Runnable action) {
+        try {
+            LOG_LOCK.lock();
+            action.run();
+        } finally {
+            LOG_LOCK.unlock();
+        }
     }
 }

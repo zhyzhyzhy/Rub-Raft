@@ -13,7 +13,7 @@ public class StorageFileImpl implements StorageFile {
 
     private static final Logger log = LoggerFactory.getLogger(StorageFileImpl.class);
 
-    static StorageFile create(String category, String fileName) throws FileNotFoundException {
+    static StorageFile create(String category, String fileName) {
         return new StorageFileImpl(category, fileName);
     }
 
@@ -22,7 +22,7 @@ public class StorageFileImpl implements StorageFile {
 
     private volatile long writePointer = 0;
 
-    private StorageFileImpl(String category, String fileName) throws FileNotFoundException {
+    private StorageFileImpl(String category, String fileName) {
         if (!FileUtils.createCategoryIfNotExist(category)) {
             throw new IllegalStateException("category can not be create!");
         }
@@ -32,7 +32,7 @@ public class StorageFileImpl implements StorageFile {
             randomAccessFile = new RandomAccessFile(fileName, "rw");
         } catch (FileNotFoundException e) {
             log.error(e.getMessage(), e);
-            throw e;
+            throw new IllegalStateException(e.getMessage(), e);
         }
         log.info("success create file, category={}, fileName={}", category, fileName);
     }
@@ -43,46 +43,81 @@ public class StorageFileImpl implements StorageFile {
     }
 
     @Override
-    public long getLength() throws IOException {
-        return randomAccessFile.length();
+    public long getLength() {
+        try {
+            return randomAccessFile.length();
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            throw new IllegalStateException(e.getMessage(), e);
+        }
     }
 
     @Override
-    public void writeInt(int value) throws IOException {
-        randomAccessFile.seek(writePointer);
-        randomAccessFile.write(value);
-        writePointer += 2;
+    public void writeInt(int value) {
+        try {
+            randomAccessFile.seek(writePointer);
+            randomAccessFile.write(value);
+            writePointer += 2;
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            throw new IllegalStateException(e.getMessage(), e);
+        }
     }
 
     @Override
-    public void writeBytes(byte[] values) throws IOException {
-        randomAccessFile.seek(writePointer);
-        randomAccessFile.write(values);
-        writePointer += values.length;
+    public void writeBytes(byte[] values) {
+        try {
+            randomAccessFile.seek(writePointer);
+            randomAccessFile.write(values);
+            writePointer += values.length;
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            throw new IllegalStateException(e.getMessage(), e);
+        }
     }
 
     @Override
-    public int readInt() throws IOException {
-        return randomAccessFile.readInt();
+    public int readInt() {
+        try {
+            return randomAccessFile.readInt();
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            throw new IllegalStateException(e.getMessage(), e);
+        }
     }
 
     @Override
-    public byte[] getBytes(int offset, int len) throws IOException {
+    public byte[] getBytes(int offset, int len) {
         byte[] values = new byte[len];
-        randomAccessFile.read(values, offset, len);
+        try {
+            randomAccessFile.read(values, offset, len);
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            throw new IllegalStateException(e.getMessage(), e);
+        }
         return values;
     }
 
     @Override
-    public byte[] getBytes(int len) throws IOException {
+    public byte[] getBytes(int len) {
         byte[] values = new byte[len];
-        randomAccessFile.read(values);
+        try {
+            randomAccessFile.read(values);
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            throw new IllegalStateException(e.getMessage(), e);
+        }
         return values;
     }
 
     @Override
-    public void skip(int len) throws IOException {
-        randomAccessFile.skipBytes(len);
+    public void skip(int len) {
+        try {
+            randomAccessFile.skipBytes(len);
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            throw new IllegalStateException(e.getMessage(), e);
+        }
     }
 
     @Override
@@ -101,13 +136,23 @@ public class StorageFileImpl implements StorageFile {
     }
 
     @Override
-    public void resetReadPointer(long offset) throws IOException {
-        randomAccessFile.seek(offset);
+    public void resetReadPointer(long offset) {
+        try {
+            randomAccessFile.seek(offset);
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            throw new IllegalStateException(e.getMessage(), e);
+        }
     }
 
     @Override
-    public long getReadPointer() throws IOException {
-        return randomAccessFile.getFilePointer();
+    public long getReadPointer() {
+        try {
+            return randomAccessFile.getFilePointer();
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            throw new IllegalStateException(e.getMessage(), e);
+        }
     }
 
     @Override
