@@ -32,7 +32,7 @@ public class LogServiceImpl implements LogService {
     /**
      * 日志的开头，因为有些可能已经被压缩了
      */
-    private volatile Long start;
+    private volatile int start;
 
     private ReentrantLock LOG_LOCK = new ReentrantLock(true);
 
@@ -49,7 +49,7 @@ public class LogServiceImpl implements LogService {
             default:
                 throw new IllegalStateException();
         }
-        this.start = 0L;
+        this.start = 0;
         this.stateMachine = stateMachine;
         /*
           提交一个DUMMY的LogEntry
@@ -131,16 +131,22 @@ public class LogServiceImpl implements LogService {
     }
 
     @Override
-    public void appendLog(List<LogEntry> entries) {
+    public int appendLog(LogEntry logEntry) {
+       return appendLog(Collections.singletonList(logEntry));
+    }
+
+    @Override
+    public int appendLog(List<LogEntry> entries) {
         Preconditions.checkNotNull(entries);
         if (entries.isEmpty()) {
-            return;
+            return start;
         }
         try {
             LOG_LOCK.lock();
             for (LogEntry entry : entries) {
                 storageService.append(entry.toStorageEntry());
             }
+            return storageService.getLen() - 1 + start;
         } finally {
             LOG_LOCK.unlock();
         }
@@ -197,6 +203,7 @@ public class LogServiceImpl implements LogService {
             snapshot.setLastLogIndex(lastCommitLogIndex);
             snapshot.setLastLogTerm(lastCommitLogTerm);
             this.snapshot = snapshot;
+            this.storageService.discard((int) (lastCommitLogIndex - start));
         } finally {
             LOG_LOCK.unlock();
         }

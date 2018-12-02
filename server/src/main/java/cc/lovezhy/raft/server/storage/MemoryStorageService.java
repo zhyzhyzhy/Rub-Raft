@@ -7,7 +7,6 @@ import java.util.List;
 
 public class MemoryStorageService implements StorageService {
 
-
     private List<StorageEntry> entries = Lists.newLinkedList();
 
     public static StorageService create() {
@@ -15,7 +14,6 @@ public class MemoryStorageService implements StorageService {
     }
 
     private MemoryStorageService() {
-
     }
 
     @Override
@@ -49,6 +47,6 @@ public class MemoryStorageService implements StorageService {
 
     @Override
     public void discard(int toIndex) {
-        //TODO
+        entries = Lists.newLinkedList(this.entries.subList(toIndex, entries.size()));
     }
 }

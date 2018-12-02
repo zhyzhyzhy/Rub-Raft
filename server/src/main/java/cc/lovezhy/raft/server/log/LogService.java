@@ -14,7 +14,8 @@ public interface LogService {
 
     boolean commit(long index);
 
-    void appendLog(List<LogEntry> entries);
+    int appendLog(LogEntry logEntry);
+    int appendLog(List<LogEntry> entries);
 
     long getLastCommitLogTerm();
     long getLastCommitLogIndex();

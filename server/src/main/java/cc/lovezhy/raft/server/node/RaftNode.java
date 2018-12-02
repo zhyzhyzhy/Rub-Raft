@@ -6,7 +6,10 @@ import cc.lovezhy.raft.rpc.RpcServer;
 import cc.lovezhy.raft.rpc.common.RpcExecutors;
 import cc.lovezhy.raft.server.ClusterConfig;
 import cc.lovezhy.raft.server.DefaultStateMachine;
-import cc.lovezhy.raft.server.log.*;
+import cc.lovezhy.raft.server.log.DefaultCommand;
+import cc.lovezhy.raft.server.log.LogEntry;
+import cc.lovezhy.raft.server.log.LogService;
+import cc.lovezhy.raft.server.log.LogServiceImpl;
 import cc.lovezhy.raft.server.service.RaftService;
 import cc.lovezhy.raft.server.service.RaftServiceImpl;
 import cc.lovezhy.raft.server.service.model.*;
@@ -68,6 +71,11 @@ public class RaftNode implements RaftService {
     private AtomicLong heartbeatTimeRecorder = new AtomicLong();
 
     /**
+     * 发送Log请求和心跳之间的竞态条件
+     */
+    private AtomicLong appendLogAndHeartBeatRaceCondition = new AtomicLong();
+
+    /**
      * 为其他的节点提供Rpc服务
      */
     private EndPoint endPoint;
@@ -92,11 +100,6 @@ public class RaftNode implements RaftService {
      * 心跳和超时选举的定时任务的管理
      */
     private TickManager tickManager = new TickManager();
-
-    /**
-     * 外界向服务进行Log的请求
-     */
-    private OuterService outerService = new OuterService();
 
     public RaftNode(NodeId nodeId, EndPoint endPoint, ClusterConfig clusterConfig, List<PeerRaftNode> peerRaftNodes) {
         Preconditions.checkNotNull(nodeId);
@@ -135,7 +138,7 @@ public class RaftNode implements RaftService {
         RaftService serverService = new RaftServiceImpl(this);
         rpcServer.registerService(serverService);
         rpcServer.start(endPoint);
-        httpService = new ClientHttpService(new NodeMonitor(), endPoint.getPort() + 1);
+        httpService = new ClientHttpService(new NodeMonitor(), new OuterService(), endPoint.getPort() + 1);
         httpService.createHttpServer();
         peerRaftNodes.forEach(PeerRaftNode::connect);
         nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
@@ -249,7 +252,7 @@ public class RaftNode implements RaftService {
             log.debug("try to be leader, term={}", voteTerm);
             boolean beLeaderSuccess = nodeScheduler.beLeader(voteTerm);
             if (beLeaderSuccess && nodeScheduler.changeNodeStatusWhenNot(NodeStatus.PRE_CANDIDATE, NodeStatus.LEADER)) {
-                log.debug("be the leader sucess, currentTerm={}", voteTerm);
+                log.debug("be the leader success, currentTerm={}", voteTerm);
                 peerNodeScheduler.updatePeerLogIndex();
                 startHeartbeat();
             } else {
@@ -259,88 +262,22 @@ public class RaftNode implements RaftService {
     }
 
     private void startHeartbeat() {
+        ReplicatedLogRequest replicatedLogRequest = new ReplicatedLogRequest();
+        replicatedLogRequest.setTerm(currentTerm);
+        replicatedLogRequest.setLeaderId(nodeId);
+        replicatedLogRequest.setLeaderCommit(logService.getLastCommitLogIndex());
+        long preLogIndex = logService.getLastLogIndex();
+        replicatedLogRequest.setPrevLogIndex(preLogIndex);
+        replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
+        //一开始发送的日志为空
+        replicatedLogRequest.setEntries(Collections.emptyList());
         peerRaftNodes.forEach(peerRaftNode -> {
             try {
-                ReplicatedLogRequest replicatedLogRequest = new ReplicatedLogRequest();
-                replicatedLogRequest.setTerm(currentTerm);
-                replicatedLogRequest.setLeaderId(nodeId);
-                replicatedLogRequest.setLeaderCommit(logService.getLastCommitLogIndex());
-                long preLogIndex = peerRaftNode.getNextIndex() - 1;
-
-                replicatedLogRequest.setPrevLogIndex(preLogIndex);
-                replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
-
-                long currentLastLogIndex = logService.getLastLogIndex();
-                replicatedLogRequest.setEntries(logService.get(peerRaftNode.getNextIndex(), logService.getLastLogIndex()));
-                peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
-                log.debug("send heartbeat to={}", peerRaftNode.getNodeId());
-                SettableFuture<ReplicatedLogResponse> responseSettableFuture = RpcContext.getContextFuture();
-                Futures.addCallback(responseSettableFuture, new FutureCallback<ReplicatedLogResponse>() {
-                    @Override
-                    public void onSuccess(@Nullable ReplicatedLogResponse result) {
-                        /*
-                         * 可能发生
-                         * 成为Leader后直接被网络分区了
-                         * 然后又好了，此时另外一个分区已经有Leader且Term比自己大
-                         */
-                        if (result.getTerm() > currentTerm) {
-                            log.error("currentTerm={}, remoteServerTerm={}", currentTerm, result.getTerm());
-                            log.debug("may have network isolate");
-                            //TODO
-                        }
-                        if (!result.getSuccess()) {
-                            if (!peerRaftNode.getNodeStatus().equals(PeerNodeStatus.INSTALLSNAPSHOT)) {
-                                long nextPreLogIndex = peerRaftNode.getNextIndex() - 1;
-                                //如果已经是在Snapshot中
-                                if (logService.hasInSnapshot(nextPreLogIndex)) {
-                                    peerRaftNode.setNodeStatus(PeerNodeStatus.INSTALLSNAPSHOT);
-                                    Snapshot snapShot = logService.getSnapShot();
-                                    InstallSnapshotRequest installSnapShotRequest = new InstallSnapshotRequest();
-                                    installSnapShotRequest.setLeaderId(nodeId);
-                                    installSnapShotRequest.setTerm(currentTerm);
-                                    installSnapShotRequest.setSnapshot(snapShot);
-                                    peerRaftNode.getRaftService().requestInstallSnapShot(installSnapShotRequest);
-                                    SettableFuture<InstallSnapshotResponse> responseSettableFuture = RpcContext.getContextFuture();
-                                    Futures.addCallback(responseSettableFuture, new FutureCallback<InstallSnapshotResponse>() {
-                                        @Override
-                                        public void onSuccess(@Nullable InstallSnapshotResponse result) {
-                                            if (result.getSuccess()) {
-                                                peerRaftNode.setNodeStatus(PeerNodeStatus.PROBE);
-                                                peerRaftNode.setMatchIndex(snapShot.getLastLogIndex());
-                                                peerRaftNode.setNextIndex(snapShot.getLastLogIndex() + 1);
-                                            } else {
-                                                throw new IllegalStateException("install SnapShot fail");
-                                            }
-                                        }
-
-                                        @Override
-                                        public void onFailure(Throwable t) {
-                                            t.printStackTrace();
-                                        }
-                                    }, RpcExecutors.commonExecutor());
-                                } else {
-                                    peerRaftNode.setNextIndex(peerRaftNode.getNextIndex() - 1);
-                                }
-                            }
-                        } else {
-                            if (!peerRaftNode.getNodeStatus().equals(PeerNodeStatus.NORMAL)) {
-                                peerRaftNode.setNodeStatus(PeerNodeStatus.NORMAL);
-                                peerRaftNode.setNextIndex(currentLastLogIndex + 1);
-                                peerRaftNode.setMatchIndex(currentLastLogIndex);
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Throwable t) {
-                        t.printStackTrace();
-                    }
-                }, RpcExecutors.commonExecutor());
+                peerRaftNode.tickHeartBeat(replicatedLogRequest, logService, preLogIndex);
             } catch (Exception e) {
                 e.printStackTrace();
             }
         });
-        tickManager.tickHeartbeat();
     }
 
     @Override
@@ -642,10 +579,57 @@ public class RaftNode implements RaftService {
         }
     }
 
-
+    /**
+     * 向外界提供服务的
+     */
     public class OuterService {
         public boolean appendLog(DefaultCommand command) {
-            return true;
+            if (nodeScheduler.isLeader()) {
+                LogEntry logEntry = LogEntry.of(command, currentTerm);
+                int logIndex = logService.appendLog(logEntry);
+                CountDownLatch latch = new CountDownLatch(clusterConfig.getNodeCount() / 2);
+                peerRaftNodes.forEach(peerRaftNode -> {
+                    try {
+                        ReplicatedLogRequest replicatedLogRequest = new ReplicatedLogRequest();
+                        replicatedLogRequest.setTerm(currentTerm);
+                        replicatedLogRequest.setLeaderId(nodeId);
+                        replicatedLogRequest.setLeaderCommit(logService.getLastCommitLogIndex());
+                        long preLogIndex = peerRaftNode.getNextIndex() - 1;
+
+                        replicatedLogRequest.setPrevLogIndex(preLogIndex);
+                        replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
+
+                        long currentLastLogIndex = logService.getLastLogIndex();
+                        replicatedLogRequest.setEntries(logService.get(peerRaftNode.getNextIndex(), logService.getLastLogIndex()));
+                        peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
+                        SettableFuture<ReplicatedLogResponse> responseSettableFuture = RpcContext.getContextFuture();
+                        Futures.addCallback(responseSettableFuture, new FutureCallback<ReplicatedLogResponse>() {
+                            @Override
+                            public void onSuccess(@Nullable ReplicatedLogResponse result) {
+                                latch.countDown();
+                            }
+
+                            @Override
+                            public void onFailure(Throwable t) {
+
+                            }
+                        }, RpcExecutors.commonExecutor());
+                    } catch (Exception e) {
+                        log.error(e.getMessage(), e);
+                    }
+                });
+                try {
+                    latch.await(200L, DEFAULT_TIME_UNIT);
+                } catch (InterruptedException e) {
+                    log.error(e.getMessage(), e);
+                    return false;
+                }
+                return true;
+            } else {
+                //redirect to leader
+                //TODO
+                return false;
+            }
         }
     }
 
