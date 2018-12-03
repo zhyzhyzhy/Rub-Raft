@@ -15,6 +15,7 @@ import cc.lovezhy.raft.server.utils.TimeCountDownUtil;
 import cc.lovezhy.raft.server.web.ClientHttpService;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -25,10 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -506,12 +504,21 @@ public class RaftNode implements RaftService {
         }
 
         void tickHeartBeat() {
-            Runnable appendHeartBeatTask = () -> peerNode.forEach((peerRaftNode, peerNodeStateMachine) -> peerNodeStateMachine.append(prepareHeartBeat(peerRaftNode, peerNodeStateMachine)));
+            Runnable appendHeartBeatTask = () -> peerNode.forEach((peerRaftNode, peerNodeStateMachine) -> peerNodeStateMachine.append(prepareAppendLog(peerRaftNode, peerNodeStateMachine)));
             appendHeartBeatTask.run();
             TimeCountDownUtil.addSchedulerTask(HEART_BEAT_TIME_INTERVAL, DEFAULT_TIME_UNIT, this::tickHeartBeat, (Supplier<Boolean>) () -> nodeScheduler.isLeader());
         }
 
-        private Runnable prepareHeartBeat(PeerRaftNode peerRaftNode, PeerNodeStateMachine peerNodeStateMachine) {
+        List<SettableFuture<Void>> appendLog(int logIndex) {
+            List<SettableFuture<Void>> settableFutureList = Lists.newArrayList();
+            peerNode.forEach((peerRaftNode, peerNodeStateMachine) -> {
+                SettableFuture<Void> settableFuture = peerNodeStateMachine.setCompleteFuture(logIndex);
+                settableFutureList.add(settableFuture);
+            });
+            return settableFutureList;
+        }
+
+        private Runnable prepareAppendLog(PeerRaftNode peerRaftNode, PeerNodeStateMachine peerNodeStateMachine) {
             long term = currentTerm;
             long currentLastLogIndex = logService.getLastLogIndex();
             long currentLastCommitLogIndex = logService.getLastCommitLogIndex();
@@ -523,12 +530,11 @@ public class RaftNode implements RaftService {
             replicatedLogRequest.setLeaderCommit(currentLastCommitLogIndex);
             replicatedLogRequest.setPrevLogIndex(preLogIndex);
             replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
-            // 一开始发送的日志为空
-            replicatedLogRequest.setEntries(logService.get(peerNodeStateMachine.getNextIndex(), currentLastLogIndex));
+            List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex(), currentLastLogIndex);
+            replicatedLogRequest.setEntries(logEntries);
             return () -> {
                 try {
                     //同步方法
-                    log.info("send HeartBeat");
                     ReplicatedLogResponse replicatedLogResponse = peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
                     /*
                      * 可能发生
@@ -543,10 +549,14 @@ public class RaftNode implements RaftService {
                     }
 
                     if (replicatedLogResponse.getSuccess()) {
+                        peerNodeStateMachine.setNextIndex(currentLastLogIndex + 1);
+                        peerNodeStateMachine.setMatchIndex(currentLastLogIndex);
                         if (!peerNodeStateMachine.getNodeStatus().equals(PeerNodeStatus.NORMAL)) {
                             peerNodeStateMachine.setNodeStatus(PeerNodeStatus.NORMAL);
-                            peerNodeStateMachine.setNextIndex(currentLastLogIndex + 1);
-                            peerNodeStateMachine.setMatchIndex(currentLastLogIndex);
+                        }
+                        if (peerNodeStateMachine.needSendAppendLogImmediately() || peerNodeStateMachine.getMatchIndex() < logService.getLastLogIndex()) {
+                            Runnable runnable = prepareAppendLog(peerRaftNode, peerNodeStateMachine);
+                            peerNodeStateMachine.appendFirst(runnable);
                         }
                     } else {
                         if (!peerNodeStateMachine.getNodeStatus().equals(PeerNodeStatus.INSTALLSNAPSHOT)) {
@@ -558,6 +568,8 @@ public class RaftNode implements RaftService {
                                 peerNodeStateMachine.appendFirst(runnable);
                             } else {
                                 peerNodeStateMachine.setNextIndex(peerNodeStateMachine.getNextIndex() - 1);
+                                Runnable runnable = prepareAppendLog(peerRaftNode, peerNodeStateMachine);
+                                peerNodeStateMachine.appendFirst(runnable);
                             }
                         }
                     }
@@ -578,8 +590,8 @@ public class RaftNode implements RaftService {
                     InstallSnapshotResponse installSnapshotResponse = peerRaftNode.getRaftService().requestInstallSnapShot(installSnapShotRequest);
                     if (installSnapshotResponse.getSuccess()) {
                         peerNodeStateMachine.setNodeStatus(PeerNodeStatus.PROBE);
-                        peerNodeStateMachine.setMatchIndex(snapShot.getLastLogIndex());
                         peerNodeStateMachine.setNextIndex(snapShot.getLastLogIndex() + 1);
+                        peerNodeStateMachine.setMatchIndex(snapShot.getLastLogIndex());
                     } else {
                         throw new IllegalStateException();
                     }
@@ -628,7 +640,15 @@ public class RaftNode implements RaftService {
             if (nodeScheduler.isLeader()) {
                 LogEntry logEntry = LogEntry.of(command, currentTerm);
                 int logIndex = logService.appendLog(logEntry);
+                List<SettableFuture<Void>> settableFutureList = RaftNode.this.peerNodeScheduler.appendLog(logIndex);
                 CountDownLatch latch = new CountDownLatch(clusterConfig.getNodeCount() / 2);
+                settableFutureList.forEach(settableFuture -> settableFuture.addListener(latch::countDown, RpcExecutors.commonExecutor()));
+                try {
+                    latch.await();
+                } catch (Exception e) {
+                    log.error(e.getMessage(), e);
+                }
+                logService.commit(logIndex);
                 return true;
             } else {
                 //redirect to leader
