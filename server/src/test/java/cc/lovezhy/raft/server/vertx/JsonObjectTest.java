@@ -12,6 +12,7 @@ public class JsonObjectTest {
     public void jsonObjectMapTest() {
         DefaultCommand defaultCommand = DefaultCommand.setCommand("zhuyichen", "23");
         String jsonString = JSON.toJSONString(defaultCommand);
+        System.out.println(jsonString);
         JsonObject jsonObject = new JsonObject(jsonString);
         Assert.assertEquals(defaultCommand, jsonObject.mapTo(DefaultCommand.class));
     }

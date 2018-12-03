@@ -42,9 +42,9 @@ public class PeerNodeStateMachine implements Closeable {
                 continue;
             }
             taskExecutor.submit(task).addListener(() -> {
-                SettableFuture<Void> voidSettableFuture = appendLogIndexCompleteFuture.get(matchIndex);
+                SettableFuture<Void> voidSettableFuture = appendLogIndexCompleteFuture.get(matchIndex.intValue());
                 if (Objects.nonNull(voidSettableFuture)) {
-                    appendLogIndexCompleteFuture.remove(matchIndex);
+                    appendLogIndexCompleteFuture.remove(matchIndex.intValue());
                     voidSettableFuture.set(null);
                 }
             }, RpcExecutors.commonExecutor());

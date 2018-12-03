@@ -521,6 +521,9 @@ public class RaftNode implements RaftService {
             peerNode.forEach((peerRaftNode, peerNodeStateMachine) -> {
                 SettableFuture<Void> settableFuture = peerNodeStateMachine.setCompleteFuture(logIndex);
                 settableFutureList.add(settableFuture);
+                if (peerNodeStateMachine.taskQueueIsEmpty()) {
+                    peerNodeStateMachine.appendFirst(prepareAppendLog(peerRaftNode, peerNodeStateMachine));
+                }
             });
             return settableFutureList;
         }
@@ -538,6 +541,7 @@ public class RaftNode implements RaftService {
             replicatedLogRequest.setPrevLogIndex(preLogIndex);
             replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
             List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex(), currentLastLogIndex);
+            System.out.println(logEntries);
             replicatedLogRequest.setEntries(logEntries);
             return () -> {
                 try {
@@ -581,7 +585,7 @@ public class RaftNode implements RaftService {
                         }
                     }
                 } catch (Exception e) {
-                    log.error(e.getMessage(), e);
+                    log.error(e.getMessage());
                 }
             };
         }
@@ -603,7 +607,7 @@ public class RaftNode implements RaftService {
                         throw new IllegalStateException();
                     }
                 } catch (Exception e) {
-                    log.error(e.getMessage(), e);
+                    log.error(e.getMessage());
                 }
             };
         }
@@ -656,6 +660,7 @@ public class RaftNode implements RaftService {
                     log.error(e.getMessage(), e);
                 }
                 logService.commit(logIndex);
+                log.info("commit success");
                 return true;
             } else {
                 //redirect to leader

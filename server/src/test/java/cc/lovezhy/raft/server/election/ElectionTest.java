@@ -9,10 +9,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.text.MessageFormat;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 
 public class ElectionTest {
     /**
@@ -24,6 +21,8 @@ public class ElectionTest {
         raftNodes.forEach(RaftNode::init);
         System.out.println("check one leader");
         election(raftNodes);
+        Scanner scanner = new Scanner(System.in);
+        scanner.next();
         raftNodes.forEach(RaftNode::close);
     }
 

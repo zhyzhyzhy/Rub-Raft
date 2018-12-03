@@ -86,6 +86,7 @@ public class LogServiceImpl implements LogService {
      */
     @Override
     public List<LogEntry> get(long start, long end) {
+        log.info("get logEntry, start={}, end={}", start, end);
         if (start > end) {
             return Collections.emptyList();
         }

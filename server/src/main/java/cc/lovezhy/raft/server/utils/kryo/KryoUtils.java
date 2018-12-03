@@ -4,22 +4,29 @@ import cc.lovezhy.raft.server.log.LogEntry;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryo.pool.KryoFactory;
+import com.esotericsoftware.kryo.pool.KryoPool;
 import com.google.common.base.Preconditions;
 
 import java.io.ByteArrayOutputStream;
 
 public class KryoUtils {
-    private static final ThreadLocal<Kryo> threadLocalKryo;
+
+
+    private static KryoPool pool;
 
     static {
-        threadLocalKryo = ThreadLocal.withInitial(Kryo::new);
+        KryoFactory factory = Kryo::new;
+        pool = new KryoPool.Builder(factory).softReferences().build();
     }
 
     public static LogEntry deserializeLogEntry(byte[] bytes) {
         Preconditions.checkNotNull(bytes);
         Input input = new Input(bytes);
-        LogEntry logEntry =  threadLocalKryo.get().readObject(input, LogEntry.class);
+        Kryo kryo = pool.borrow();
+        LogEntry logEntry = kryo.readObject(input, LogEntry.class);
         input.close();
+        pool.release(kryo);
         return logEntry;
     }
 
@@ -27,9 +34,11 @@ public class KryoUtils {
         Preconditions.checkNotNull(logEntry);
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         Output output = new Output(byteArrayOutputStream);
-        threadLocalKryo.get().writeObject(output, logEntry);
+        Kryo kryo = pool.borrow();
+        kryo.writeObject(output, logEntry);
         output.flush();
         output.close();
+        pool.release(kryo);
         return byteArrayOutputStream.toByteArray();
     }
 

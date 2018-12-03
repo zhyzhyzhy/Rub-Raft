@@ -9,6 +9,7 @@ import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.handler.impl.BodyHandlerImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +32,7 @@ public class ClientHttpService extends AbstractVerticle {
     public void createHttpServer() {
         this.httpServer = vertx.createHttpServer();
         Router router = Router.router(vertx);
+        router.route().handler(new BodyHandlerImpl());
         /*
          * 查看节点状态
          */
