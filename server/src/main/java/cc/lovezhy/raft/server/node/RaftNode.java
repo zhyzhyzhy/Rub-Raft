@@ -26,7 +26,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -93,6 +96,8 @@ public class RaftNode implements RaftService {
      */
     private TickManager tickManager = new TickManager();
 
+    private OuterService outerService;
+
     public RaftNode(NodeId nodeId, EndPoint endPoint, ClusterConfig clusterConfig, List<PeerRaftNode> peerRaftNodes) {
         Preconditions.checkNotNull(nodeId);
         Preconditions.checkNotNull(endPoint);
@@ -130,7 +135,8 @@ public class RaftNode implements RaftService {
         RaftService serverService = new RaftServiceImpl(this);
         rpcServer.registerService(serverService);
         rpcServer.start(endPoint);
-        httpService = new ClientHttpService(new OuterService(), endPoint.getPort() + 1);
+        outerService = new OuterService();
+        httpService = new ClientHttpService(outerService, endPoint.getPort() + 1);
         httpService.createHttpServer();
         peerRaftNodes.forEach(PeerRaftNode::connect);
         nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
@@ -247,6 +253,7 @@ public class RaftNode implements RaftService {
                 log.info("be the leader success, currentTerm={}", voteTerm);
                 peerNodeScheduler = new PeerNodeScheduler();
                 peerNodeScheduler.tickHeartBeat();
+                outerService.appendLog(LogConstants.DUMMY_COMMAND);
             } else {
                 log.debug("be the leader fail, currentTerm={}", voteTerm);
             }
