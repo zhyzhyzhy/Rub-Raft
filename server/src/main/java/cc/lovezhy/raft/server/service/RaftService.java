@@ -1,9 +1,6 @@
 package cc.lovezhy.raft.server.service;
 
-import cc.lovezhy.raft.server.log.exception.HasCompactException;
 import cc.lovezhy.raft.server.service.model.*;
-
-import java.io.IOException;
 
 public interface RaftService {
 
@@ -11,7 +8,7 @@ public interface RaftService {
 
     VoteResponse requestVote(VoteRequest voteRequest);
 
-    ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) throws IOException, HasCompactException;
+    ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest);
 
     InstallSnapshotResponse requestInstallSnapShot(InstallSnapshotRequest installSnapShotRequest);
 }
