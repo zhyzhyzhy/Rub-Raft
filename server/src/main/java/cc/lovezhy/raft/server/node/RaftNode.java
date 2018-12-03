@@ -11,12 +11,10 @@ import cc.lovezhy.raft.server.service.RaftService;
 import cc.lovezhy.raft.server.service.RaftServiceImpl;
 import cc.lovezhy.raft.server.service.model.*;
 import cc.lovezhy.raft.server.storage.StorageType;
-import cc.lovezhy.raft.server.utils.Pair;
 import cc.lovezhy.raft.server.utils.TimeCountDownUtil;
 import cc.lovezhy.raft.server.web.ClientHttpService;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -27,7 +25,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -131,7 +132,7 @@ public class RaftNode implements RaftService {
         RaftService serverService = new RaftServiceImpl(this);
         rpcServer.registerService(serverService);
         rpcServer.start(endPoint);
-        httpService = new ClientHttpService(new NodeMonitor(), new OuterService(), endPoint.getPort() + 1);
+        httpService = new ClientHttpService(new OuterService(), endPoint.getPort() + 1);
         httpService.createHttpServer();
         peerRaftNodes.forEach(PeerRaftNode::connect);
         nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
@@ -594,26 +595,6 @@ public class RaftNode implements RaftService {
         }
     }
 
-    /**
-     * for ClientHttpService
-     */
-    public class NodeMonitor {
-        public JsonObject getNodeStatus() {
-            JsonObject jsonObject = new JsonObject();
-            jsonObject.put("NodeStatus", currentNodeStatus.get().toString());
-            jsonObject.put("term", currentTerm.toString());
-            jsonObject.put("Leader", RaftNode.this.nodeScheduler.getVotedFor().getPeerId());
-
-            Map<NodeId, String> nodeIdUrlMap = Maps.newHashMap();
-            RaftNode.this.peerRaftNodes.forEach(peerRaftNode -> {
-                EndPoint endPoint = EndPoint.create(peerRaftNode.getEndPoint().getHost(), peerRaftNode.getEndPoint().getPort() + 1);
-                nodeIdUrlMap.put(peerRaftNode.getNodeId(), endPoint.toUrl() + "/status");
-            });
-            jsonObject.put("servers", nodeIdUrlMap);
-            return jsonObject;
-        }
-    }
-
     public class TickManager {
         private Optional<Future> preVoteFuture = Optional.empty();
 
@@ -655,16 +636,20 @@ public class RaftNode implements RaftService {
                 return false;
             }
         }
-    }
 
-    /**
-     * for the web logger
-     */
-    public class WebLogger {
-        private List<Pair<Long, String>> logEntry = Collections.synchronizedList(Lists.newArrayList());
+        public JsonObject getNodeStatus() {
+            JsonObject jsonObject = new JsonObject();
+            jsonObject.put("NodeStatus", currentNodeStatus.get().toString());
+            jsonObject.put("term", currentTerm.toString());
+            jsonObject.put("Leader", RaftNode.this.nodeScheduler.getVotedFor().getPeerId());
 
-        public void addLog(String item) {
-            logEntry.add(Pair.of(System.currentTimeMillis(), item));
+            Map<NodeId, String> nodeIdUrlMap = Maps.newHashMap();
+            RaftNode.this.peerRaftNodes.forEach(peerRaftNode -> {
+                EndPoint endPoint = EndPoint.create(peerRaftNode.getEndPoint().getHost(), peerRaftNode.getEndPoint().getPort() + 1);
+                nodeIdUrlMap.put(peerRaftNode.getNodeId(), endPoint.toUrl() + "/status");
+            });
+            jsonObject.put("servers", nodeIdUrlMap);
+            return jsonObject;
         }
     }
 }

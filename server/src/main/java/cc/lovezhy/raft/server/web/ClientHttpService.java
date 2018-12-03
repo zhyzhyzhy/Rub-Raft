@@ -19,13 +19,10 @@ public class ClientHttpService extends AbstractVerticle {
     private HttpServer httpServer;
     private int port;
 
-    private RaftNode.NodeMonitor nodeMonitor;
     private RaftNode.OuterService outerService;
 
-    public ClientHttpService(RaftNode.NodeMonitor nodeMonitor, RaftNode.OuterService outerService, int port) {
-        Preconditions.checkNotNull(nodeMonitor);
+    public ClientHttpService(RaftNode.OuterService outerService, int port) {
         Preconditions.checkNotNull(outerService);
-        this.nodeMonitor = nodeMonitor;
         this.outerService = outerService;
         this.port = port;
         this.vertx = Vertx.vertx();
@@ -40,7 +37,7 @@ public class ClientHttpService extends AbstractVerticle {
         router.get("/status").handler(routingContext -> {
             HttpServerResponse response = routingContext.response();
             response.putHeader("content-type", "application/json");
-            response.end(nodeMonitor.getNodeStatus().toString());
+            response.end(outerService.getNodeStatus().toString());
         });
 
         /*
