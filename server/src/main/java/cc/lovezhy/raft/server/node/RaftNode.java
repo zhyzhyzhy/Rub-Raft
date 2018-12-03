@@ -245,7 +245,7 @@ public class RaftNode implements RaftService {
             log.debug("try to be leader, term={}", voteTerm);
             boolean beLeaderSuccess = nodeScheduler.beLeader(voteTerm);
             if (beLeaderSuccess && nodeScheduler.changeNodeStatusWhenNot(NodeStatus.PRE_CANDIDATE, NodeStatus.LEADER)) {
-                log.debug("be the leader success, currentTerm={}", voteTerm);
+                log.info("be the leader success, currentTerm={}", voteTerm);
                 peerNodeScheduler = new PeerNodeScheduler();
                 peerNodeScheduler.tickHeartBeat();
             } else {
@@ -296,7 +296,7 @@ public class RaftNode implements RaftService {
 
         // normal
         if (Objects.equals(replicatedLogRequest.getLeaderId(), nodeScheduler.getVotedFor())) {
-            log.debug("receiveHeartbeat from={}", replicatedLogRequest.getLeaderId());
+            log.info("receiveHeartbeat from={}", replicatedLogRequest.getLeaderId());
             nodeScheduler.receiveHeartbeat();
             return appendLog(replicatedLogRequest);
         }
@@ -307,7 +307,7 @@ public class RaftNode implements RaftService {
             nodeScheduler.setVotedForForce(replicatedLogRequest.getLeaderId());
             nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
             nodeScheduler.receiveHeartbeat();
-            log.debug("receiveHeartbeat from={}", replicatedLogRequest.getLeaderId());
+            log.info("receiveHeartbeat from={}", replicatedLogRequest.getLeaderId());
             return appendLog(replicatedLogRequest);
         }
         return new ReplicatedLogResponse(term, false);
@@ -507,7 +507,7 @@ public class RaftNode implements RaftService {
         void tickHeartBeat() {
             Runnable appendHeartBeatTask = () -> peerNode.forEach((peerRaftNode, peerNodeStateMachine) -> peerNodeStateMachine.append(prepareHeartBeat(peerRaftNode, peerNodeStateMachine)));
             appendHeartBeatTask.run();
-            TimeCountDownUtil.addSchedulerTask(HEART_BEAT_TIME_INTERVAL, DEFAULT_TIME_UNIT, appendHeartBeatTask, (Supplier<Boolean>) () -> nodeScheduler.isLeader());
+            TimeCountDownUtil.addSchedulerTask(HEART_BEAT_TIME_INTERVAL, DEFAULT_TIME_UNIT, this::tickHeartBeat, (Supplier<Boolean>) () -> nodeScheduler.isLeader());
         }
 
         private Runnable prepareHeartBeat(PeerRaftNode peerRaftNode, PeerNodeStateMachine peerNodeStateMachine) {
@@ -527,6 +527,7 @@ public class RaftNode implements RaftService {
             return () -> {
                 try {
                     //同步方法
+                    log.info("send HeartBeat");
                     ReplicatedLogResponse replicatedLogResponse = peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
                     /*
                      * 可能发生

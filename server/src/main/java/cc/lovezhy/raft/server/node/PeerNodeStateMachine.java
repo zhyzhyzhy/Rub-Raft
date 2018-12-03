@@ -1,9 +1,11 @@
 package cc.lovezhy.raft.server.node;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.Closeable;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.Objects;
+import java.util.concurrent.*;
 
 public class PeerNodeStateMachine implements Closeable {
 
@@ -11,18 +13,38 @@ public class PeerNodeStateMachine implements Closeable {
         return new PeerNodeStateMachine(nextIndex);
     }
 
+    private static final Logger log = LoggerFactory.getLogger(PeerNodeStateMachine.class);
+
     private Long nextIndex;
     private Long matchIndex;
     private PeerNodeStatus nodeStatus;
     private LinkedBlockingDeque<Runnable> taskQueue;
-    private ThreadPoolExecutor executor;
+    private Executor taskExecutor;
+    private Executor schedulerExecutor;
 
+    private Runnable scheduleTask = () -> {
+        for (;;) {
+            Runnable task = null;
+            try {
+                task = taskQueue.take();
+            } catch (InterruptedException e) {
+                // ignore
+            }
+            if (Objects.isNull(task)) {
+                continue;
+            }
+            taskExecutor.execute(task);
+        }
+    };
     private PeerNodeStateMachine(Long nextIndex) {
         this.taskQueue = new LinkedBlockingDeque<>(10);
-        executor = new ThreadPoolExecutor(1, 1, 10, TimeUnit.MINUTES, taskQueue);
+        this.taskExecutor = Executors.newSingleThreadExecutor();
+        this.schedulerExecutor = Executors.newSingleThreadExecutor();
         this.nextIndex = nextIndex;
         this.matchIndex = 0L;
         this.nodeStatus = PeerNodeStatus.NORMAL;
+
+        this.schedulerExecutor.execute(scheduleTask);
     }
 
     /**
@@ -63,6 +85,5 @@ public class PeerNodeStateMachine implements Closeable {
     @Override
     public void close() {
         taskQueue.clear();
-        executor.shutdown();
     }
 }

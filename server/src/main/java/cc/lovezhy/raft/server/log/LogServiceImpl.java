@@ -95,7 +95,7 @@ public class LogServiceImpl implements LogService {
         if (end > this.start + storageService.getLen()) {
             throw new IndexOutOfBoundsException();
         }
-        List<StorageEntry> storageEntries = storageService.range((int) ((int) start - this.start), (int) ((int) end - this.start));
+        List<StorageEntry> storageEntries = storageService.range(((int) start - this.start), ((int) end - this.start));
         return storageEntries.stream().map(StorageEntry::toLogEntry).collect(Collectors.toList());
     }
 
