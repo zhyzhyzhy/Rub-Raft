@@ -5,18 +5,14 @@ import cc.lovezhy.raft.server.utils.kryo.KryoUtils;
 import com.google.common.base.Preconditions;
 
 public class StorageEntry {
+
+    public StorageEntry(byte[] values) {
+        this.values = values;
+    }
     /**
      * 实际的数据
      */
-    private byte[] values;
-
-    public byte[] getValues() {
-        return values;
-    }
-
-    public void setValues(byte[] values) {
-        this.values = values;
-    }
+    private volatile byte[] values;
 
     public LogEntry toLogEntry() {
         Preconditions.checkNotNull(values);

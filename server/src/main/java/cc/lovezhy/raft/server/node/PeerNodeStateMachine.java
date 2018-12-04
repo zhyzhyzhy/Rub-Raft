@@ -28,7 +28,7 @@ public class PeerNodeStateMachine implements Closeable {
     private ExecutorService schedulerExecutor;
 
     private Map<Integer, SettableFuture<Void>> appendLogIndexCompleteFuture = Maps.newConcurrentMap();
-    private Integer maxWaitIndex = 0;
+    private volatile Integer maxWaitIndex = 0;
 
     private Runnable scheduleTask = () -> {
         for (; ; ) {

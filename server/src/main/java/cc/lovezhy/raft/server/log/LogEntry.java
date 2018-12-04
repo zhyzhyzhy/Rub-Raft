@@ -8,44 +8,34 @@ import com.google.common.base.Preconditions;
 
 public class LogEntry {
 
-    public static LogEntry of(Command command, Long term) {
+    public static LogEntry of(DefaultCommand command, Long term) {
         Preconditions.checkNotNull(command);
         Preconditions.checkNotNull(term);
         return new LogEntry(command, term);
     }
 
 
-    private Command command;
+    private DefaultCommand command;
     private Long term;
 
     public LogEntry() {}
 
-    public LogEntry(Command command, Long term) {
+    public LogEntry(DefaultCommand command, Long term) {
         this.command = command;
         this.term = term;
     }
 
-    public Command getCommand() {
+    public DefaultCommand getCommand() {
         return command;
-    }
-
-    public void setCommand(Command command) {
-        this.command = command;
     }
 
     public Long getTerm() {
         return term;
     }
 
-    public void setTerm(Long term) {
-        this.term = term;
-    }
-
     public StorageEntry toStorageEntry() {
         byte[] values = KryoUtils.serializeLogEntry(this);
-        StorageEntry storageEntry = new StorageEntry();
-        storageEntry.setValues(values);
-        return storageEntry;
+        return new StorageEntry(values);
     }
 
     @Override

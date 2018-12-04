@@ -253,7 +253,7 @@ public class RaftNode implements RaftService {
                 log.info("be the leader success, currentTerm={}", voteTerm);
                 peerNodeScheduler = new PeerNodeScheduler();
                 peerNodeScheduler.tickHeartBeat();
-                outerService.appendLog(LogConstants.DUMMY_COMMAND);
+                outerService.appendLog(LogConstants.getDummyCommand());
             } else {
                 log.debug("be the leader fail, currentTerm={}", voteTerm);
             }
@@ -320,6 +320,7 @@ public class RaftNode implements RaftService {
     }
 
     private ReplicatedLogResponse appendLog(ReplicatedLogRequest replicatedLogRequest) {
+        log.info("prevLogIndex={}, LogEntry={}", replicatedLogRequest.getPrevLogIndex(), replicatedLogRequest.getEntries().size());
         LogEntry logEntry = logService.get(replicatedLogRequest.getPrevLogIndex());
         boolean isSameTerm = false;
         if (Objects.nonNull(logEntry)) {
@@ -529,22 +530,21 @@ public class RaftNode implements RaftService {
         }
 
         private Runnable prepareAppendLog(PeerRaftNode peerRaftNode, PeerNodeStateMachine peerNodeStateMachine) {
-            long term = currentTerm;
-            long currentLastLogIndex = logService.getLastLogIndex();
-            long currentLastCommitLogIndex = logService.getLastCommitLogIndex();
-            long preLogIndex = peerNodeStateMachine.getNextIndex() - 1;
-
-            ReplicatedLogRequest replicatedLogRequest = new ReplicatedLogRequest();
-            replicatedLogRequest.setTerm(term);
-            replicatedLogRequest.setLeaderId(nodeId);
-            replicatedLogRequest.setLeaderCommit(currentLastCommitLogIndex);
-            replicatedLogRequest.setPrevLogIndex(preLogIndex);
-            replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
-            List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex(), currentLastLogIndex);
-            System.out.println(logEntries);
-            replicatedLogRequest.setEntries(logEntries);
             return () -> {
                 try {
+                    long term = currentTerm;
+                    long currentLastLogIndex = logService.getLastLogIndex();
+                    long currentLastCommitLogIndex = logService.getLastCommitLogIndex();
+                    long preLogIndex = peerNodeStateMachine.getNextIndex() - 1;
+
+                    ReplicatedLogRequest replicatedLogRequest = new ReplicatedLogRequest();
+                    replicatedLogRequest.setTerm(term);
+                    replicatedLogRequest.setLeaderId(nodeId);
+                    replicatedLogRequest.setLeaderCommit(currentLastCommitLogIndex);
+                    replicatedLogRequest.setPrevLogIndex(preLogIndex);
+                    replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
+                    List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex(), currentLastLogIndex);
+                    replicatedLogRequest.setEntries(logEntries);
                     //同步方法
                     ReplicatedLogResponse replicatedLogResponse = peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
                     /*

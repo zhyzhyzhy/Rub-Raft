@@ -10,8 +10,6 @@ import java.util.List;
 
 public class KryoDecoder extends ByteToMessageDecoder {
 
-    private final Kryo kryo = new Kryo();
-
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         if (in.readableBytes() < 4) {
@@ -25,10 +23,12 @@ public class KryoDecoder extends ByteToMessageDecoder {
             return;
         }
 
+        Kryo kryo = KryoUtils.pool.borrow();
         byte[] buf = new byte[len];
         in.readBytes(buf, 0, len);
         Input input = new Input(buf);
         Object object = kryo.readClassAndObject(input);
+        KryoUtils.pool.release(kryo);
         out.add(object);
     }
 }

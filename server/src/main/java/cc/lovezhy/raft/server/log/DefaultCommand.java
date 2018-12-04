@@ -7,7 +7,7 @@ import com.google.common.base.Objects;
 import javax.annotation.concurrent.Immutable;
 
 @Immutable
-public class DefaultCommand implements Command {
+public class DefaultCommand {
 
     private static final String EMPTY_VALUE = "";
 
@@ -17,7 +17,6 @@ public class DefaultCommand implements Command {
 
     private String value;
 
-
     public static DefaultCommand setCommand(String key, String value) {
         return new DefaultCommand(DefaultCommandEnum.SET, key, value);
     }
@@ -26,7 +25,9 @@ public class DefaultCommand implements Command {
         return new DefaultCommand(DefaultCommandEnum.REMOVE, key, EMPTY_VALUE);
     }
 
-    private DefaultCommand() {}
+    private DefaultCommand() {
+    }
+
     private DefaultCommand(DefaultCommandEnum commandEnum, String key, String value) {
         this.commandEnum = commandEnum;
         this.key = key;

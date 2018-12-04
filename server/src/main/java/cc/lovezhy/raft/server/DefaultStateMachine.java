@@ -1,11 +1,9 @@
 package cc.lovezhy.raft.server;
 
-import cc.lovezhy.raft.server.log.Command;
 import cc.lovezhy.raft.server.log.DefaultCommand;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -21,9 +19,7 @@ public class DefaultStateMachine implements StateMachine {
     private final Kryo kryo = new Kryo();
 
     @Override
-    public synchronized boolean apply(Command command) {
-        Preconditions.checkState(command instanceof DefaultCommand);
-        DefaultCommand defaultCommand = (DefaultCommand) command;
+    public synchronized boolean apply(DefaultCommand defaultCommand) {
         switch (defaultCommand.getCommandEnum()) {
             case SET: {
                 map.put(defaultCommand.getKey(), defaultCommand.getValue());
@@ -35,8 +31,6 @@ public class DefaultStateMachine implements StateMachine {
             }
         }
         return false;
-
-
     }
 
     @Override

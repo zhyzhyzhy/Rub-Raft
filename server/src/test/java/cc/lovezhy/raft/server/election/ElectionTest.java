@@ -21,8 +21,6 @@ public class ElectionTest {
         raftNodes.forEach(RaftNode::init);
         System.out.println("check one leader");
         election(raftNodes);
-        Scanner scanner = new Scanner(System.in);
-        scanner.next();
         raftNodes.forEach(RaftNode::close);
     }
 

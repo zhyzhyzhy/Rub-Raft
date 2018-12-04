@@ -4,6 +4,7 @@ import cc.lovezhy.raft.server.StateMachine;
 import cc.lovezhy.raft.server.log.exception.HasCompactException;
 import cc.lovezhy.raft.server.storage.*;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,7 +13,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.stream.Collectors;
 
 public class LogServiceImpl implements LogService {
 
@@ -54,8 +54,8 @@ public class LogServiceImpl implements LogService {
         /*
           提交一个DUMMY的LogEntry
          */
-        this.stateMachine.apply(LogConstants.INITIAL_LOG_ENTRY.getCommand());
-        this.storageService.append(LogConstants.INITIAL_LOG_ENTRY.toStorageEntry());
+        this.stateMachine.apply(LogConstants.getInitialLogEntry().getCommand());
+        this.storageService.append(LogConstants.getInitialLogEntry().toStorageEntry());
         this.lastCommitLogIndex = 0L;
         this.lastCommitLogTerm = 0L;
         this.lastAppliedLogIndex = 0L;
@@ -97,7 +97,15 @@ public class LogServiceImpl implements LogService {
             throw new IndexOutOfBoundsException();
         }
         List<StorageEntry> storageEntries = storageService.range(((int) start - this.start), ((int) end - this.start));
-        return storageEntries.stream().map(StorageEntry::toLogEntry).collect(Collectors.toList());
+        List<LogEntry> logEntries = Lists.newArrayList();
+        storageEntries.forEach(storageEntry -> {
+            try {
+                logEntries.add(storageEntry.toLogEntry());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+        return logEntries;
     }
 
     @Override
