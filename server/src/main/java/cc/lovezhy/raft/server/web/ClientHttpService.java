@@ -39,7 +39,9 @@ public class ClientHttpService extends AbstractVerticle {
         router.get("/status").handler(routingContext -> {
             HttpServerResponse response = routingContext.response();
             response.putHeader("content-type", "application/json");
-            response.end(outerService.getNodeStatus().toString());
+            JsonObject jsonObject = new JsonObject(outerService.getNodeStatus().toString());
+            jsonObject.put("data", outerService.getKVData());
+            response.end(jsonObject.toString());
         });
 
         /*
