@@ -243,4 +243,9 @@ public class LogServiceImpl implements LogService {
             LOG_LOCK.unlock();
         }
     }
+
+    @Override
+    public StateMachine getStateMachine() {
+        return stateMachine;
+    }
 }

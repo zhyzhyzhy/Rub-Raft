@@ -21,6 +21,8 @@ public class ElectionTest {
         raftNodes.forEach(RaftNode::init);
         System.out.println("check one leader");
         election(raftNodes);
+        Scanner scanner = new Scanner(System.in);
+        scanner.next();
         raftNodes.forEach(RaftNode::close);
     }
 
@@ -177,7 +179,7 @@ public class ElectionTest {
         long term = 0;
         RaftNode leader = null;
         for (int i = 0; i < 100; i++) {
-            Thread.sleep(20L);
+            Thread.sleep(25L);
             num = 0;
             for (RaftNode raftNode : raftNodes) {
                 if (raftNode.getNodeScheduler().isLeader()) {

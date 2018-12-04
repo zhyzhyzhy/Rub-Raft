@@ -14,7 +14,7 @@ import java.util.Optional;
 @ThreadSafe
 public class DefaultStateMachine implements StateMachine {
 
-    private final Map<String, String> map = Maps.newConcurrentMap();
+    private final Map<String, Object> map = Maps.newConcurrentMap();
 
     private final Kryo kryo = new Kryo();
 
@@ -53,6 +53,10 @@ public class DefaultStateMachine implements StateMachine {
     }
 
     public Optional<String> getValue(String key) {
-        return Optional.ofNullable(map.get(key));
+        return Optional.ofNullable(map.getOrDefault(key, "").toString());
+    }
+
+    public Map<String, Object> getMap() {
+        return map;
     }
 }

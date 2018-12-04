@@ -683,5 +683,11 @@ public class RaftNode implements RaftService {
             jsonObject.put("servers", nodeIdUrlMap);
             return jsonObject;
         }
+
+        public JsonObject getKVData() {
+            DefaultStateMachine defaultStateMachine = (DefaultStateMachine)logService.getStateMachine();
+            JsonObject jsonObject = new JsonObject(defaultStateMachine.getMap());
+            return jsonObject;
+        }
     }
 }

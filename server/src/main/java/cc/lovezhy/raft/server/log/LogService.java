@@ -1,5 +1,7 @@
 package cc.lovezhy.raft.server.log;
 
+import cc.lovezhy.raft.server.StateMachine;
+
 import java.util.List;
 
 public interface LogService {
@@ -32,4 +34,6 @@ public interface LogService {
     boolean installSnapshot(Snapshot snapshot);
 
     void execInLock(Runnable action);
+
+    StateMachine getStateMachine();
 }

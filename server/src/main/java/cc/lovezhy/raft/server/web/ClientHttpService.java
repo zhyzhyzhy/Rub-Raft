@@ -56,6 +56,17 @@ public class ClientHttpService extends AbstractVerticle {
             response.end(responseJson.toString());
         });
 
+        /*
+         * KV的数据
+         */
+        router.get("/data").handler(routingContext -> {
+            HttpServerResponse response = routingContext.response();
+            JsonObject kvData = outerService.getKVData();
+            response.putHeader("content-type", "application/json");
+            response.end(kvData.toString());
+        });
+
+
         this.httpServer.requestHandler(router::accept).listen(this.port);
         log.info("start httpServer at port={}", this.port);
     }
