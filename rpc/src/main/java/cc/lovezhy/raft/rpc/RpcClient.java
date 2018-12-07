@@ -133,6 +133,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     @Override
     public void sendOneWayRequest(RpcRequest request) {
         // TODO
+        throw new UnsupportedOperationException("not support one way RpcRequest for now!");
     }
 
     @Override
@@ -158,6 +159,6 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
 
     @Override
     public void handleRequest(Channel channel, RpcRequest request) {
-        throw new IllegalStateException();
+        throw new UnsupportedOperationException("RpcClient not support RpcRequest");
     }
 }

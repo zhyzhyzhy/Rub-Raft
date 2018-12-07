@@ -15,7 +15,7 @@ public class RpcProvider<T> {
 
     static <T> RpcProvider<T> create(Class<T> providerClazz) {
         Preconditions.checkNotNull(providerClazz);
-        return new RpcProvider<T>(providerClazz);
+        return new RpcProvider<>(providerClazz);
     }
 
     static <T> RpcProvider<T> create(T providerBean) {
@@ -54,7 +54,7 @@ public class RpcProvider<T> {
         try {
             return method.invoke(instance, params);
         } catch (IllegalAccessException | InvocationTargetException e) {
-            e.printStackTrace();
+            log.error(e.getMessage(), e);
         }
         return new IllegalStateException();
     }

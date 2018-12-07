@@ -7,9 +7,12 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.pool.KryoFactory;
 import com.esotericsoftware.kryo.pool.KryoPool;
 
-public class KryoUtils {
+class KryoUtils {
 
-    public static final KryoPool pool;
+    private KryoUtils() {
+    }
+
+    static final KryoPool pool;
 
     static {
         KryoFactory factory = () -> {

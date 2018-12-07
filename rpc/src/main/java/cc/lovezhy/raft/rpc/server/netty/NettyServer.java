@@ -89,13 +89,4 @@ public class NettyServer {
             worker.shutdownGracefully();
         }
     }
-
-    public synchronized void closeAsync() {
-        try {
-            channel.close();
-        } finally {
-            boss.shutdownGracefully();
-            worker.shutdownGracefully();
-        }
-    }
 }

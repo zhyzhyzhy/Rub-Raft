@@ -11,7 +11,7 @@ public class RpcContext {
         return (SettableFuture<T>) asyncResponse.get();
     }
 
-    public static void setAsyncResponse(SettableFuture<Object> future) {
+    static void setAsyncResponse(SettableFuture<Object> future) {
         asyncResponse.set(future);
     }
 }

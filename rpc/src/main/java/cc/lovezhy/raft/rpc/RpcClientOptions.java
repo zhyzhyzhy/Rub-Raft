@@ -3,11 +3,7 @@ package cc.lovezhy.raft.rpc;
 import cc.lovezhy.raft.rpc.protocal.RpcRequestType;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.helpers.MessageFormatter;
 
-import java.text.MessageFormat;
 import java.util.Collections;
 import java.util.Map;
 
@@ -28,7 +24,7 @@ public class RpcClientOptions {
         Preconditions.checkNotNull(requestType);
         if (requestTypeOption.containsKey(methodName)) {
             RpcRequestType originRequestType = requestTypeOption.get(methodName);
-            throw new IllegalStateException(MessageFormat.format("method={} has redefined already, originRequestType={}", methodName, originRequestType));
+            throw new IllegalStateException(String.format("method=%s has redefined already, originRequestType=%s", methodName, originRequestType));
         }
         requestTypeOption.put(methodName, requestType);
     }

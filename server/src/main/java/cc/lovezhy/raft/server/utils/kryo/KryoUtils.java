@@ -15,6 +15,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 
 public class KryoUtils {
+
+    private KryoUtils() {}
+
     private static KryoPool pool;
 
     static {
@@ -48,7 +51,6 @@ public class KryoUtils {
         output.flush();
         output.close();
         byte[] bytes = byteArrayOutputStream.toByteArray();
-        System.out.println(bytes);
         pool.release(kryo);
         return bytes;
     }
