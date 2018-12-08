@@ -10,7 +10,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FileNotFoundException;
 import java.util.List;
 
 public class LogServiceTest {
@@ -23,7 +22,7 @@ public class LogServiceTest {
     private static final Logger log = LoggerFactory.getLogger(LogServiceTest.class);
 
     @Before
-    public void setUp() throws FileNotFoundException {
+    public void setUp() {
         this.stateMachine = new DefaultStateMachine();
         this.logService = new LogServiceImpl(stateMachine, StorageType.MEMORY);
         this.logEntries = Lists.newArrayList();

@@ -5,4 +5,7 @@ package cc.lovezhy.raft.server.log.exception;
  * indicate to send snapshot
  */
 public class HasCompactException extends RuntimeException {
+    public HasCompactException(String message) {
+        super(message);
+    }
 }

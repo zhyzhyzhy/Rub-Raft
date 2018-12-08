@@ -3,6 +3,8 @@ package cc.lovezhy.raft.server.web;
 import cc.lovezhy.raft.server.log.DefaultCommand;
 import cc.lovezhy.raft.server.node.RaftNode;
 import com.google.common.base.Preconditions;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServer;
@@ -38,7 +40,7 @@ public class ClientHttpService extends AbstractVerticle {
          */
         router.get("/status").handler(routingContext -> {
             HttpServerResponse response = routingContext.response();
-            response.putHeader("content-type", "application/json");
+            response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
             JsonObject jsonObject = new JsonObject(outerService.getNodeStatus().toString());
             jsonObject.put("data", outerService.getKVData());
             response.end(jsonObject.toString());
@@ -54,7 +56,7 @@ public class ClientHttpService extends AbstractVerticle {
             boolean success = this.outerService.appendLog(command);
             JsonObject responseJson = new JsonObject();
             responseJson.put("success", success);
-            response.putHeader("content-type", "application/json");
+            response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
             response.end(responseJson.toString());
         });
 
@@ -64,7 +66,7 @@ public class ClientHttpService extends AbstractVerticle {
         router.get("/data").handler(routingContext -> {
             HttpServerResponse response = routingContext.response();
             JsonObject kvData = outerService.getKVData();
-            response.putHeader("content-type", "application/json");
+            response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
             response.end(kvData.toString());
         });
 

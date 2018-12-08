@@ -5,7 +5,6 @@ import cc.lovezhy.raft.rpc.exception.RequestTimeoutException;
 import cc.lovezhy.raft.rpc.protocal.RpcRequest;
 import cc.lovezhy.raft.rpc.protocal.RpcRequestType;
 import cc.lovezhy.raft.rpc.protocal.RpcResponse;
-import com.alibaba.fastjson.JSON;
 import net.sf.cglib.proxy.MethodInterceptor;
 import net.sf.cglib.proxy.MethodProxy;
 import org.slf4j.Logger;

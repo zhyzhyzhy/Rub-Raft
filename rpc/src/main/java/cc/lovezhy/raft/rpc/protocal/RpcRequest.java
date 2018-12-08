@@ -6,8 +6,6 @@ public class RpcRequest {
 
     private String requestId;
 
-    private RpcRequestType requestType;
-
     private String clazz;
 
     private String method;
@@ -20,14 +18,6 @@ public class RpcRequest {
 
     public void setRequestId(String requestId) {
         this.requestId = requestId;
-    }
-
-    public RpcRequestType getRequestType() {
-        return requestType;
-    }
-
-    public void setRequestType(RpcRequestType requestType) {
-        this.requestType = requestType;
     }
 
     public String getClazz() {
@@ -58,7 +48,6 @@ public class RpcRequest {
     public String toString() {
         return MoreObjects.toStringHelper(this)
                 .add("requestId", requestId)
-                .add("requestType", requestType)
                 .add("clazz", clazz)
                 .add("method", method)
                 .add("args", args)

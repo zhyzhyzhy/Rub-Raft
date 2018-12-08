@@ -1,4 +1,4 @@
-package cc.lovezhy.raft.server.utils.kryo;
+package cc.lovezhy.raft.server.utils;
 
 import cc.lovezhy.raft.server.log.DefaultCommand;
 import cc.lovezhy.raft.server.log.DefaultCommandEnum;

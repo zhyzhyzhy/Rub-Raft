@@ -1,7 +1,7 @@
 package cc.lovezhy.raft.server.storage;
 
 import cc.lovezhy.raft.server.log.LogEntry;
-import cc.lovezhy.raft.server.utils.kryo.KryoUtils;
+import cc.lovezhy.raft.server.utils.KryoUtils;
 import com.google.common.base.Preconditions;
 
 public class StorageEntry {

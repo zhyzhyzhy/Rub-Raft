@@ -1,7 +1,7 @@
 package cc.lovezhy.raft.server.log;
 
 import cc.lovezhy.raft.server.storage.StorageEntry;
-import cc.lovezhy.raft.server.utils.kryo.KryoUtils;
+import cc.lovezhy.raft.server.utils.KryoUtils;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;

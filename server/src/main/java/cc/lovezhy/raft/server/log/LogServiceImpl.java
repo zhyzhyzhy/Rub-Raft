@@ -66,11 +66,11 @@ public class LogServiceImpl implements LogService {
     @Override
     @Nullable
     public LogEntry get(long index) {
-        Preconditions.checkState(index >= 0, "index=" + index);
+        Preconditions.checkState(index >= 0, String.format("index=%d", index));
         //如果日志已经被压缩
         if (index < start) {
             log.error("Log Has Been Compact, start={}, requestIndex={}", start, index);
-            throw new HasCompactException();
+            throw new HasCompactException(String.format("start=%d, index=%d", start, index));
         }
         //如果还未有这个Index，返回空
         if (index > start + storageService.getLen()) {
@@ -91,20 +91,14 @@ public class LogServiceImpl implements LogService {
             return Collections.emptyList();
         }
         if (start < this.start) {
-            throw new HasCompactException();
+            throw new HasCompactException(String.format("logStart=%d, requestStart=%d", this.start, start));
         }
         if (end > this.start + storageService.getLen()) {
             throw new IndexOutOfBoundsException();
         }
         List<StorageEntry> storageEntries = storageService.range(((int) start - this.start), ((int) end - this.start));
         List<LogEntry> logEntries = Lists.newArrayList();
-        storageEntries.forEach(storageEntry -> {
-            try {
-                logEntries.add(storageEntry.toLogEntry());
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
+        storageEntries.forEach(storageEntry -> logEntries.add(storageEntry.toLogEntry()));
         return logEntries;
     }
 
@@ -121,7 +115,7 @@ public class LogServiceImpl implements LogService {
     public boolean set(long index, LogEntry entry) {
         Preconditions.checkNotNull(entry);
         if (index < start) {
-            throw new HasCompactException();
+            throw new HasCompactException(String.format("start=%d, index=%d", start, index));
         }
         return storageService.set((int) (index - start), entry.toStorageEntry());
     }
@@ -141,7 +135,7 @@ public class LogServiceImpl implements LogService {
 
     @Override
     public int appendLog(LogEntry logEntry) {
-       return appendLog(Collections.singletonList(logEntry));
+        return appendLog(Collections.singletonList(logEntry));
     }
 
     @Override
@@ -179,7 +173,7 @@ public class LogServiceImpl implements LogService {
 
     @Override
     public long getLastLogIndex() {
-        return storageService.getLen() - 1 +  start;
+        return storageService.getLen() - 1 + start;
     }
 
     // 日志比较的原则是，如果本地的最后一条log entry的term更大，则term大的更新，如果term一样大，则log index更大的更新

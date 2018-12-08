@@ -4,7 +4,7 @@ import java.util.Objects;
 
 public class RpcServerOptions {
 
-    public static final EndPoint DEFAULT_ENDPOINT = EndPoint.create("localhost", 5283);
+    static final EndPoint DEFAULT_ENDPOINT = EndPoint.create("localhost", 5283);
 
     private EndPoint startEndPoint;
 
