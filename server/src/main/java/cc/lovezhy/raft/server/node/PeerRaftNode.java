@@ -5,6 +5,7 @@ import cc.lovezhy.raft.rpc.RpcClient;
 import cc.lovezhy.raft.rpc.RpcClientOptions;
 import cc.lovezhy.raft.rpc.protocal.RpcRequestType;
 import cc.lovezhy.raft.server.service.RaftService;
+import cc.lovezhy.raft.server.service.model.ConnectRequest;
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,9 +35,7 @@ public class PeerRaftNode implements Closeable {
         RpcClientOptions rpcClientOptions = new RpcClientOptions();
         rpcClientOptions.defineMethodRequestType("requestPreVote", RpcRequestType.ASYNC);
         rpcClientOptions.defineMethodRequestType("requestVote", RpcRequestType.ASYNC);
-        //appendLog和installSnapShot改为同步
-//        rpcClientOptions.defineMethodRequestType("requestAppendLog", RpcRequestType.ASYNC);
-//        rpcClientOptions.defineMethodRequestType("requestInstallSnapShot", RpcRequestType.ASYNC);
+        rpcClientOptions.defineMethodRequestType("requestConnect", RpcRequestType.ONE_WAY);
         this.rpcClientOptions = rpcClientOptions;
     }
 
@@ -55,6 +54,8 @@ public class PeerRaftNode implements Closeable {
         } else {
             this.rpcClient.connect();
         }
+        this.raftService.requestConnect(ConnectRequest.of(this.nodeId));
+
     }
 
     public RaftService getRaftService() {

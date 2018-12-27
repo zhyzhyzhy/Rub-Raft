@@ -31,4 +31,9 @@ public class RaftServiceImpl implements RaftService {
     public InstallSnapshotResponse requestInstallSnapShot(InstallSnapshotRequest installSnapshotRequest) {
         return raftService.requestInstallSnapShot(installSnapshotRequest);
     }
+
+    @Override
+    public void requestConnect(ConnectRequest connectRequest) {
+        raftService.requestConnect(connectRequest);
+    }
 }

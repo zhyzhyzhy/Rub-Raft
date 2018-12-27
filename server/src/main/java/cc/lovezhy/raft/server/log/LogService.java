@@ -14,7 +14,7 @@ public interface LogService {
 
     boolean set(long index, LogEntry entry);
 
-    boolean commit(long index);
+    void commit(long index);
 
     int appendLog(LogEntry logEntry);
     int appendLog(List<LogEntry> entries);

@@ -23,7 +23,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 public class NettyServer {
 
-    private static final Logger log = LoggerFactory.getLogger(NettyServer.class);
+    private static final Logger LOG = LoggerFactory.getLogger(NettyServer.class);
 
     private EndPoint endPoint;
 
@@ -50,7 +50,7 @@ public class NettyServer {
                 .channel(NioServerSocketChannel.class)
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
-                    protected void initChannel(SocketChannel channel) throws Exception {
+                    protected void initChannel(SocketChannel channel) {
                         channel.pipeline().addLast(new KryoDecoder());
                         channel.pipeline().addLast(new KryoEncoder());
                         channel.pipeline().addLast(new RpcInboundHandler(rpcService));
@@ -61,13 +61,13 @@ public class NettyServer {
         bindFuture.addListener(f -> {
             if (f.isSuccess()) {
                 bindResultFuture.set(null);
-                log.info("start rpc server success");
+                LOG.info("start rpc server success");
                 Runtime.getRuntime().addShutdownHook(new Thread(this::closeSync));
             } else {
                 bindResultFuture.setException(f.cause());
                 boss.shutdownGracefully();
                 worker.shutdownGracefully();
-                log.error("start rpc server fail, message={}", f.cause().getMessage(), f.cause());
+                LOG.error("start rpc server fail, message={}", f.cause().getMessage(), f.cause());
             }
         });
         return bindResultFuture;

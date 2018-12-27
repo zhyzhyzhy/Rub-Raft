@@ -21,7 +21,7 @@ import java.net.InetSocketAddress;
 
 public class NettyClient {
 
-    private static final Logger log = LoggerFactory.getLogger(NettyClient.class);
+    private static final Logger LOG = LoggerFactory.getLogger(NettyClient.class);
     private EndPoint endPoint;
     private Channel channel;
     private RpcService rpcService;
@@ -41,7 +41,7 @@ public class NettyClient {
                 .channel(NioSocketChannel.class)
                 .handler(new ChannelInitializer<SocketChannel>() {
                     @Override
-                    protected void initChannel(SocketChannel ch) throws Exception {
+                    protected void initChannel(SocketChannel ch) {
                         ch.pipeline().addLast(new KryoDecoder());
                         ch.pipeline().addLast(new KryoEncoder());
                         ch.pipeline().addLast(new RpcInboundHandler(rpcService));
@@ -51,11 +51,11 @@ public class NettyClient {
         this.channel = connectFuture.channel();
         connectFuture.addListener(f -> {
             if (f.isSuccess()) {
-                log.info("rpc client connected endPoint={}", endPoint);
+                LOG.info("rpc client connected endPoint={}", endPoint);
                 connectResultFuture.set(null);
                 Runtime.getRuntime().addShutdownHook(new Thread(this::closeSync));
             } else {
-                log.warn("rpc connected fail! waiting for retry！", f.cause());
+                LOG.warn("rpc connected fail! waiting for retry！", f.cause());
                 connectResultFuture.setException(f.cause());
                 worker.shutdownGracefully();
             }
@@ -72,7 +72,7 @@ public class NettyClient {
             if (channel.isActive()) {
                 channel.close().sync();
                 Preconditions.checkState(!channel.isActive());
-                log.info("shutdown client");
+                LOG.info("shutdown client");
             }
         } catch (InterruptedException e) {
             // ignore

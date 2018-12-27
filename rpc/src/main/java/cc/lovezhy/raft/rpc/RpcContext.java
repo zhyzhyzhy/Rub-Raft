@@ -8,7 +8,9 @@ public class RpcContext {
 
     @SuppressWarnings("unchecked")
     public static <T> SettableFuture<T> getContextFuture() {
-        return (SettableFuture<T>) asyncResponse.get();
+        SettableFuture<Object> objectSettableFuture = asyncResponse.get();
+        asyncResponse.remove();
+        return (SettableFuture<T>) objectSettableFuture;
     }
 
     static void setAsyncResponse(SettableFuture<Object> future) {

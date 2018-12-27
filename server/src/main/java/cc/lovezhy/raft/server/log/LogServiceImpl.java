@@ -121,16 +121,15 @@ public class LogServiceImpl implements LogService {
     }
 
     @Override
-    public boolean commit(long index) {
+    public void commit(long index) {
         if (index == this.lastCommitLogIndex) {
-            return true;
+            return;
         }
         LogEntry logEntry = get(index);
         if (Objects.nonNull(logEntry)) {
             this.stateMachine.apply(logEntry.getCommand());
         }
         this.lastCommitLogIndex = index;
-        return true;
     }
 
     @Override

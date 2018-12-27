@@ -21,8 +21,8 @@ public class ElectionTest {
         raftNodes.forEach(RaftNode::init);
         System.out.println("check one leader");
         election(raftNodes);
-        Scanner scanner = new Scanner(System.in);
-        scanner.next();
+//        Scanner scanner = new Scanner(System.in);
+//        scanner.next();
         raftNodes.forEach(RaftNode::close);
     }
 
@@ -101,7 +101,7 @@ public class ElectionTest {
         election(raftNodes);
         System.out.println("Downed Node Up");
         leader.init();
-        raftNodes.forEach(RaftNode::reconnect);
+//        raftNodes.forEach(RaftNode::reconnect);
         System.out.println("check one leader");
         election(raftNodes);
         raftNodes.forEach(RaftNode::close);
@@ -133,7 +133,7 @@ public class ElectionTest {
         Thread.sleep(3000);
         System.out.println("try to reconnect");
         follower.init();
-        raftNodes.forEach(RaftNode::reconnect);
+//        raftNodes.forEach(RaftNode::reconnect);
         System.out.println("check one leader");
         Assert.assertEquals(election(raftNodes), leader);
     }
@@ -169,7 +169,7 @@ public class ElectionTest {
         System.out.println("try to reconnect");
         follower1.init();
         follower2.init();
-        raftNodes.forEach(RaftNode::reconnect);
+//        raftNodes.forEach(RaftNode::reconnect);
         System.out.println("check one leader");
         Assert.assertEquals(election(raftNodes), leader);
     }
