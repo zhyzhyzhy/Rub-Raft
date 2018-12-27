@@ -12,6 +12,7 @@ import cc.lovezhy.raft.server.service.RaftServiceImpl;
 import cc.lovezhy.raft.server.service.model.*;
 import cc.lovezhy.raft.server.storage.StorageType;
 import cc.lovezhy.raft.server.utils.TimeCountDownUtil;
+import cc.lovezhy.raft.server.utils.VoteAction;
 import cc.lovezhy.raft.server.web.ClientHttpService;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
@@ -143,13 +144,9 @@ public class RaftNode implements RaftService {
         tickManager.tickElectionTimeOut();
     }
 
-    public void reconnect() {
-        peerRaftNodes.forEach(PeerRaftNode::connect);
-    }
-
 
     private void preVote(Long voteTerm) {
-        log.debug("start preVote, voteTerm={}", voteTerm);
+        log.info("start preVote, voteTerm={}", voteTerm);
         long nextElectionTimeOut = tickManager.tickElectionTimeOut();
         if (!nodeScheduler.changeNodeStatusWhenNot(NodeStatus.LEADER, NodeStatus.PRE_CANDIDATE)) {
             return;
@@ -201,14 +198,15 @@ public class RaftNode implements RaftService {
 
     private void voteForLeader(Long voteTerm) {
         if (!nodeScheduler.compareAndSetTerm(voteTerm - 1, voteTerm) || !nodeScheduler.compareAndSetVotedFor(null, nodeId)) {
+            log.info("voted for leader fail");
             return;
         }
-        log.debug("startElection term={}", currentTerm);
+        log.info("startElection term={}", currentTerm);
         nodeScheduler.changeNodeStatus(NodeStatus.CANDIDATE);
         long nextWaitTimeOut = tickManager.tickElectionTimeOut();
         //初始值为1，把自己加进去
         AtomicInteger votedCount = new AtomicInteger(1);
-        CountDownLatch latch = new CountDownLatch(clusterConfig.getNodeCount() / 2);
+        VoteAction voteAction = new VoteAction(clusterConfig.getNodeCount() / 2, clusterConfig.getNodeCount() / 2 + 1);
         peerRaftNodes.forEach(peerRaftNode -> {
             try {
                 VoteRequest voteRequest = new VoteRequest();
@@ -222,32 +220,32 @@ public class RaftNode implements RaftService {
                     @Override
                     public void onSuccess(@Nullable VoteResponse result) {
                         if (Objects.nonNull(result)) {
+                            log.info("receive vote from={}, grant={}", peerRaftNode.getNodeId(), result.getVoteGranted());
                             if (result.getVoteGranted()) {
                                 log.info("receive vote from={}, term={}", peerRaftNode.getNodeId(), currentTerm);
                                 votedCount.incrementAndGet();
+                                voteAction.success();
                             } else if (result.getTerm() > voteTerm) {
                                 nodeScheduler.compareAndSetTerm(voteTerm, result.getTerm());
+                                voteAction.fail();
                             }
                         }
-                        latch.countDown();
+                        voteAction.fail();
                     }
 
                     @Override
                     public void onFailure(Throwable t) {
-                        latch.countDown();
+                        log.error(t.getMessage(), t);
+                        voteAction.fail();
                     }
                 }, RpcExecutors.commonExecutor());
             } catch (Exception e) {
                 log.error(e.getMessage(), e);
             }
         });
-        try {
-            latch.await(nextWaitTimeOut, DEFAULT_TIME_UNIT);
-        } catch (InterruptedException e) {
-            log.error(e.getMessage(), e);
-        }
-        if (votedCount.get() > clusterConfig.getNodeCount() / 2) {
-            log.debug("try to be leader, term={}", voteTerm);
+        voteAction.await();
+        if (voteAction.votedSuccess()) {
+            log.info("try to be leader, term={}", voteTerm);
             boolean beLeaderSuccess = nodeScheduler.beLeader(voteTerm);
             if (beLeaderSuccess && nodeScheduler.changeNodeStatusWhenNot(NodeStatus.PRE_CANDIDATE, NodeStatus.LEADER)) {
                 log.info("be the leader success, currentTerm={}", voteTerm);
@@ -257,15 +255,28 @@ public class RaftNode implements RaftService {
             } else {
                 log.debug("be the leader fail, currentTerm={}", voteTerm);
             }
+        } else {
+            log.info("voted for leader fail, timeout count = " + votedCount.get());
         }
+    }
+
+    @Override
+    public void requestConnect(ConnectRequest connectRequest) {
+        NodeId requestNodeId = connectRequest.getNodeId();
+        this.peerRaftNodes.stream()
+                .filter(peerRaftNode -> peerRaftNode.getNodeId().equals(requestNodeId))
+                .findAny()
+                .ifPresent(PeerRaftNode::connect);
     }
 
     @Override
     public VoteResponse requestPreVote(VoteRequest voteRequest) {
         Long term = currentTerm;
         if (voteRequest.getTerm() > term && logService.isNewerThanSelf(voteRequest.getLastLogTerm(), voteRequest.getLastLogIndex())) {
+            log.info("receive preVote grant true " + voteRequest.getCandidateId());
             return new VoteResponse(term, true);
         } else {
+            log.info("receive preVote grant fail " + voteRequest.getCandidateId());
             return new VoteResponse(term, false);
         }
     }
@@ -276,7 +287,7 @@ public class RaftNode implements RaftService {
         if (term > voteRequest.getTerm()) {
             return new VoteResponse(term, false);
         }
-        if (logService.isNewerThanSelf(voteRequest.getLastLogIndex(), voteRequest.getLastLogTerm())) {
+        if (logService.isNewerThanSelf(voteRequest.getLastLogTerm(), voteRequest.getLastLogIndex())) {
             if (nodeScheduler.compareAndSetTerm(term, voteRequest.getTerm()) && (nodeScheduler.compareAndSetVotedFor(null, voteRequest.getCandidateId()) || nodeScheduler.compareAndSetVotedFor(voteRequest.getCandidateId(), voteRequest.getCandidateId()))) {
                 nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
                 nodeScheduler.receiveHeartbeat();
@@ -685,7 +696,7 @@ public class RaftNode implements RaftService {
         }
 
         public JsonObject getKVData() {
-            DefaultStateMachine defaultStateMachine = (DefaultStateMachine)logService.getStateMachine();
+            DefaultStateMachine defaultStateMachine = (DefaultStateMachine) logService.getStateMachine();
             JsonObject jsonObject = new JsonObject(defaultStateMachine.getMap());
             return jsonObject;
         }

@@ -15,6 +15,8 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.SettableFuture;
 import io.netty.channel.Channel;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.Objects;
@@ -35,6 +37,8 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
         Preconditions.checkNotNull(endPoint);
         return new RpcClient<>(clazz, endPoint, rpcClientOptions);
     }
+
+    private static final Logger LOG = LoggerFactory.getLogger(RpcClient.class);
 
     private Class<T> clazz;
     private NettyClient nettyClient;
@@ -63,7 +67,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
 
             @Override
             public void onFailure(Throwable t) {
-                connectFuture = RpcExecutors.commonScheduledExecutor().schedule(() -> connect(), 200, TimeUnit.MILLISECONDS);
+                connectFuture = RpcExecutors.commonScheduledExecutor().schedule(RpcClient.this::connect, 200, TimeUnit.MILLISECONDS);
             }
         }, RpcExecutors.listeningScheduledExecutor());
     }
@@ -132,8 +136,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
 
     @Override
     public void sendOneWayRequest(RpcRequest request) {
-        // TODO
-        throw new UnsupportedOperationException("not support one way RpcRequest for now!");
+        nettyClient.getChannel().writeAndFlush(request);
     }
 
     @Override
@@ -151,8 +154,13 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
         else {
             SettableFuture<Object> settableFuture = rpcFutureMap.get(requestId);
             if (Objects.nonNull(settableFuture)) {
+                if (response.getResponseBody() == null) {
+                    LOG.error("responseBody is null");
+                }
                 settableFuture.set(response.getResponseBody());
                 rpcFutureMap.remove(requestId);
+            } else {
+                LOG.error("non async !!!!");
             }
         }
     }
