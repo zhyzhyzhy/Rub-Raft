@@ -1,6 +1,7 @@
 package cc.lovezhy.raft.rpc;
 
 import cc.lovezhy.raft.rpc.protocal.RpcRequest;
+import cc.lovezhy.raft.rpc.protocal.RpcRequestType;
 import cc.lovezhy.raft.rpc.protocal.RpcResponse;
 import cc.lovezhy.raft.rpc.server.netty.NettyServer;
 import cc.lovezhy.raft.rpc.server.netty.RpcService;
@@ -81,10 +82,14 @@ public class RpcServer {
 
         @Override
         public void handleRequest(Channel channel, RpcRequest request) {
-            RpcResponse rpcResponse = new RpcResponse();
-            rpcResponse.setRequestId(request.getRequestId());
+
             RpcProvider provider = serviceMap.get(request.getClazz());
             Object responseObject = provider.invoke(request.getMethod(), request.getArgs());
+            if (request.getRpcRequestType().equals(RpcRequestType.ONE_WAY)) {
+                return;
+            }
+            RpcResponse rpcResponse = new RpcResponse();
+            rpcResponse.setRequestId(request.getRequestId());
             rpcResponse.setResponseBody(responseObject);
             channel.writeAndFlush(rpcResponse);
         }

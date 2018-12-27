@@ -32,7 +32,6 @@ public class ProxyInterceptor implements MethodInterceptor {
     @Override
     public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws RequestTimeoutException {
         RpcRequest request = new RpcRequest();
-
         request.setRequestId(generateId());
         request.setClazz(superClass.getName());
         request.setMethod(method.getName());
@@ -41,15 +40,18 @@ public class ProxyInterceptor implements MethodInterceptor {
         LOG.info("RpcRequest {}", JSON.toJSONString(request));
         switch (requestType) {
             case NORMAL: {
+                request.setRpcRequestType(RpcRequestType.NORMAL);
                 RpcResponse rpcResponse = consumerRpcService.sendRequest(request);
                 return rpcResponse.getResponseBody();
             }
             case ONE_WAY: {
+                request.setRpcRequestType(RpcRequestType.ONE_WAY);
                 consumerRpcService.sendOneWayRequest(request);
                 return null;
             }
             case ASYNC: {
-                RpcResponse rpcResponse = consumerRpcService.sendRequestAsync(request);
+                request.setRpcRequestType(RpcRequestType.ASYNC);
+                consumerRpcService.sendRequestAsync(request);
                 return null;
             }
         }
