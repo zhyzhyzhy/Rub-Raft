@@ -54,20 +54,20 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
         this.clazz = clazz;
         this.rpcClientOptions = rpcClientOptions;
         nettyClient = new NettyClient(endPoint, this);
-        this.connect();
     }
 
-    public void connect() {
+    public void connect(SettableFuture<Void> done) {
         SettableFuture<Void> connectResultFuture = nettyClient.connect();
         Futures.addCallback(connectResultFuture, new FutureCallback<Void>() {
             @Override
             public void onSuccess(@Nullable Void result) {
                 connectFuture = null;
+                done.set(null);
             }
 
             @Override
             public void onFailure(Throwable t) {
-                connectFuture = RpcExecutors.commonScheduledExecutor().schedule(RpcClient.this::connect, 200, TimeUnit.MILLISECONDS);
+                connectFuture = RpcExecutors.commonScheduledExecutor().schedule(() -> connect(done), 200, TimeUnit.MILLISECONDS);
             }
         }, RpcExecutors.listeningScheduledExecutor());
     }

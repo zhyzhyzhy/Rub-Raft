@@ -3,10 +3,12 @@ package cc.lovezhy.raft.server.node;
 import cc.lovezhy.raft.rpc.EndPoint;
 import cc.lovezhy.raft.rpc.RpcClient;
 import cc.lovezhy.raft.rpc.RpcClientOptions;
+import cc.lovezhy.raft.rpc.common.RpcExecutors;
 import cc.lovezhy.raft.rpc.protocal.RpcRequestType;
 import cc.lovezhy.raft.server.service.RaftService;
 import cc.lovezhy.raft.server.service.model.ConnectRequest;
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.SettableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,15 +49,14 @@ public class PeerRaftNode implements Closeable {
         return endPoint;
     }
 
-    public void connect() {
+    public void connect(NodeId clientNodeId) {
         if (Objects.isNull(rpcClient) || (Objects.nonNull(rpcClient.isConnectAlive()) && !rpcClient.isConnectAlive())) {
             this.rpcClient = RpcClient.create(RaftService.class, endPoint, rpcClientOptions);
             this.raftService = rpcClient.getInstance();
-        } else {
-            this.rpcClient.connect();
+            SettableFuture settableFuture = SettableFuture.create();
+            this.rpcClient.connect(settableFuture);
+            settableFuture.addListener(() -> this.raftService.requestConnect(ConnectRequest.of(clientNodeId)), RpcExecutors.commonExecutor());
         }
-        this.raftService.requestConnect(ConnectRequest.of(this.nodeId));
-
     }
 
     public RaftService getRaftService() {

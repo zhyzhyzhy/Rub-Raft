@@ -139,7 +139,7 @@ public class RaftNode implements RaftService {
         outerService = new OuterService();
         httpService = new ClientHttpService(outerService, endPoint.getPort() + 1);
         httpService.createHttpServer();
-        peerRaftNodes.forEach(PeerRaftNode::connect);
+        peerRaftNodes.forEach(peerRaftNode -> peerRaftNode.connect(this.nodeId));
         nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
         tickManager.tickElectionTimeOut();
     }
@@ -263,10 +263,11 @@ public class RaftNode implements RaftService {
     @Override
     public void requestConnect(ConnectRequest connectRequest) {
         NodeId requestNodeId = connectRequest.getNodeId();
+        log.info("connectRequest nodeId={}", nodeId);
         this.peerRaftNodes.stream()
                 .filter(peerRaftNode -> peerRaftNode.getNodeId().equals(requestNodeId))
                 .findAny()
-                .ifPresent(PeerRaftNode::connect);
+                .ifPresent(peerRaftNode -> peerRaftNode.connect(this.nodeId));
     }
 
     @Override

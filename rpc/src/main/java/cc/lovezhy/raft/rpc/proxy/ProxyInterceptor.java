@@ -5,6 +5,7 @@ import cc.lovezhy.raft.rpc.exception.RequestTimeoutException;
 import cc.lovezhy.raft.rpc.protocal.RpcRequest;
 import cc.lovezhy.raft.rpc.protocal.RpcRequestType;
 import cc.lovezhy.raft.rpc.protocal.RpcResponse;
+import com.alibaba.fastjson.JSON;
 import net.sf.cglib.proxy.MethodInterceptor;
 import net.sf.cglib.proxy.MethodProxy;
 import org.slf4j.Logger;
@@ -16,7 +17,7 @@ import static cc.lovezhy.raft.rpc.util.IdFactory.generateId;
 
 public class ProxyInterceptor implements MethodInterceptor {
 
-    private static final Logger log = LoggerFactory.getLogger(ProxyInterceptor.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ProxyInterceptor.class);
 
     private ConsumerRpcService consumerRpcService;
     private Class<?> superClass;
@@ -31,11 +32,13 @@ public class ProxyInterceptor implements MethodInterceptor {
     @Override
     public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws RequestTimeoutException {
         RpcRequest request = new RpcRequest();
+
         request.setRequestId(generateId());
         request.setClazz(superClass.getName());
         request.setMethod(method.getName());
         request.setArgs(objects);
         RpcRequestType requestType = rpcClientOptions.getRpcRequestType(method.getName());
+        LOG.info("RpcRequest {}", JSON.toJSONString(request));
         switch (requestType) {
             case NORMAL: {
                 RpcResponse rpcResponse = consumerRpcService.sendRequest(request);
