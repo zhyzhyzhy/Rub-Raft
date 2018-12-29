@@ -1,28 +1,33 @@
-package cc.lovezhy.raft.server.election;
+package cc.lovezhy.raft.server;
 
-import cc.lovezhy.raft.server.RaftStarter;
 import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.node.RaftNode;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.text.MessageFormat;
-import java.util.*;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Properties;
+import java.util.Set;
 
-public class ElectionTest {
+public class NodeElectionTest {
+
+    private static final Logger LOG = LoggerFactory.getLogger(NodeElectionTest.class);
+
     /**
      * 3节点，选出一个Leader
      */
     @Test
-    public void election3Test() throws InterruptedException {
+    public void election3Test() {
         List<RaftNode> raftNodes = create3RaftNodes();
         raftNodes.forEach(RaftNode::init);
-        System.out.println("check one leader");
-        election(raftNodes);
-//        Scanner scanner = new Scanner(System.in);
-//        scanner.next();
+        LOG.info("check one leader");
+        checkElection(raftNodes);
         raftNodes.forEach(RaftNode::close);
     }
 
@@ -30,13 +35,11 @@ public class ElectionTest {
      * 5节点，选出一个Leader
      */
     @Test
-    public void election5Test() throws InterruptedException {
+    public void election5Test() {
         List<RaftNode> raftNodes = create5RaftNodes();
         raftNodes.forEach(RaftNode::init);
-        System.out.println("check one leader");
-        election(raftNodes);
-        Scanner scanner = new Scanner(System.in);
-        scanner.next();
+        LOG.info("check one leader");
+        checkElection(raftNodes);
         raftNodes.forEach(RaftNode::close);
     }
 
@@ -46,15 +49,15 @@ public class ElectionTest {
      * 4节点选出Leader
      */
     @Test
-    public void electionLeaderDownTest() throws InterruptedException {
+    public void electionLeaderDownTest() {
         List<RaftNode> raftNodes = create5RaftNodes();
         raftNodes.forEach(RaftNode::init);
-        System.out.println("check one leader");
-        RaftNode leader = election(raftNodes);
-        System.out.println("leader down");
+        LOG.info("check one leader");
+        RaftNode leader = checkElection(raftNodes);
+        LOG.info("leader down");
         leader.close();
-        System.out.println("check one leader");
-        election(raftNodes);
+        LOG.info("check one leader");
+        checkElection(raftNodes);
         raftNodes.forEach(RaftNode::close);
     }
 
@@ -69,16 +72,16 @@ public class ElectionTest {
     public void electionLeaderDownAndLeaderDownTest() throws InterruptedException {
         List<RaftNode> raftNodes = create5RaftNodes();
         raftNodes.forEach(RaftNode::init);
-        System.out.println("check one leader");
-        RaftNode leader = election(raftNodes);
-        System.out.println("leader down");
+        LOG.info("check one leader");
+        RaftNode leader = checkElection(raftNodes);
+        LOG.info("leader down");
         leader.close();
-        System.out.println("check one leader");
-        leader = election(raftNodes);
-        System.out.println("leader down");
+        LOG.info("check one leader");
+        leader = checkElection(raftNodes);
+        LOG.info("leader down");
         leader.close();
-        System.out.println("check one leader");
-        election(raftNodes);
+        LOG.info("check one leader");
+        checkElection(raftNodes);
         raftNodes.forEach(RaftNode::close);
     }
 
@@ -93,17 +96,16 @@ public class ElectionTest {
     public void electionLeaderDownAndReconnectTest() throws InterruptedException {
         List<RaftNode> raftNodes = create5RaftNodes();
         raftNodes.forEach(RaftNode::init);
-        System.out.println("check one leader");
-        RaftNode leader = election(raftNodes);
-        System.out.println("leader down");
+        LOG.info("check one leader");
+        RaftNode leader = checkElection(raftNodes);
+        LOG.info("leader down");
         leader.close();
-        System.out.println("check one leader");
-        election(raftNodes);
-        System.out.println("Downed Node Up");
+        LOG.info("check one leader");
+        checkElection(raftNodes);
+        LOG.info("Downed Node Up");
         leader.init();
-//        raftNodes.forEach(RaftNode::reconnect);
-        System.out.println("check one leader");
-        election(raftNodes);
+        LOG.info("check one leader");
+        checkElection(raftNodes);
         raftNodes.forEach(RaftNode::close);
     }
 
@@ -118,24 +120,23 @@ public class ElectionTest {
     public void election1FollowerDownTest() throws InterruptedException {
         List<RaftNode> raftNodes = create5RaftNodes();
         raftNodes.forEach(RaftNode::init);
-        System.out.println("check one leader");
-        RaftNode leader = election(raftNodes);
+        LOG.info("check one leader");
+        RaftNode leader = checkElection(raftNodes);
         Set<RaftNode> raftNodeSet = Sets.newHashSet(raftNodes);
         raftNodeSet.remove(leader);
         RaftNode follower = raftNodeSet.iterator().next();
-        System.out.println(MessageFormat.format("ready to down, follower={0}", follower.getNodeId().toString()));
+        LOG.info(MessageFormat.format("ready to down, follower={0}", follower.getNodeId().toString()));
         follower.close();
 
-        System.out.println("check one leader");
-        Assert.assertEquals(election(raftNodes), leader);
-        System.out.println("leader is still " + leader.getNodeId());
+        LOG.info("check one leader");
+        Assert.assertEquals(checkElection(raftNodes), leader);
+        LOG.info("leader is still " + leader.getNodeId());
 
         Thread.sleep(3000);
-        System.out.println("try to reconnect");
+        LOG.info("try to reconnect");
         follower.init();
-//        raftNodes.forEach(RaftNode::reconnect);
-        System.out.println("check one leader");
-        Assert.assertEquals(election(raftNodes), leader);
+        LOG.info("check one leader");
+        Assert.assertEquals(checkElection(raftNodes), leader);
     }
 
     /**
@@ -149,39 +150,45 @@ public class ElectionTest {
     public void election2FollowerDownTest() throws InterruptedException {
         List<RaftNode> raftNodes = create5RaftNodes();
         raftNodes.forEach(RaftNode::init);
-        System.out.println("check one leader");
-        RaftNode leader = election(raftNodes);
+        LOG.info("check one leader");
+        RaftNode leader = checkElection(raftNodes);
         Set<RaftNode> raftNodeSet = Sets.newHashSet(raftNodes);
         raftNodeSet.remove(leader);
         Iterator<RaftNode> iterator = raftNodeSet.iterator();
         RaftNode follower1 = iterator.next();
         RaftNode follower2 = iterator.next();
-        System.out.println(MessageFormat.format("ready to down, follower={0}", follower1.getNodeId().toString()));
-        System.out.println(MessageFormat.format("ready to down, follower={0}", follower2.getNodeId().toString()));
+        LOG.info(MessageFormat.format("ready to down, follower={0}", follower1.getNodeId().toString()));
+        LOG.info(MessageFormat.format("ready to down, follower={0}", follower2.getNodeId().toString()));
         follower1.close();
         follower2.close();
 
-        System.out.println("check one leader");
-        Assert.assertEquals(election(raftNodes), leader);
-        System.out.println("leader is still " + leader.getNodeId());
+        LOG.info("check one leader");
+        Assert.assertEquals(checkElection(raftNodes), leader);
+        LOG.info("leader is still " + leader.getNodeId());
 
         Thread.sleep(3000);
-        System.out.println("try to reconnect");
+        LOG.info("try to reconnect");
         follower1.init();
         follower2.init();
-//        raftNodes.forEach(RaftNode::reconnect);
-        System.out.println("check one leader");
-        Assert.assertEquals(election(raftNodes), leader);
+        LOG.info("check one leader");
+        Assert.assertEquals(checkElection(raftNodes), leader);
     }
 
-    //return leaderNode
-    private RaftNode election(List<RaftNode> raftNodes) throws InterruptedException {
+    /**
+     * @param raftNodes running raftNodes
+     * @return Leader Node
+     */
+    private RaftNode checkElection(List<RaftNode> raftNodes) {
         int num = 0;
         NodeId nodeId = null;
         long term = 0;
         RaftNode leader = null;
-        for (int i = 0; i < 100; i++) {
-            Thread.sleep(25L);
+        for (int i = 0; i < 200; i++) {
+            try {
+                Thread.sleep(5L);
+            } catch (InterruptedException e) {
+                //ignore
+            }
             num = 0;
             for (RaftNode raftNode : raftNodes) {
                 if (raftNode.getNodeScheduler().isLeader()) {
@@ -192,9 +199,9 @@ public class ElectionTest {
                 }
             }
         }
+        LOG.info("leader num ={}", num);
+        LOG.info("leader is ={} term={}", nodeId, term);
         Assert.assertEquals(1, num);
-        System.out.println("leader num = " + num);
-        System.out.println("leader is =" + nodeId + " term=" + term);
         return leader;
     }
 
