@@ -137,6 +137,7 @@ public class NodeElectionTest {
         follower.init();
         LOG.info("check one leader");
         Assert.assertEquals(checkElection(raftNodes), leader);
+        raftNodes.forEach(RaftNode::close);
     }
 
     /**
@@ -172,6 +173,7 @@ public class NodeElectionTest {
         follower2.init();
         LOG.info("check one leader");
         Assert.assertEquals(checkElection(raftNodes), leader);
+        raftNodes.forEach(RaftNode::close);
     }
 
     /**
