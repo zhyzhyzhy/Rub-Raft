@@ -2,7 +2,6 @@ package cc.lovezhy.raft.server;
 
 import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.node.RaftNode;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
@@ -12,8 +11,10 @@ import org.slf4j.LoggerFactory;
 import java.text.MessageFormat;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Properties;
 import java.util.Set;
+
+import static cc.lovezhy.raft.server.util.NodeUtils.create3RaftNodes;
+import static cc.lovezhy.raft.server.util.NodeUtils.create5RaftNodes;
 
 public class NodeElectionTest {
 
@@ -205,58 +206,5 @@ public class NodeElectionTest {
         LOG.info("leader is ={} term={}", nodeId, term);
         Assert.assertEquals(1, num);
         return leader;
-    }
-
-    private List<RaftNode> create3RaftNodes() {
-        List<RaftNode> raftNodes = Lists.newArrayList();
-        Properties properties = new Properties();
-
-        properties.setProperty("cluster.nodes", "3");
-        properties.setProperty("local", "localhost:5283:0");
-        properties.setProperty("peer", "localhost:5285:1,localhost:5287:2");
-        raftNodes.add(new RaftStarter().start(properties));
-
-        properties.setProperty("cluster.nodes", "3");
-        properties.setProperty("local", "localhost:5285:1");
-        properties.setProperty("peer", "localhost:5283:0,localhost:5287:2");
-        raftNodes.add(new RaftStarter().start(properties));
-
-        properties.setProperty("cluster.nodes", "3");
-        properties.setProperty("local", "localhost:5287:2");
-        properties.setProperty("peer", "localhost:5283:0,localhost:5285:1");
-        raftNodes.add(new RaftStarter().start(properties));
-        return raftNodes;
-    }
-
-    private List<RaftNode> create5RaftNodes() {
-        List<RaftNode> raftNodes = Lists.newArrayList();
-        Properties properties = new Properties();
-
-        properties.setProperty("cluster.nodes", "5");
-        properties.setProperty("local", "localhost:5283:0");
-        properties.setProperty("peer", "localhost:5285:1,localhost:5287:2,localhost:5289:3,localhost:5291:4");
-        raftNodes.add(new RaftStarter().start(properties));
-
-        properties.setProperty("cluster.nodes", "5");
-        properties.setProperty("local", "localhost:5285:1");
-        properties.setProperty("peer", "localhost:5283:0,localhost:5287:2,localhost:5289:3,localhost:5291:4");
-        raftNodes.add(new RaftStarter().start(properties));
-
-        properties.setProperty("cluster.nodes", "5");
-        properties.setProperty("local", "localhost:5287:2");
-        properties.setProperty("peer", "localhost:5285:1,localhost:5283:0,localhost:5289:3,localhost:5291:4");
-        raftNodes.add(new RaftStarter().start(properties));
-
-
-        properties.setProperty("cluster.nodes", "5");
-        properties.setProperty("local", "localhost:5289:3");
-        properties.setProperty("peer", "localhost:5285:1,localhost:5283:0,localhost:5287:2,localhost:5291:4");
-        raftNodes.add(new RaftStarter().start(properties));
-
-        properties.setProperty("cluster.nodes", "5");
-        properties.setProperty("local", "localhost:5291:4");
-        properties.setProperty("peer", "localhost:5285:1,localhost:5283:0,localhost:5287:2,localhost:5289:3");
-        raftNodes.add(new RaftStarter().start(properties));
-        return raftNodes;
     }
 }

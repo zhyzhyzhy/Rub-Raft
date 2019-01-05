@@ -1,5 +1,6 @@
 package cc.lovezhy.raft.server.web;
 
+import cc.lovezhy.raft.server.log.ClusterConfCommand;
 import cc.lovezhy.raft.server.log.DefaultCommand;
 import cc.lovezhy.raft.server.node.RaftNode;
 import com.google.common.base.Preconditions;
@@ -68,6 +69,15 @@ public class ClientHttpService extends AbstractVerticle {
             JsonObject kvData = outerService.getKVData();
             response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
             response.end(kvData.toString());
+        });
+
+        router.post("/conf").handler(routingContext -> {
+            HttpServerResponse response = routingContext.response();
+            JsonObject bodyJson = routingContext.getBodyAsJson();
+            ClusterConfCommand clusterConfCommand = bodyJson.mapTo(ClusterConfCommand.class);
+            //TODO
+            response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
+            response.end("OK");
         });
 
 

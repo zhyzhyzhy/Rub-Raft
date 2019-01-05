@@ -127,6 +127,10 @@ public class RaftNode implements RaftService {
         return currentTerm;
     }
 
+    public EndPoint getEndPoint() {
+        return endPoint;
+    }
+
     public void init() {
         tickManager.init();
         currentTerm = 0L;

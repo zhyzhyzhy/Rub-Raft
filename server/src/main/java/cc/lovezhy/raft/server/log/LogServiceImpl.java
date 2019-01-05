@@ -12,6 +12,7 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class LogServiceImpl implements LogService {
@@ -28,6 +29,10 @@ public class LogServiceImpl implements LogService {
     private volatile Long lastAppliedLogTerm;
 
     private volatile Snapshot snapshot;
+
+
+    private final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 1000;
+    private AtomicInteger appliedLogInMemoryCounter = new AtomicInteger(0);
 
     /**
      * 日志的开头，因为有些可能已经被压缩了
@@ -127,6 +132,7 @@ public class LogServiceImpl implements LogService {
         }
         LogEntry logEntry = get(index);
         if (Objects.nonNull(logEntry)) {
+            createSnapShotIfNecessary();
             this.stateMachine.apply(logEntry.getCommand());
         }
         this.lastCommitLogIndex = index;
@@ -193,6 +199,13 @@ public class LogServiceImpl implements LogService {
         return snapshot;
     }
 
+    private void createSnapShotIfNecessary() {
+        int counter = appliedLogInMemoryCounter.incrementAndGet();
+        if (counter >= MAX_LOG_BEFORE_TAKE_SNAPSHOT) {
+            createSnapshot();
+        }
+    }
+
     @Override
     public void createSnapshot() {
         try {
@@ -206,6 +219,7 @@ public class LogServiceImpl implements LogService {
             snapshot.setLastLogTerm(lastCommitLogTerm);
             this.snapshot = snapshot;
             this.storageService.discard((int) (lastCommitLogIndex - start));
+            this.start = Math.toIntExact(lastCommitLogIndex);
         } finally {
             LOG_LOCK.unlock();
         }

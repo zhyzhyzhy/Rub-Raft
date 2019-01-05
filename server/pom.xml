@@ -30,11 +30,14 @@
             <artifactId>vertx-web</artifactId>
             <version>3.5.4</version>
         </dependency>
+
         <dependency>
-            <groupId>io.vertx</groupId>
-            <artifactId>vertx-web-client</artifactId>
-            <version>3.5.4</version>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>3.12.1</version>
+            <scope>test</scope>
         </dependency>
+
 
 
     </dependencies>
