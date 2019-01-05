@@ -545,6 +545,7 @@ public class RaftNode implements RaftService {
             return settableFutureList;
         }
 
+
         private Runnable prepareAppendLog(PeerRaftNode peerRaftNode, PeerNodeStateMachine peerNodeStateMachine) {
             return () -> {
                 try {

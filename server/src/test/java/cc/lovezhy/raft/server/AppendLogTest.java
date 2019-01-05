@@ -56,7 +56,7 @@ public class AppendLogTest {
         EndPoint rpcEndPoint = leader.getEndPoint();
         EndPoint httpEndPoint = EndPoint.create(rpcEndPoint.getHost(), rpcEndPoint.getPort() + 1);
 
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 9998; i++) {
             DefaultCommand command = DefaultCommand.setCommand(String.valueOf(i), String.valueOf(i));
             postCommand(httpEndPoint, command);
             putData(command);

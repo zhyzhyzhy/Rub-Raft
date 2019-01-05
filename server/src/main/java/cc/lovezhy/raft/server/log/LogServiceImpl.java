@@ -31,7 +31,7 @@ public class LogServiceImpl implements LogService {
     private volatile Snapshot snapshot;
 
 
-    private final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 1000;
+    private final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 10000;
     private AtomicInteger appliedLogInMemoryCounter = new AtomicInteger(0);
 
     /**
