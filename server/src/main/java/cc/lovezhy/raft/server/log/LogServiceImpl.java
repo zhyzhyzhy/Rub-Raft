@@ -3,6 +3,7 @@ package cc.lovezhy.raft.server.log;
 import cc.lovezhy.raft.server.StateMachine;
 import cc.lovezhy.raft.server.log.exception.HasCompactException;
 import cc.lovezhy.raft.server.storage.*;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -31,7 +32,8 @@ public class LogServiceImpl implements LogService {
     private volatile Snapshot snapshot;
 
 
-    private final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 10000;
+    @VisibleForTesting
+    public static final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 10000;
     private AtomicInteger appliedLogInMemoryCounter = new AtomicInteger(0);
 
     /**
@@ -91,7 +93,7 @@ public class LogServiceImpl implements LogService {
      */
     @Override
     public List<LogEntry> get(long start, long end) {
-        log.info("get logEntry, start={}, end={}", start, end);
+        log.debug("get logEntry, start={}, end={}", start, end);
         if (start > end) {
             return Collections.emptyList();
         }
@@ -130,27 +132,46 @@ public class LogServiceImpl implements LogService {
         if (index == this.lastCommitLogIndex) {
             return;
         }
-        LogEntry logEntry = get(index);
-        if (Objects.nonNull(logEntry)) {
-            createSnapShotIfNecessary();
-            this.stateMachine.apply(logEntry.getCommand());
+        //attention i debug a day
+        long expectNextIndex = this.lastCommitLogIndex + 1;
+        while (index >= expectNextIndex) {
+            LogEntry logEntry = get(expectNextIndex);
+            if (Objects.nonNull(logEntry)) {
+                this.stateMachine.apply(logEntry.getCommand());
+            }
+            expectNextIndex++;
         }
         this.lastCommitLogIndex = index;
+        createSnapShotIfNecessary();
     }
 
     @Override
     public int appendLog(LogEntry logEntry) {
-        return appendLog(Collections.singletonList(logEntry));
+        return appendLog(storageService.getLen() + start, Collections.singletonList(logEntry));
+    }
+
+    @Override
+    public int appendLog(long fromIndex, LogEntry logEntry) {
+        return appendLog(fromIndex, Collections.singletonList(logEntry));
     }
 
     @Override
     public int appendLog(List<LogEntry> entries) {
+        return appendLog(storageService.getLen() - 1 + start, entries);
+    }
+
+    @Override
+    public int appendLog(long fromIndex, List<LogEntry> entries) {
         Preconditions.checkNotNull(entries);
         if (entries.isEmpty()) {
             return start;
         }
         try {
             LOG_LOCK.lock();
+            if (fromIndex <= storageService.getLen() - 1 + start) {
+                log.warn("index error");
+                entries = entries.subList(Math.toIntExact(storageService.getLen() + start - fromIndex), entries.size());
+            }
             for (LogEntry entry : entries) {
                 storageService.append(entry.toStorageEntry());
             }
@@ -203,6 +224,7 @@ public class LogServiceImpl implements LogService {
         int counter = appliedLogInMemoryCounter.incrementAndGet();
         if (counter >= MAX_LOG_BEFORE_TAKE_SNAPSHOT) {
             createSnapshot();
+            appliedLogInMemoryCounter.set(0);
         }
     }
 

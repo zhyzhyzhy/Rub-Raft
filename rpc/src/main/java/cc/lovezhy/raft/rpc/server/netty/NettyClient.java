@@ -72,7 +72,7 @@ public class NettyClient {
             if (channel.isActive()) {
                 channel.close().sync();
                 Preconditions.checkState(!channel.isActive());
-                LOG.info("shutdown client");
+                LOG.debug("shutdown client");
             }
         } catch (InterruptedException e) {
             // ignore

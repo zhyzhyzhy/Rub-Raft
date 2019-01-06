@@ -11,9 +11,11 @@ import cc.lovezhy.raft.server.service.RaftService;
 import cc.lovezhy.raft.server.service.RaftServiceImpl;
 import cc.lovezhy.raft.server.service.model.*;
 import cc.lovezhy.raft.server.storage.StorageType;
+import cc.lovezhy.raft.server.utils.EventRecorder;
 import cc.lovezhy.raft.server.utils.TimeCountDownUtil;
 import cc.lovezhy.raft.server.utils.VoteAction;
 import cc.lovezhy.raft.server.web.ClientHttpService;
+import com.alibaba.fastjson.JSON;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import com.google.common.collect.Lists;
@@ -27,10 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -40,6 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static cc.lovezhy.raft.server.RaftConstants.*;
+import static cc.lovezhy.raft.server.utils.EventRecorder.Event.COMMIT_LOG;
 
 public class RaftNode implements RaftService {
 
@@ -99,6 +99,8 @@ public class RaftNode implements RaftService {
 
     private OuterService outerService;
 
+    private EventRecorder eventRecorder;
+
     public RaftNode(NodeId nodeId, EndPoint endPoint, ClusterConfig clusterConfig, List<PeerRaftNode> peerRaftNodes) {
         Preconditions.checkNotNull(nodeId);
         Preconditions.checkNotNull(endPoint);
@@ -146,6 +148,7 @@ public class RaftNode implements RaftService {
         peerRaftNodes.forEach(peerRaftNode -> peerRaftNode.connect(this.nodeId));
         nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
         tickManager.tickElectionTimeOut();
+        eventRecorder = new EventRecorder();
     }
 
 
@@ -202,10 +205,10 @@ public class RaftNode implements RaftService {
 
     private void voteForLeader(Long voteTerm) {
         if (!nodeScheduler.compareAndSetTerm(voteTerm - 1, voteTerm) || !nodeScheduler.compareAndSetVotedFor(null, nodeId)) {
-            log.info("voted for leader fail");
+            log.debug("voted for leader fail");
             return;
         }
-        log.info("startElection term={}", currentTerm);
+        log.debug("startElection term={}", currentTerm);
         nodeScheduler.changeNodeStatus(NodeStatus.CANDIDATE);
         long nextWaitTimeOut = tickManager.tickElectionTimeOut();
         //初始值为1，把自己加进去
@@ -249,7 +252,7 @@ public class RaftNode implements RaftService {
         });
         voteAction.await();
         if (voteAction.votedSuccess()) {
-            log.info("try to be leader, term={}", voteTerm);
+            log.debug("try to be leader, term={}", voteTerm);
             boolean beLeaderSuccess = nodeScheduler.beLeader(voteTerm);
             if (beLeaderSuccess && nodeScheduler.changeNodeStatusWhenNot(NodeStatus.PRE_CANDIDATE, NodeStatus.LEADER)) {
                 log.info("be the leader success, currentTerm={}", voteTerm);
@@ -260,7 +263,7 @@ public class RaftNode implements RaftService {
                 log.debug("be the leader fail, currentTerm={}", voteTerm);
             }
         } else {
-            log.info("voted for leader fail, timeout count = " + votedCount.get());
+            log.debug("voted for leader fail, timeout count = " + votedCount.get());
         }
     }
 
@@ -278,10 +281,10 @@ public class RaftNode implements RaftService {
     public VoteResponse requestPreVote(VoteRequest voteRequest) {
         Long term = currentTerm;
         if (voteRequest.getTerm() > term && logService.isNewerThanSelf(voteRequest.getLastLogTerm(), voteRequest.getLastLogIndex())) {
-            log.info("receive preVote grant true " + voteRequest.getCandidateId());
+            log.debug("receive preVote grant true " + voteRequest.getCandidateId());
             return new VoteResponse(term, true);
         } else {
-            log.info("receive preVote grant fail " + voteRequest.getCandidateId());
+            log.debug("receive preVote grant fail " + voteRequest.getCandidateId());
             return new VoteResponse(term, false);
         }
     }
@@ -306,7 +309,7 @@ public class RaftNode implements RaftService {
     @Override
     public ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) {
         Long term = currentTerm;
-
+        eventRecorder.add(COMMIT_LOG, replicatedLogRequest);
         //感觉应该不会出现，除非是消息延迟
         if (term > replicatedLogRequest.getTerm()) {
             return new ReplicatedLogResponse(term, false);
@@ -336,14 +339,14 @@ public class RaftNode implements RaftService {
     }
 
     private ReplicatedLogResponse appendLog(ReplicatedLogRequest replicatedLogRequest) {
-        log.info("prevLogIndex={}, LogEntry={}", replicatedLogRequest.getPrevLogIndex(), replicatedLogRequest.getEntries().size());
+        log.info("prevLogIndex={}, LogEntry={}", replicatedLogRequest.getPrevLogIndex(), replicatedLogRequest.getEntries());
         LogEntry logEntry = logService.get(replicatedLogRequest.getPrevLogIndex());
         boolean isSameTerm = false;
         if (Objects.nonNull(logEntry)) {
             isSameTerm = logEntry.getTerm().equals(replicatedLogRequest.getPrevLogTerm());
         }
         if (isSameTerm) {
-            logService.appendLog(replicatedLogRequest.getEntries());
+            logService.appendLog(replicatedLogRequest.getPrevLogIndex() + 1, replicatedLogRequest.getEntries());
         }
         logService.commit(replicatedLogRequest.getLeaderCommit());
         log.debug("/appendLog, isSameTerm={}", isSameTerm);
@@ -558,10 +561,17 @@ public class RaftNode implements RaftService {
                     replicatedLogRequest.setTerm(term);
                     replicatedLogRequest.setLeaderId(nodeId);
                     replicatedLogRequest.setLeaderCommit(currentLastCommitLogIndex);
-                    replicatedLogRequest.setPrevLogIndex(preLogIndex);
-                    replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
-                    List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex(), currentLastLogIndex);
-                    replicatedLogRequest.setEntries(logEntries);
+//                    if (new Random().nextBoolean()) {
+//                        replicatedLogRequest.setPrevLogIndex(preLogIndex - 1);
+//                        replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex - 1).getTerm());
+//                        List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex() - 1, currentLastLogIndex);
+//                        replicatedLogRequest.setEntries(logEntries);
+//                    } else {
+                        replicatedLogRequest.setPrevLogIndex(preLogIndex);
+                        replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
+                        List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex(), currentLastLogIndex);
+                        replicatedLogRequest.setEntries(logEntries);
+//                    }
                     //同步方法
                     ReplicatedLogResponse replicatedLogResponse = peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
                     /*
@@ -666,6 +676,7 @@ public class RaftNode implements RaftService {
     public class OuterService {
         public boolean appendLog(DefaultCommand command) {
             if (nodeScheduler.isLeader()) {
+                log.info("http append {}", JSON.toJSONString(command));
                 LogEntry logEntry = LogEntry.of(command, currentTerm);
                 int logIndex = logService.appendLog(logEntry);
                 List<SettableFuture<Void>> settableFutureList = RaftNode.this.peerNodeScheduler.appendLog(logIndex);
@@ -677,7 +688,7 @@ public class RaftNode implements RaftService {
                     log.error(e.getMessage(), e);
                 }
                 logService.commit(logIndex);
-                log.info("commit success");
+                log.info("commit success, index="+ logIndex + " command=" + JSON.toJSONString(command));
                 return true;
             } else {
                 //redirect to leader
@@ -705,6 +716,10 @@ public class RaftNode implements RaftService {
             DefaultStateMachine defaultStateMachine = (DefaultStateMachine) logService.getStateMachine();
             JsonObject jsonObject = new JsonObject(defaultStateMachine.getMap());
             return jsonObject;
+        }
+
+        public JsonObject getEventLog(EventRecorder.Event event) {
+            return new JsonObject(eventRecorder.eventRecorders(event));
         }
     }
 }

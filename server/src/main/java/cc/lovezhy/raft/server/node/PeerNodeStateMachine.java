@@ -1,7 +1,6 @@
 package cc.lovezhy.raft.server.node;
 
 import cc.lovezhy.raft.rpc.common.RpcExecutors;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -100,8 +99,13 @@ public class PeerNodeStateMachine implements Closeable {
         return taskQueue.isEmpty();
     }
 
-    public SettableFuture<Void> setCompleteFuture(Integer notifyIndex) {
-        Preconditions.checkState(notifyIndex > matchIndex);
+    public SettableFuture setCompleteFuture(Integer notifyIndex) {
+//        Preconditions.checkState(notifyIndex > matchIndex);
+        if (notifyIndex > maxWaitIndex) {
+            SettableFuture<Void> settableFuture = SettableFuture.create();
+            settableFuture.set(null);
+            return settableFuture;
+        }
         SettableFuture<Void> settableFuture = SettableFuture.create();
         maxWaitIndex = maxWaitIndex > notifyIndex ? maxWaitIndex : notifyIndex;
         appendLogIndexCompleteFuture.put(notifyIndex, settableFuture);

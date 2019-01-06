@@ -3,6 +3,7 @@ package cc.lovezhy.raft.server.web;
 import cc.lovezhy.raft.server.log.ClusterConfCommand;
 import cc.lovezhy.raft.server.log.DefaultCommand;
 import cc.lovezhy.raft.server.node.RaftNode;
+import cc.lovezhy.raft.server.utils.EventRecorder;
 import com.google.common.base.Preconditions;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
@@ -71,6 +72,9 @@ public class ClientHttpService extends AbstractVerticle {
             response.end(kvData.toString());
         });
 
+        /*
+         * 修改节点配置
+         */
         router.post("/conf").handler(routingContext -> {
             HttpServerResponse response = routingContext.response();
             JsonObject bodyJson = routingContext.getBodyAsJson();
@@ -78,6 +82,17 @@ public class ClientHttpService extends AbstractVerticle {
             //TODO
             response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
             response.end("OK");
+        });
+
+        /*
+         * 查看节点日志
+         */
+        router.get("/log/:event").handler(routingContext -> {
+            HttpServerResponse response = routingContext.response();
+            String eventString = routingContext.request().getParam("event");
+            JsonObject eventLog = outerService.getEventLog(EventRecorder.Event.COMMIT_LOG);
+            response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
+            response.end(eventLog.toString());
         });
 
 

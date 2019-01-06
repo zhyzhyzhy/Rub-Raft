@@ -18,6 +18,8 @@ public interface LogService {
 
     int appendLog(LogEntry logEntry);
     int appendLog(List<LogEntry> entries);
+    int appendLog(long fromIndex, LogEntry logEntry);
+    int appendLog(long fromIndex, List<LogEntry> entries);
 
     long getLastCommitLogTerm();
     long getLastCommitLogIndex();

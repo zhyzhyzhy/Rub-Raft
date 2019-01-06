@@ -17,7 +17,7 @@ public class LogServiceTest {
     private StateMachine stateMachine;
     private LogService logService;
 
-    private List<LogEntry>  logEntries;
+    private List<LogEntry> logEntries;
 
     private static final Logger log = LoggerFactory.getLogger(LogServiceTest.class);
 
@@ -64,6 +64,12 @@ public class LogServiceTest {
                 Assert.assertEquals(this.logEntries.subList(i, j), logService.get(i + 1, j));
             }
         }
+    }
+
+    @Test
+    public void repeatAppendLogTest() {
+        logService.appendLog(this.logEntries);
+        logService.appendLog(4, this.logEntries.subList(2, 4));
     }
 
     @Test
