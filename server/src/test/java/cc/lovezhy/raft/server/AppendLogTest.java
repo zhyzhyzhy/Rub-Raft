@@ -16,13 +16,13 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Scanner;
 
 import static cc.lovezhy.raft.server.RaftConstants.HEART_BEAT_TIME_INTERVAL;
-import static cc.lovezhy.raft.server.log.LogServiceImpl.MAX_LOG_BEFORE_TAKE_SNAPSHOT;
-import static cc.lovezhy.raft.server.util.HttpUtils.getKVData;
-import static cc.lovezhy.raft.server.util.HttpUtils.postCommand;
 import static cc.lovezhy.raft.server.util.NodeUtils.findLeader;
 import static cc.lovezhy.raft.server.util.NodeUtils.makeCluster;
+import static cc.lovezhy.raft.server.utils.HttpUtils.getKVData;
+import static cc.lovezhy.raft.server.utils.HttpUtils.postCommand;
 
 public class AppendLogTest {
 
@@ -60,12 +60,14 @@ public class AppendLogTest {
 
         EndPoint rpcEndPoint = leader.getEndPoint();
         EndPoint httpEndPoint = EndPoint.create(rpcEndPoint.getHost(), rpcEndPoint.getPort() + 1);
-        for (int i = 0; i < MAX_LOG_BEFORE_TAKE_SNAPSHOT - 10; i++) {
+        for (int i = 0; i < 30 - 10; i++) {
             DefaultCommand command = DefaultCommand.setCommand(String.valueOf(i), String.valueOf(i));
             postCommand(httpEndPoint, command);
             putData(command);
         }
         assertData();
+        Scanner scanner = new Scanner(System.in);
+        scanner.next();
     }
 
     private void putData(DefaultCommand defaultCommand) {

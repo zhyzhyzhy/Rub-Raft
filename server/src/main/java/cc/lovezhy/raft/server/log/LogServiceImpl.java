@@ -3,6 +3,7 @@ package cc.lovezhy.raft.server.log;
 import cc.lovezhy.raft.server.StateMachine;
 import cc.lovezhy.raft.server.log.exception.HasCompactException;
 import cc.lovezhy.raft.server.storage.*;
+import cc.lovezhy.raft.server.utils.EventRecorder;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
@@ -33,7 +34,7 @@ public class LogServiceImpl implements LogService {
 
 
     @VisibleForTesting
-    public static final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 10000;
+    public static final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 8;
     private AtomicInteger appliedLogInMemoryCounter = new AtomicInteger(0);
 
     /**
@@ -41,11 +42,15 @@ public class LogServiceImpl implements LogService {
      */
     private volatile int start;
 
+    private EventRecorder eventRecorder;
+
     private ReentrantLock LOG_LOCK = new ReentrantLock(true);
 
-    public LogServiceImpl(StateMachine stateMachine, StorageType storageType) {
+    public LogServiceImpl(StateMachine stateMachine, StorageType storageType, EventRecorder eventRecorder) {
         Preconditions.checkNotNull(stateMachine);
         Preconditions.checkNotNull(storageType);
+        Preconditions.checkNotNull(eventRecorder);
+
         switch (storageType) {
             case FILE:
                 this.storageService = FileStorageService.create("/Users/zhuyichen/tmp/raft", "raft.log");
@@ -67,7 +72,7 @@ public class LogServiceImpl implements LogService {
         this.lastCommitLogTerm = 0L;
         this.lastAppliedLogIndex = 0L;
         this.lastAppliedLogTerm = 0L;
-
+        this.eventRecorder = eventRecorder;
     }
 
     @Override
@@ -223,6 +228,7 @@ public class LogServiceImpl implements LogService {
     private void createSnapShotIfNecessary() {
         int counter = appliedLogInMemoryCounter.incrementAndGet();
         if (counter >= MAX_LOG_BEFORE_TAKE_SNAPSHOT) {
+            eventRecorder.add(EventRecorder.Event.SnapShot, String.format("ready to take snapshot, appliedLogInMemory=%d", counter));
             createSnapshot();
             appliedLogInMemoryCounter.set(0);
         }

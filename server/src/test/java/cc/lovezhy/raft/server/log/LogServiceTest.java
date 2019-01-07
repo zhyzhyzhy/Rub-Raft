@@ -3,6 +3,7 @@ package cc.lovezhy.raft.server.log;
 import cc.lovezhy.raft.server.DefaultStateMachine;
 import cc.lovezhy.raft.server.StateMachine;
 import cc.lovezhy.raft.server.storage.StorageType;
+import cc.lovezhy.raft.server.utils.EventRecorder;
 import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Before;
@@ -24,7 +25,7 @@ public class LogServiceTest {
     @Before
     public void setUp() {
         this.stateMachine = new DefaultStateMachine();
-        this.logService = new LogServiceImpl(stateMachine, StorageType.MEMORY);
+        this.logService = new LogServiceImpl(stateMachine, StorageType.MEMORY, new EventRecorder());
         this.logEntries = Lists.newArrayList();
         this.logEntries.add(LogEntry.of(DefaultCommand.setCommand("zhuyichen", "0"), 0L));
         this.logEntries.add(LogEntry.of(DefaultCommand.setCommand("zhuyichen1", "1"), 1L));

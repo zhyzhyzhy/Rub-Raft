@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <!-- import CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+</head>
+<body>
+<div id="app">
+
+    <el-container>
+        <el-main>
+            <el-row type="flex" class="row-bg" justify="center">
+                <el-col :span="6">
+                </el-col>
+                <el-col :span="6">
+                    <el-form :label-position="right" label-width="80px">
+                        <el-form-item label="key">
+                            <el-input v-model="addKey"></el-input>
+                        </el-form-item>
+                        <el-form-item label="value">
+                            <el-input v-model="addValue"></el-input>
+                        </el-form-item>
+                        <el-form-item>
+                            <el-button type="primary" @click="save">save</el-button>
+                        </el-form-item>
+                    </el-form>
+
+                    <hr/>
+
+                    <el-form :label-position="right" label-width="80px">
+                        <el-form-item label="key">
+                            <el-input v-model="removeKey"></el-input>
+                        </el-form-item>
+                        <el-form-item>
+                            <el-button type="primary" @click="del">Del</el-button>
+                        </el-form-item>
+                    </el-form>
+
+
+                    <hr/>
+
+                    <el-form :label-position="right" label-width="80px">
+                        <el-form-item>
+                            <el-button type="primary" @click="restart">restart</el-button>
+                        </el-form-item>
+                    </el-form>
+                </el-col>
+                <el-col :span="6">
+                </el-col>
+            </el-row>
+        </el-main>
+    </el-container>
+
+</div>
+</body>
+<!-- import Vue before Element -->
+<script src="https://unpkg.com/vue/dist/vue.js"></script>
+<!-- import JavaScript -->
+<script src="https://unpkg.com/element-ui/lib/index.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fetch/3.0.0/fetch.min.js"></script>
+<style>
+
+</style>
+<script>
+    new Vue({
+        el: '#app',
+        data: function () {
+            return {
+                addKey: '',
+                addValue: '',
+                removeKey: ''
+            }
+        },
+        methods: {
+            save: function () {
+                var that = this;
+                fetch('/command', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        commandEnum: 'SET',
+                        key: that.addKey,
+                        value: that.addValue
+                    })
+                }).then(function (response) {
+                    return response.json()
+                }).then(function (json) {
+                    if (json['success'] === true) {
+                        that.$notify({
+                            message: 'success',
+                            type: 'success'
+                        })
+                    } else {
+                        that.$notify.error('fail')
+                    }
+                })
+            },
+            del: function () {
+                var that = this;
+                fetch('/command', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        commandEnum: 'REMOVE',
+                        key: that.removeKey
+                    })
+                }).then(function (response) {
+                    return response.json()
+                }).then(function (json) {
+                    if (json['success'] === true) {
+                        that.$notify({
+                            message: 'success',
+                            type: 'success'
+                        })
+                    } else {
+                        that.$notify.error('fail')
+                    }
+                })
+            },
+            restart: function () {
+                var that = this;
+                fetch('/node/restart', {
+                    method: 'POST'
+                }).then(function (response) {
+                    return response.json()
+                }).then(function (json) {
+                    if (json['success'] === true) {
+                        that.$notify({
+                            message: 'success',
+                            type: 'success'
+                        })
+                    } else {
+                        that.$notify.error('fail')
+                    }
+                })
+            }
+        }
+    })
+</script>
+</html>

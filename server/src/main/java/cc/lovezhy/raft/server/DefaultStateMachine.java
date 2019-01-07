@@ -1,6 +1,7 @@
 package cc.lovezhy.raft.server;
 
 import cc.lovezhy.raft.server.log.DefaultCommand;
+import cc.lovezhy.raft.server.utils.KryoUtils;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
@@ -15,8 +16,6 @@ import java.util.Optional;
 public class DefaultStateMachine implements StateMachine {
 
     private final Map<String, Object> map = Maps.newConcurrentMap();
-
-    private final Kryo kryo = new Kryo();
 
     @Override
     public synchronized boolean apply(DefaultCommand defaultCommand) {
@@ -36,9 +35,12 @@ public class DefaultStateMachine implements StateMachine {
     @Override
     public synchronized byte[] takeSnapShot() {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        Output output = new Output();
+        Output output = new Output(byteArrayOutputStream);
+        Kryo kryo = KryoUtils.getPool().borrow();
         kryo.writeClassAndObject(output, map);
         output.flush();
+        output.close();
+        KryoUtils.getPool().release(kryo);
         return byteArrayOutputStream.toByteArray();
     }
 
@@ -47,7 +49,10 @@ public class DefaultStateMachine implements StateMachine {
     public synchronized boolean fromSnapShot(byte[] bytes) {
         map.clear();
         Input input = new Input(bytes);
+        Kryo kryo = KryoUtils.getPool().borrow();
         Map<String, String> snapShotMap = (Map<String, String>) kryo.readClassAndObject(input);
+        input.close();
+        KryoUtils.getPool().release(kryo);
         map.putAll(snapShotMap);
         return true;
     }

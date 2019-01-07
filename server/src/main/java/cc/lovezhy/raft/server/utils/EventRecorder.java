@@ -14,11 +14,14 @@ import java.util.Map;
 public class EventRecorder {
 
     public enum Event {
+        //preVote
         PRE_VOTE("preVote"),
-
+        //选举Leader
         VOTE("vote"),
         //提交日志
-        LOG("log");
+        LOG("log"),
+        //日志的SnapShot
+        SnapShot("snapshot");
 
         private String urlPath;
 

@@ -23,6 +23,8 @@ public class ClientHttpService extends AbstractVerticle {
 
     private final Logger log = LoggerFactory.getLogger(ClientHttpService.class);
 
+    private final String COMMAND_FILE_NAME = ClientHttpService.class.getResource("/index.html").getFile();
+
     private HttpServer httpServer;
     private int port;
 
@@ -49,6 +51,10 @@ public class ClientHttpService extends AbstractVerticle {
             response.end(jsonObject.toString());
         });
 
+        router.get("/command").handler(routingContext -> {
+            HttpServerResponse response = routingContext.response();
+            response.sendFile(COMMAND_FILE_NAME);
+        });
         /*
          * 向集群写value
          */
@@ -100,6 +106,20 @@ public class ClientHttpService extends AbstractVerticle {
             response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
             response.end(eventLog.toString());
         });
+
+        router.get("/snapshot").handler(routingContext -> {
+            HttpServerResponse response = routingContext.response();
+            response.end(this.outerService.getSnapShot().toString());
+        });
+
+        router.post("/node/restart").handler(routingContext -> {
+            this.outerService.restartNode();
+            HttpServerResponse response = routingContext.response();
+            JsonObject jsonObject = new JsonObject();
+            jsonObject.put("success", true);
+            response.end(jsonObject.toString());
+        });
+
 
 
         this.httpServer.requestHandler(router::accept).listen(this.port);

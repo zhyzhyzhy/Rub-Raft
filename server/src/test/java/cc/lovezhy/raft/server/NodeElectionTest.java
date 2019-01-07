@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.text.MessageFormat;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Scanner;
 import java.util.Set;
 
 import static cc.lovezhy.raft.server.util.NodeUtils.create3RaftNodes;
@@ -41,6 +42,8 @@ public class NodeElectionTest {
         raftNodes.forEach(RaftNode::init);
         LOG.info("check one leader");
         checkElection(raftNodes);
+        Scanner scanner = new Scanner(System.in);
+        scanner.next();
         raftNodes.forEach(RaftNode::close);
     }
 

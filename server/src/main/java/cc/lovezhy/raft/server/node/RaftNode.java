@@ -44,6 +44,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import static cc.lovezhy.raft.server.RaftConstants.*;
 import static cc.lovezhy.raft.server.utils.EventRecorder.Event.LOG;
+import static cc.lovezhy.raft.server.utils.HttpUtils.postCommand;
 
 public class RaftNode implements RaftService {
 
@@ -116,7 +117,6 @@ public class RaftNode implements RaftService {
         this.peerRaftNodes = peerRaftNodes;
         this.clusterConfig = clusterConfig;
         this.endPoint = endPoint;
-        logService = new LogServiceImpl(new DefaultStateMachine(), StorageType.MEMORY);
     }
 
     public NodeScheduler getNodeScheduler() {
@@ -159,6 +159,7 @@ public class RaftNode implements RaftService {
         nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
         tickManager.tickElectionTimeOut();
         eventRecorder = new EventRecorder();
+        logService = new LogServiceImpl(new DefaultStateMachine(), StorageType.MEMORY, eventRecorder);
     }
 
 
@@ -393,7 +394,6 @@ public class RaftNode implements RaftService {
         this.peerRaftNodes.forEach(PeerRaftNode::close);
         this.nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
         this.rpcServer.close();
-        this.httpService.close();
         this.tickManager.cancelAll();
         if (Objects.nonNull(this.peerNodeScheduler)) {
             this.peerNodeScheduler.close();
@@ -525,6 +525,15 @@ public class RaftNode implements RaftService {
             return votedFor.get();
         }
 
+        PeerRaftNode getLeader() {
+            NodeId votedFor = getVotedFor();
+            for (PeerRaftNode peerRaftNode : peerRaftNodes) {
+                if (peerRaftNode.getNodeId().equals(votedFor)) {
+                    return peerRaftNode;
+                }
+            }
+            return null;
+        }
 
         /**
          * 接收到心跳
@@ -717,8 +726,10 @@ public class RaftNode implements RaftService {
                 log.info("commit success, index=" + logIndex + " command=" + JSON.toJSONString(command));
                 return true;
             } else {
-                //redirect to leader
-                //TODO
+                PeerRaftNode leader = nodeScheduler.getLeader();
+                if (Objects.nonNull(leader)) {
+                    return postCommand(EndPoint.create(leader.getEndPoint().getHost(), leader.getEndPoint().getPort() + 1), command);
+                }
                 return false;
             }
         }
@@ -733,6 +744,8 @@ public class RaftNode implements RaftService {
             EndPoint endPoint = EndPoint.create(RaftNode.this.getEndPoint().getHost(), RaftNode.this.getEndPoint().getPort() + 1);
             currentUrls.add(endPoint.toUrl() + "/status");
             currentUrls.add(endPoint.toUrl() + "/data");
+            currentUrls.add(endPoint.toUrl() + "/command");
+            currentUrls.add(endPoint.toUrl() + "/snapshot");
             for (EventRecorder.Event event : EventRecorder.Event.values()) {
                 currentUrls.add(endPoint.toUrl() + "/log/" + event.getUrlPath());
             }
@@ -743,6 +756,8 @@ public class RaftNode implements RaftService {
                 List<String> urls = Lists.newArrayList();
                 urls.add(peerNodeHttpEndPoint.toUrl() + "/status");
                 urls.add(peerNodeHttpEndPoint.toUrl() + "/data");
+                urls.add(peerNodeHttpEndPoint.toUrl() + "/command");
+                urls.add(peerNodeHttpEndPoint.toUrl() + "/snapshot");
                 for (EventRecorder.Event event : EventRecorder.Event.values()) {
                     urls.add(peerNodeHttpEndPoint.toUrl() + "/log/" + event.getUrlPath());
                 }
@@ -757,8 +772,20 @@ public class RaftNode implements RaftService {
             return new JsonObject(defaultStateMachine.getMap());
         }
 
+        public JsonObject getSnapShot() {
+            Snapshot snapShot = logService.getSnapShot();
+            DefaultStateMachine defaultStateMachine = new DefaultStateMachine();
+            defaultStateMachine.fromSnapShot(snapShot.getData());
+            return new JsonObject(defaultStateMachine.getMap());
+        }
+
         public JsonObject getEventLog(EventRecorder.Event event) {
             return new JsonObject(eventRecorder.eventRecorders(event));
+        }
+
+        public void restartNode() {
+            RaftNode.this.close();
+            RaftNode.this.init();
         }
     }
 }

@@ -32,6 +32,10 @@ public class KryoUtils {
         pool = new KryoPool.Builder(factory).build();
     }
 
+    public static KryoPool getPool() {
+        return pool;
+    }
+
     public static LogEntry deserializeLogEntry(byte[] bytes) {
         Preconditions.checkNotNull(bytes);
         Kryo kryo = pool.borrow();

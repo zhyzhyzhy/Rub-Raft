@@ -1,16 +1,16 @@
-package cc.lovezhy.raft.server.util;
+package cc.lovezhy.raft.server.utils;
 
 import cc.lovezhy.raft.rpc.EndPoint;
 import cc.lovezhy.raft.server.log.DefaultCommand;
 import cc.lovezhy.raft.server.node.RaftNode;
 import com.alibaba.fastjson.JSON;
-import com.google.common.collect.Maps;
 import io.vertx.core.json.JsonObject;
 import okhttp3.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -21,6 +21,10 @@ public class HttpUtils {
 
     private static final OkHttpClient client = new OkHttpClient();
     private static final MediaType MEDIA_JSON = MediaType.parse("application/json;charset=utf-8");
+
+
+    private HttpUtils() {
+    }
 
     public static boolean postCommand(EndPoint endPoint, DefaultCommand defaultCommand) {
 
@@ -64,6 +68,6 @@ public class HttpUtils {
                 response.close();
             }
         }
-        return Maps.newHashMap();
+        return Collections.emptyMap();
     }
 }
