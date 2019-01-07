@@ -17,7 +17,7 @@ import static cc.lovezhy.raft.rpc.util.IdFactory.generateId;
 
 public class ProxyInterceptor implements MethodInterceptor {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ProxyInterceptor.class);
+    private static final Logger log = LoggerFactory.getLogger(ProxyInterceptor.class);
 
     private ConsumerRpcService consumerRpcService;
     private Class<?> superClass;
@@ -37,7 +37,7 @@ public class ProxyInterceptor implements MethodInterceptor {
         request.setMethod(method.getName());
         request.setArgs(objects);
         RpcRequestType requestType = rpcClientOptions.getRpcRequestType(method.getName());
-        LOG.debug("RpcRequest {}", JSON.toJSONString(request));
+        log.debug("RpcRequest {}", JSON.toJSONString(request));
         switch (requestType) {
             case NORMAL: {
                 request.setRpcRequestType(RpcRequestType.NORMAL);

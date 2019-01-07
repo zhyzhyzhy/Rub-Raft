@@ -85,7 +85,6 @@ public class NodeUtils {
             peerNode.remove(currentNode);
             properties.setProperty("peer", Joiner.on(',').join(peerNode));
             raftNodes.add(new RaftStarter().start(properties));
-            System.out.println(properties);
         });
         return raftNodes;
     }

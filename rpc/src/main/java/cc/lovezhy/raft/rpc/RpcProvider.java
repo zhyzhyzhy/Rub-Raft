@@ -11,7 +11,7 @@ import java.util.Map;
 
 public class RpcProvider<T> {
 
-    private static final Logger log = LoggerFactory.getLogger(RpcProvider.class);
+    private final Logger log = LoggerFactory.getLogger(RpcProvider.class);
 
     static <T> RpcProvider<T> create(Class<T> providerClazz) {
         Preconditions.checkNotNull(providerClazz);

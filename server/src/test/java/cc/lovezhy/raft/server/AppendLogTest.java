@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static cc.lovezhy.raft.server.RaftConstants.HEART_BEAT_TIME_INTERVAL;
+import static cc.lovezhy.raft.server.log.LogServiceImpl.MAX_LOG_BEFORE_TAKE_SNAPSHOT;
 import static cc.lovezhy.raft.server.util.HttpUtils.getKVData;
 import static cc.lovezhy.raft.server.util.HttpUtils.postCommand;
 import static cc.lovezhy.raft.server.util.NodeUtils.findLeader;
@@ -26,7 +27,7 @@ import static cc.lovezhy.raft.server.util.NodeUtils.makeCluster;
 public class AppendLogTest {
 
 
-    private static final Logger LOG = LoggerFactory.getLogger(AppendLogTest.class);
+    private static final Logger log = LoggerFactory.getLogger(AppendLogTest.class);
 
     private List<RaftNode> raftNodes;
     private Map<String, Object> expectKVData = Maps.newHashMap();
@@ -48,23 +49,11 @@ public class AppendLogTest {
 
 
     @Test
-    public void noNodeDownTest() {
-        for (int i : new int[]{9}) {
-//            appendLogTest(1, i);
-//            appendLogTest(10, i);
-            appendLogTest(30, i);
-//            appendLogTest(100, i);
-//            appendLogTest(200, i);
-//            appendLogTest(500, i);
-//            appendLogTest(1000, i);
-//            appendLogTest(2000, i);
-//            appendLogTest(5000, i);
-        }
-    }
-
-    private void appendLogTest(long logLength, int clusterNum) {
-        setUp();
-        this.raftNodes = makeCluster(clusterNum);
+    public void appendLogTest() {
+        this.raftNodes = makeCluster(5);
+        this.raftNodes.forEach(raftNode -> {
+            log.info("{} => {}", raftNode.getNodeId(), raftNode.getEndPoint());
+        });
         raftNodes.forEach(RaftNode::init);
         RaftNode leader = findLeader(raftNodes);
         Preconditions.checkNotNull(leader, "Leader Not Found!");
@@ -72,13 +61,12 @@ public class AppendLogTest {
         EndPoint rpcEndPoint = leader.getEndPoint();
         EndPoint httpEndPoint = EndPoint.create(rpcEndPoint.getHost(), rpcEndPoint.getPort() + 1);
 
-        for (int i = 0; i < logLength; i++) {
+        for (int i = 0; i < MAX_LOG_BEFORE_TAKE_SNAPSHOT - 10; i++) {
             DefaultCommand command = DefaultCommand.setCommand(String.valueOf(i), String.valueOf(i));
             postCommand(httpEndPoint, command);
             putData(command);
         }
         assertData();
-        clear();
     }
 
     private void putData(DefaultCommand defaultCommand) {

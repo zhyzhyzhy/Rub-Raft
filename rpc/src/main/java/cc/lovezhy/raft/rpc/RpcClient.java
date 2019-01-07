@@ -38,7 +38,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
         return new RpcClient<>(clazz, endPoint, rpcClientOptions);
     }
 
-    private static final Logger LOG = LoggerFactory.getLogger(RpcClient.class);
+    private final Logger log = LoggerFactory.getLogger(RpcClient.class);
 
     private Class<T> clazz;
     private NettyClient nettyClient;
@@ -155,12 +155,12 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
             SettableFuture<Object> settableFuture = rpcFutureMap.get(requestId);
             if (Objects.nonNull(settableFuture)) {
                 if (response.getResponseBody() == null) {
-                    LOG.error("responseBody is null");
+                    log.error("responseBody is null");
                 }
                 settableFuture.set(response.getResponseBody());
                 rpcFutureMap.remove(requestId);
             } else {
-                LOG.error("non async !!!!");
+                log.error("non async !!!!");
             }
         }
     }

@@ -21,7 +21,7 @@ import java.net.InetSocketAddress;
 
 public class NettyClient {
 
-    private static final Logger LOG = LoggerFactory.getLogger(NettyClient.class);
+    private static final Logger log = LoggerFactory.getLogger(NettyClient.class);
     private EndPoint endPoint;
     private Channel channel;
     private RpcService rpcService;
@@ -51,11 +51,11 @@ public class NettyClient {
         this.channel = connectFuture.channel();
         connectFuture.addListener(f -> {
             if (f.isSuccess()) {
-                LOG.info("rpc client connected endPoint={}", endPoint);
+                log.debug("rpc client connected endPoint={}", endPoint);
                 connectResultFuture.set(null);
                 Runtime.getRuntime().addShutdownHook(new Thread(this::closeSync));
             } else {
-                LOG.warn("rpc connected fail! waiting for retry！", f.cause());
+                log.debug("rpc connected fail! waiting for retry！", f.cause());
                 connectResultFuture.setException(f.cause());
                 worker.shutdownGracefully();
             }
@@ -72,7 +72,7 @@ public class NettyClient {
             if (channel.isActive()) {
                 channel.close().sync();
                 Preconditions.checkState(!channel.isActive());
-                LOG.debug("shutdown client");
+                log.debug("shutdown client");
             }
         } catch (InterruptedException e) {
             // ignore

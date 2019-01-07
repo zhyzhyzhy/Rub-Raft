@@ -6,6 +6,7 @@ import cc.lovezhy.raft.rpc.RpcServer;
 import cc.lovezhy.raft.rpc.common.RpcExecutors;
 import cc.lovezhy.raft.server.ClusterConfig;
 import cc.lovezhy.raft.server.DefaultStateMachine;
+import cc.lovezhy.raft.server.NodeSlf4jHelper;
 import cc.lovezhy.raft.server.log.*;
 import cc.lovezhy.raft.server.service.RaftService;
 import cc.lovezhy.raft.server.service.RaftServiceImpl;
@@ -29,7 +30,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -43,7 +47,7 @@ import static cc.lovezhy.raft.server.utils.EventRecorder.Event.COMMIT_LOG;
 
 public class RaftNode implements RaftService {
 
-    private Logger log;
+    private final Logger log = LoggerFactory.getLogger(RaftNode.class);
 
     private NodeId nodeId;
 
@@ -108,8 +112,6 @@ public class RaftNode implements RaftService {
         Preconditions.checkNotNull(peerRaftNodes);
         Preconditions.checkState(peerRaftNodes.size() >= 2, "raft cluster should init with at least 3 server!");
 
-        log = LoggerFactory.getLogger(String.format(getClass().getName() + " node[%d]", nodeId.getPeerId()));
-
         this.nodeId = nodeId;
         this.peerRaftNodes = peerRaftNodes;
         this.clusterConfig = clusterConfig;
@@ -134,16 +136,24 @@ public class RaftNode implements RaftService {
     }
 
     public void init() {
+        NodeSlf4jHelper.initialize(nodeId);
+        NodeSlf4jHelper.changeObjectLogger(nodeId, this);
         tickManager.init();
         currentTerm = 0L;
         heartbeatTimeRecorder.set(0L);
+        //start rpc server
         rpcServer = new RpcServer();
+        NodeSlf4jHelper.changeObjectLogger(nodeId, rpcServer);
+
         nodeScheduler.setVotedForForce(null);
         RaftService serverService = new RaftServiceImpl(this);
         rpcServer.registerService(serverService);
         rpcServer.start(endPoint);
         outerService = new OuterService();
+        //start http service
         httpService = new ClientHttpService(outerService, endPoint.getPort() + 1);
+        NodeSlf4jHelper.changeObjectLogger(nodeId, httpService);
+
         httpService.createHttpServer();
         peerRaftNodes.forEach(peerRaftNode -> peerRaftNode.connect(this.nodeId));
         nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);

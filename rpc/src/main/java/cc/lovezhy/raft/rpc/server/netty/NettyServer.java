@@ -23,7 +23,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 public class NettyServer {
 
-    private static final Logger LOG = LoggerFactory.getLogger(NettyServer.class);
+    private final Logger log = LoggerFactory.getLogger(NettyServer.class);
 
     private EndPoint endPoint;
 
@@ -61,13 +61,13 @@ public class NettyServer {
         bindFuture.addListener(f -> {
             if (f.isSuccess()) {
                 bindResultFuture.set(null);
-                LOG.info("start rpc server success");
+                log.debug("start rpc server success");
                 Runtime.getRuntime().addShutdownHook(new Thread(this::closeSync));
             } else {
                 bindResultFuture.setException(f.cause());
                 boss.shutdownGracefully();
                 worker.shutdownGracefully();
-                LOG.error("start rpc server fail, message={}", f.cause().getMessage(), f.cause());
+                log.error("start rpc server fail, message={}", f.cause().getMessage(), f.cause());
             }
         });
         return bindResultFuture;

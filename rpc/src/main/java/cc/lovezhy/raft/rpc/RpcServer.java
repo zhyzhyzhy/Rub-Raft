@@ -18,13 +18,13 @@ import java.util.Map;
 
 public class RpcServer {
 
-    private static final Logger log = LoggerFactory.getLogger(RpcService.class);
+    private final Logger log = LoggerFactory.getLogger(RpcService.class);
 
-    private  List<RpcProvider> providers;
+    private List<RpcProvider> providers;
 
-    private  NettyServer nettyServer;
+    private NettyServer nettyServer;
 
-    private  Map<String, RpcProvider> serviceMap;
+    private Map<String, RpcProvider> serviceMap;
 
     private RpcService rpcService;
 
@@ -58,7 +58,7 @@ public class RpcServer {
         RpcProvider provider = RpcProvider.create(serviceClass);
         serviceMap.put(serviceClass.getInterfaces()[0].getName(), provider);
         providers.add(provider);
-        log.info("register service serviceClass={}", serviceClass);
+        log.debug("register service serviceClass={}", serviceClass);
     }
 
     public <T> void registerService(T serviceBean) {
@@ -67,7 +67,7 @@ public class RpcServer {
         RpcProvider provider = RpcProvider.create(serviceBean);
         serviceMap.put(serviceBean.getClass().getInterfaces()[0].getName(), provider);
         providers.add(provider);
-        log.info("register service serviceClass={}", serviceBean.getClass().getInterfaces()[0]);
+        log.debug("register service serviceClass={}", serviceBean.getClass().getInterfaces()[0]);
     }
 
     public void close() {

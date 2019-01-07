@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+
+    <Properties>
+        <Property name="logDir">/var/log/raft/</Property>
+        <Property name="logFile">raft.log</Property>
+    </Properties>
+
+
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout
+                    pattern="%d{HH:mm:ss.SSS} [%-25t] %-5level %-32c{1.} - %msg%n">
+            </PatternLayout>
+        </Console>
+
+        <File name="Common" fileName="${logDir}/${logFile}" append="false">
+            <PatternLayout
+                    pattern="%d{HH:mm:ss.SSS} [%-25t] %-5level %-32c{1.} - %msg%n">
+            </PatternLayout>
+        </File>
+    </Appenders>
+
+    <Loggers>
+        <Root level="info">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="Common"/>
+        </Root>
+    </Loggers>
+</Configuration>

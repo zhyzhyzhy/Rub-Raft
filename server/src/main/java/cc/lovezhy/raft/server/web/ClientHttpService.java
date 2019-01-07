@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
 
 public class ClientHttpService extends AbstractVerticle {
 
-    private static final Logger log = LoggerFactory.getLogger(ClientHttpService.class);
+    private final Logger log = LoggerFactory.getLogger(ClientHttpService.class);
 
     private HttpServer httpServer;
     private int port;
