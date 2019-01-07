@@ -2,6 +2,7 @@ package cc.lovezhy.raft.server.service.model;
 
 import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.log.LogEntry;
+import com.google.common.base.MoreObjects;
 
 import java.util.List;
 
@@ -65,5 +66,17 @@ public class ReplicatedLogRequest {
 
     public void setLeaderCommit(Long leaderCommit) {
         this.leaderCommit = leaderCommit;
+    }
+
+    @Override
+    public String toString() {
+        return MoreObjects.toStringHelper(this)
+                .add("term", term)
+                .add("leaderId", leaderId)
+                .add("prevLogIndex", prevLogIndex)
+                .add("prevLogTerm", prevLogTerm)
+                .add("entries", entries)
+                .add("leaderCommit", leaderCommit)
+                .toString();
     }
 }

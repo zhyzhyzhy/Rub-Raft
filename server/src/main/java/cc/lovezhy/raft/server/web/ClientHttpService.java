@@ -17,6 +17,8 @@ import io.vertx.ext.web.handler.impl.BodyHandlerImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
+
 public class ClientHttpService extends AbstractVerticle {
 
     private final Logger log = LoggerFactory.getLogger(ClientHttpService.class);
@@ -44,7 +46,6 @@ public class ClientHttpService extends AbstractVerticle {
             HttpServerResponse response = routingContext.response();
             response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
             JsonObject jsonObject = new JsonObject(outerService.getNodeStatus().toString());
-            jsonObject.put("data", outerService.getKVData());
             response.end(jsonObject.toString());
         });
 
@@ -90,7 +91,12 @@ public class ClientHttpService extends AbstractVerticle {
         router.get("/log/:event").handler(routingContext -> {
             HttpServerResponse response = routingContext.response();
             String eventString = routingContext.request().getParam("event");
-            JsonObject eventLog = outerService.getEventLog(EventRecorder.Event.COMMIT_LOG);
+            EventRecorder.Event event = EventRecorder.Event.fromPath(eventString);
+            if (Objects.isNull(event)) {
+                response.setStatusCode(401);
+                return;
+            }
+            JsonObject eventLog = outerService.getEventLog(event);
             response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
             response.end(eventLog.toString());
         });

@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static cc.lovezhy.raft.server.RaftConstants.*;
-import static cc.lovezhy.raft.server.utils.EventRecorder.Event.COMMIT_LOG;
+import static cc.lovezhy.raft.server.utils.EventRecorder.Event.LOG;
 
 public class RaftNode implements RaftService {
 
@@ -164,8 +164,10 @@ public class RaftNode implements RaftService {
 
     private void preVote(Long voteTerm) {
         log.info("start preVote, voteTerm={}", voteTerm);
+        eventRecorder.add(EventRecorder.Event.PRE_VOTE, String.format("start preVote, term=%d", voteTerm));
         long nextElectionTimeOut = tickManager.tickElectionTimeOut();
         if (!nodeScheduler.changeNodeStatusWhenNot(NodeStatus.LEADER, NodeStatus.PRE_CANDIDATE)) {
+            eventRecorder.add(EventRecorder.Event.PRE_VOTE, String.format("preVote fail, race fail, node has be leader, voteTerm=%d", voteTerm));
             return;
         }
         AtomicInteger preVotedGrantedCount = new AtomicInteger(1);
@@ -184,8 +186,10 @@ public class RaftNode implements RaftService {
                     public void onSuccess(@Nullable VoteResponse result) {
                         if (Objects.nonNull(result)) {
                             if (result.getVoteGranted()) {
+                                eventRecorder.add(EventRecorder.Event.PRE_VOTE, String.format("grant vote from [%d]", peerRaftNode.getNodeId().getPeerId()));
                                 preVotedGrantedCount.incrementAndGet();
                             } else if (result.getTerm() > voteTerm) {
+                                eventRecorder.add(EventRecorder.Event.PRE_VOTE, String.format("refused vote from [%d]", peerRaftNode.getNodeId().getPeerId()));
                                 nodeScheduler.compareAndSetTerm(voteTerm, result.getTerm());
                             }
                         }
@@ -208,13 +212,18 @@ public class RaftNode implements RaftService {
             log.error(e.getMessage(), e);
         }
         if (preVotedGrantedCount.get() > clusterConfig.getNodeCount() / 2) {
+            eventRecorder.add(EventRecorder.Event.PRE_VOTE, String.format("preVote success, voteTerm=%d", voteTerm));
             voteForLeader(voteTerm);
+        } else {
+            eventRecorder.add(EventRecorder.Event.PRE_VOTE, String.format("preVote fail, voteTerm=%d", voteTerm));
         }
     }
 
 
     private void voteForLeader(Long voteTerm) {
+        eventRecorder.add(EventRecorder.Event.VOTE, String.format("start vote term=%d", voteTerm));
         if (!nodeScheduler.compareAndSetTerm(voteTerm - 1, voteTerm) || !nodeScheduler.compareAndSetVotedFor(null, nodeId)) {
+            eventRecorder.add(EventRecorder.Event.VOTE, String.format("vote fail, may find high term node,  term=%d", voteTerm));
             log.debug("voted for leader fail");
             return;
         }
@@ -237,12 +246,14 @@ public class RaftNode implements RaftService {
                     @Override
                     public void onSuccess(@Nullable VoteResponse result) {
                         if (Objects.nonNull(result)) {
-                            log.info("receive vote from={}, grant={}", peerRaftNode.getNodeId(), result.getVoteGranted());
+                            log.debug("receive vote from={}, grant={}", peerRaftNode.getNodeId(), result.getVoteGranted());
                             if (result.getVoteGranted()) {
-                                log.info("receive vote from={}, term={}", peerRaftNode.getNodeId(), currentTerm);
+                                log.debug("receive vote from={}, term={}", peerRaftNode.getNodeId(), currentTerm);
+                                eventRecorder.add(EventRecorder.Event.VOTE, String.format("grant vote from [%d]", peerRaftNode.getNodeId().getPeerId()));
                                 votedCount.incrementAndGet();
                                 voteAction.success();
                             } else if (result.getTerm() > voteTerm) {
+                                eventRecorder.add(EventRecorder.Event.VOTE, String.format("refuse vote from [%d]", peerRaftNode.getNodeId().getPeerId()));
                                 nodeScheduler.compareAndSetTerm(voteTerm, result.getTerm());
                                 voteAction.fail();
                             }
@@ -262,18 +273,23 @@ public class RaftNode implements RaftService {
         });
         voteAction.await();
         if (voteAction.votedSuccess()) {
+            eventRecorder.add(EventRecorder.Event.VOTE, String.format("vote success, term =  [%d]", voteTerm));
             log.debug("try to be leader, term={}", voteTerm);
+            eventRecorder.add(EventRecorder.Event.VOTE, String.format("trying be leader, term =  [%d]", voteTerm));
             boolean beLeaderSuccess = nodeScheduler.beLeader(voteTerm);
             if (beLeaderSuccess && nodeScheduler.changeNodeStatusWhenNot(NodeStatus.PRE_CANDIDATE, NodeStatus.LEADER)) {
+                eventRecorder.add(EventRecorder.Event.VOTE, String.format("be leader success, term =  [%d]", voteTerm));
                 log.info("be the leader success, currentTerm={}", voteTerm);
                 peerNodeScheduler = new PeerNodeScheduler();
                 peerNodeScheduler.tickHeartBeat();
                 outerService.appendLog(LogConstants.getDummyCommand());
             } else {
+                eventRecorder.add(EventRecorder.Event.VOTE, String.format("be leader fail, term =  [%d]", voteTerm));
                 log.debug("be the leader fail, currentTerm={}", voteTerm);
             }
         } else {
-            log.debug("voted for leader fail, timeout count = " + votedCount.get());
+            eventRecorder.add(EventRecorder.Event.VOTE, String.format("vote fail, term =  [%d]", voteTerm));
+            log.debug("voted for leader fail, timeout count {} ", votedCount.get());
         }
     }
 
@@ -319,7 +335,7 @@ public class RaftNode implements RaftService {
     @Override
     public ReplicatedLogResponse requestAppendLog(ReplicatedLogRequest replicatedLogRequest) {
         Long term = currentTerm;
-        eventRecorder.add(COMMIT_LOG, replicatedLogRequest);
+        eventRecorder.add(LOG, replicatedLogRequest.toString());
         //感觉应该不会出现，除非是消息延迟
         if (term > replicatedLogRequest.getTerm()) {
             return new ReplicatedLogResponse(term, false);
@@ -577,10 +593,10 @@ public class RaftNode implements RaftService {
 //                        List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex() - 1, currentLastLogIndex);
 //                        replicatedLogRequest.setEntries(logEntries);
 //                    } else {
-                        replicatedLogRequest.setPrevLogIndex(preLogIndex);
-                        replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
-                        List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex(), currentLastLogIndex);
-                        replicatedLogRequest.setEntries(logEntries);
+                    replicatedLogRequest.setPrevLogIndex(preLogIndex);
+                    replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
+                    List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex(), currentLastLogIndex);
+                    replicatedLogRequest.setEntries(logEntries);
 //                    }
                     //同步方法
                     ReplicatedLogResponse replicatedLogResponse = peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
@@ -698,7 +714,7 @@ public class RaftNode implements RaftService {
                     log.error(e.getMessage(), e);
                 }
                 logService.commit(logIndex);
-                log.info("commit success, index="+ logIndex + " command=" + JSON.toJSONString(command));
+                log.info("commit success, index=" + logIndex + " command=" + JSON.toJSONString(command));
                 return true;
             } else {
                 //redirect to leader
@@ -713,10 +729,24 @@ public class RaftNode implements RaftService {
             jsonObject.put("term", currentTerm.toString());
             jsonObject.put("Leader", RaftNode.this.nodeScheduler.getVotedFor().getPeerId());
 
-            Map<NodeId, String> nodeIdUrlMap = Maps.newHashMap();
+            List<String> currentUrls = Lists.newArrayList();
+            EndPoint endPoint = EndPoint.create(RaftNode.this.getEndPoint().getHost(), RaftNode.this.getEndPoint().getPort() + 1);
+            currentUrls.add(endPoint.toUrl() + "/status");
+            currentUrls.add(endPoint.toUrl() + "/data");
+            for (EventRecorder.Event event : EventRecorder.Event.values()) {
+                currentUrls.add(endPoint.toUrl() + "/log/" + event.getUrlPath());
+            }
+            jsonObject.put("urls", currentUrls);
+            Map<NodeId, List<String>> nodeIdUrlMap = Maps.newHashMap();
             RaftNode.this.peerRaftNodes.forEach(peerRaftNode -> {
-                EndPoint endPoint = EndPoint.create(peerRaftNode.getEndPoint().getHost(), peerRaftNode.getEndPoint().getPort() + 1);
-                nodeIdUrlMap.put(peerRaftNode.getNodeId(), endPoint.toUrl() + "/status");
+                EndPoint peerNodeHttpEndPoint = EndPoint.create(peerRaftNode.getEndPoint().getHost(), peerRaftNode.getEndPoint().getPort() + 1);
+                List<String> urls = Lists.newArrayList();
+                urls.add(peerNodeHttpEndPoint.toUrl() + "/status");
+                urls.add(peerNodeHttpEndPoint.toUrl() + "/data");
+                for (EventRecorder.Event event : EventRecorder.Event.values()) {
+                    urls.add(peerNodeHttpEndPoint.toUrl() + "/log/" + event.getUrlPath());
+                }
+                nodeIdUrlMap.put(peerRaftNode.getNodeId(), urls);
             });
             jsonObject.put("servers", nodeIdUrlMap);
             return jsonObject;
@@ -724,8 +754,7 @@ public class RaftNode implements RaftService {
 
         public JsonObject getKVData() {
             DefaultStateMachine defaultStateMachine = (DefaultStateMachine) logService.getStateMachine();
-            JsonObject jsonObject = new JsonObject(defaultStateMachine.getMap());
-            return jsonObject;
+            return new JsonObject(defaultStateMachine.getMap());
         }
 
         public JsonObject getEventLog(EventRecorder.Event event) {
