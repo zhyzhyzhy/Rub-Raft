@@ -18,7 +18,7 @@ public class MemoryStorageService implements StorageService {
 
     @Override
     public synchronized StorageEntry get(int index) {
-        Preconditions.checkState(entries.size() > index);
+        Preconditions.checkState(entries.size() > index, String.format("entries.size=[%d], requestIndex=[%d]", entries.size(), index));
         return entries.get(index);
     }
 

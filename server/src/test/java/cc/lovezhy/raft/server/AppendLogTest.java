@@ -3,6 +3,7 @@ package cc.lovezhy.raft.server;
 import cc.lovezhy.raft.rpc.EndPoint;
 import cc.lovezhy.raft.server.log.DefaultCommand;
 import cc.lovezhy.raft.server.log.LogConstants;
+import cc.lovezhy.raft.server.log.LogServiceImpl;
 import cc.lovezhy.raft.server.node.RaftNode;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
@@ -16,7 +17,6 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Scanner;
 
 import static cc.lovezhy.raft.server.RaftConstants.HEART_BEAT_TIME_INTERVAL;
 import static cc.lovezhy.raft.server.util.NodeUtils.findLeader;
@@ -50,24 +50,26 @@ public class AppendLogTest {
 
     @Test
     public void appendLogTest() {
-        this.raftNodes = makeCluster(5);
+        this.raftNodes = makeCluster(7);
         this.raftNodes.forEach(raftNode -> {
             log.info("{} => {}", raftNode.getNodeId(), raftNode.getEndPoint());
         });
         raftNodes.forEach(RaftNode::init);
         RaftNode leader = findLeader(raftNodes);
+
         Preconditions.checkNotNull(leader, "Leader Not Found!");
 
         EndPoint rpcEndPoint = leader.getEndPoint();
         EndPoint httpEndPoint = EndPoint.create(rpcEndPoint.getHost(), rpcEndPoint.getPort() + 1);
-        for (int i = 0; i < 30 - 10; i++) {
+        for (int i = 0; i < LogServiceImpl.MAX_LOG_BEFORE_TAKE_SNAPSHOT * 2; i++) {
+            if (i % 100 == 0) {
+                log.info("i = {}", i);
+            }
             DefaultCommand command = DefaultCommand.setCommand(String.valueOf(i), String.valueOf(i));
             postCommand(httpEndPoint, command);
             putData(command);
         }
         assertData();
-        Scanner scanner = new Scanner(System.in);
-        scanner.next();
     }
 
     private void putData(DefaultCommand defaultCommand) {

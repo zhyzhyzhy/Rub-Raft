@@ -17,14 +17,19 @@ public interface LogService {
     void commit(long index);
 
     int appendLog(LogEntry logEntry);
+
     int appendLog(List<LogEntry> entries);
+
     int appendLog(long fromIndex, LogEntry logEntry);
+
     int appendLog(long fromIndex, List<LogEntry> entries);
 
     long getLastCommitLogTerm();
+
     long getLastCommitLogIndex();
 
     long getLastLogTerm();
+
     long getLastLogIndex();
 
     boolean isNewerThanSelf(long lastLogTerm, long lastLogIndex);
@@ -33,7 +38,7 @@ public interface LogService {
 
     void createSnapshot();
 
-    boolean installSnapshot(Snapshot snapshot);
+    boolean installSnapshot(Snapshot snapshot, LogEntry logEntry);
 
     void execInLock(Runnable action);
 

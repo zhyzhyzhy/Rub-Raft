@@ -58,7 +58,7 @@ public class HttpUtils {
         try {
             response = client.newCall(request).execute();
             JsonObject jsonObject = new JsonObject(response.body().string());
-            return jsonObject.getMap();
+            return jsonObject.getJsonObject("data").getMap();
         } catch (IOException e) {
             //ignore
             LOG.error(e.getMessage(), e);

@@ -8,3 +8,4 @@ simple raft
 - 支持节点变更
 - 把StateMachine抽象出去
 - 完善基于RandomAccessFile的底层文件
+- update LogService For Corner Case

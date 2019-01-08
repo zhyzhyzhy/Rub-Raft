@@ -8,6 +8,7 @@ import cc.lovezhy.raft.server.ClusterConfig;
 import cc.lovezhy.raft.server.DefaultStateMachine;
 import cc.lovezhy.raft.server.NodeSlf4jHelper;
 import cc.lovezhy.raft.server.log.*;
+import cc.lovezhy.raft.server.log.exception.HasCompactException;
 import cc.lovezhy.raft.server.service.RaftService;
 import cc.lovezhy.raft.server.service.RaftServiceImpl;
 import cc.lovezhy.raft.server.service.model.*;
@@ -297,7 +298,7 @@ public class RaftNode implements RaftService {
     @Override
     public void requestConnect(ConnectRequest connectRequest) {
         NodeId requestNodeId = connectRequest.getNodeId();
-        log.info("connectRequest nodeId={}", nodeId);
+        log.info("receive connectRequest, nodeId=[{}]", connectRequest.getNodeId().getPeerId());
         this.peerRaftNodes.stream()
                 .filter(peerRaftNode -> peerRaftNode.getNodeId().equals(requestNodeId))
                 .findAny()
@@ -366,18 +367,23 @@ public class RaftNode implements RaftService {
     }
 
     private ReplicatedLogResponse appendLog(ReplicatedLogRequest replicatedLogRequest) {
-        log.info("prevLogIndex={}, LogEntry={}", replicatedLogRequest.getPrevLogIndex(), replicatedLogRequest.getEntries());
-        LogEntry logEntry = logService.get(replicatedLogRequest.getPrevLogIndex());
-        boolean isSameTerm = false;
-        if (Objects.nonNull(logEntry)) {
+        try {
+            log.info("prevLogIndex={}, LogEntry={}", replicatedLogRequest.getPrevLogIndex(), replicatedLogRequest.getEntries());
+            LogEntry logEntry = logService.get(replicatedLogRequest.getPrevLogIndex());
+            if (Objects.isNull(logEntry)) {
+                return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), false);
+            }
+            boolean isSameTerm;
             isSameTerm = logEntry.getTerm().equals(replicatedLogRequest.getPrevLogTerm());
+            if (isSameTerm) {
+                logService.appendLog(replicatedLogRequest.getPrevLogIndex() + 1, replicatedLogRequest.getEntries());
+            }
+            logService.commit(replicatedLogRequest.getLeaderCommit());
+            log.debug("/appendLog, isSameTerm={}", isSameTerm);
+            return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), isSameTerm);
+        } catch (HasCompactException e) {
+            return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), true);
         }
-        if (isSameTerm) {
-            logService.appendLog(replicatedLogRequest.getPrevLogIndex() + 1, replicatedLogRequest.getEntries());
-        }
-        logService.commit(replicatedLogRequest.getLeaderCommit());
-        log.debug("/appendLog, isSameTerm={}", isSameTerm);
-        return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), isSameTerm);
     }
 
     @Override
@@ -386,7 +392,9 @@ public class RaftNode implements RaftService {
         if (installSnapShotRequest.getTerm() < term) {
             return new InstallSnapshotResponse(term, false);
         }
-        logService.installSnapshot(installSnapShotRequest.getSnapshot());
+        eventRecorder.add(EventRecorder.Event.SnapShot, String.format("install snapshot, term=%d, leaderId=[%d]", installSnapShotRequest.getTerm(), installSnapShotRequest.getLeaderId().getPeerId()));
+        System.out.println("installSnapshot " + JSON.toJSONString(installSnapShotRequest));
+        logService.installSnapshot(installSnapShotRequest.getSnapshot(), installSnapShotRequest.getLogEntry());
         return new InstallSnapshotResponse(term, true);
     }
 
@@ -394,6 +402,7 @@ public class RaftNode implements RaftService {
         this.peerRaftNodes.forEach(PeerRaftNode::close);
         this.nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
         this.rpcServer.close();
+        this.httpService.close();
         this.tickManager.cancelAll();
         if (Objects.nonNull(this.peerNodeScheduler)) {
             this.peerNodeScheduler.close();
@@ -602,6 +611,11 @@ public class RaftNode implements RaftService {
 //                        List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex() - 1, currentLastLogIndex);
 //                        replicatedLogRequest.setEntries(logEntries);
 //                    } else {
+//                    if (logService.hasInSnapshot(preLogIndex)) {
+//                        Runnable runnable = prepareInstallSnapshot(peerRaftNode, peerNodeStateMachine);
+//                        peerNodeStateMachine.appendFirst(runnable);
+//                        return;
+//                    }
                     replicatedLogRequest.setPrevLogIndex(preLogIndex);
                     replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
                     List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex(), currentLastLogIndex);
@@ -633,10 +647,9 @@ public class RaftNode implements RaftService {
                         }
                     } else {
                         if (!peerNodeStateMachine.getNodeStatus().equals(PeerNodeStatus.INSTALLSNAPSHOT)) {
-                            long nextPreLogIndex = peerNodeStateMachine.getNextIndex() - 1;
+                            long nextPreLogIndex = peerNodeStateMachine.getNextIndex() - 2;
                             //如果已经是在Snapshot中
                             if (logService.hasInSnapshot(nextPreLogIndex)) {
-                                peerNodeStateMachine.setNodeStatus(PeerNodeStatus.INSTALLSNAPSHOT);
                                 Runnable runnable = prepareInstallSnapshot(peerRaftNode, peerNodeStateMachine);
                                 peerNodeStateMachine.appendFirst(runnable);
                             } else {
@@ -655,11 +668,17 @@ public class RaftNode implements RaftService {
         private Runnable prepareInstallSnapshot(PeerRaftNode peerRaftNode, PeerNodeStateMachine peerNodeStateMachine) {
             return () -> {
                 try {
+                    if (peerNodeStateMachine.getNodeStatus().equals(PeerNodeStatus.INSTALLSNAPSHOT) || peerNodeStateMachine.getNodeStatus().equals(PeerNodeStatus.PROBE)) {
+                        return;
+                    }
+                    peerNodeStateMachine.setNodeStatus(PeerNodeStatus.INSTALLSNAPSHOT);
                     Snapshot snapShot = logService.getSnapShot();
                     InstallSnapshotRequest installSnapShotRequest = new InstallSnapshotRequest();
                     installSnapShotRequest.setLeaderId(nodeId);
                     installSnapShotRequest.setTerm(currentTerm);
                     installSnapShotRequest.setSnapshot(snapShot);
+                    installSnapShotRequest.setLogEntry(logService.get(snapShot.getLastLogIndex()));
+                    System.out.println("prepareInstallSnapshot, " + JSON.toJSONString(installSnapShotRequest));
                     InstallSnapshotResponse installSnapshotResponse = peerRaftNode.getRaftService().requestInstallSnapShot(installSnapShotRequest);
                     if (installSnapshotResponse.getSuccess()) {
                         peerNodeStateMachine.setNodeStatus(PeerNodeStatus.PROBE);

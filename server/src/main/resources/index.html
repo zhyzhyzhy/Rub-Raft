@@ -14,21 +14,24 @@
                 <el-col :span="6">
                 </el-col>
                 <el-col :span="6">
-                    <el-form :label-position="right" label-width="80px">
+                    <el-form :label-position="right">
                         <el-form-item label="key">
                             <el-input v-model="addKey"></el-input>
                         </el-form-item>
                         <el-form-item label="value">
                             <el-input v-model="addValue"></el-input>
                         </el-form-item>
-                        <el-form-item>
-                            <el-button type="primary" @click="save">save</el-button>
-                        </el-form-item>
+                        <el-form :inline="true">
+                            <el-form-item>
+                                <el-button type="primary" @click="generateRandom">random</el-button>
+                                <el-button type="primary" @click="save">save</el-button>
+                            </el-form-item>
+                        </el-form>
                     </el-form>
 
                     <hr/>
 
-                    <el-form :label-position="right" label-width="80px">
+                    <el-form :label-position="right">
                         <el-form-item label="key">
                             <el-input v-model="removeKey"></el-input>
                         </el-form-item>
@@ -40,7 +43,7 @@
 
                     <hr/>
 
-                    <el-form :label-position="right" label-width="80px">
+                    <el-form :label-position="right">
                         <el-form-item>
                             <el-button type="primary" @click="restart">restart</el-button>
                         </el-form-item>
@@ -73,6 +76,10 @@
             }
         },
         methods: {
+            generateRandom: function() {
+                this.addKey = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
+                this.addValue = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
+            },
             save: function () {
                 var that = this;
                 fetch('/command', {
@@ -89,6 +96,8 @@
                     return response.json()
                 }).then(function (json) {
                     if (json['success'] === true) {
+                        that.addKey = '';
+                        that.addValue = '';
                         that.$notify({
                             message: 'success',
                             type: 'success'
@@ -113,6 +122,7 @@
                     return response.json()
                 }).then(function (json) {
                     if (json['success'] === true) {
+                        that.removeKey = '';
                         that.$notify({
                             message: 'success',
                             type: 'success'

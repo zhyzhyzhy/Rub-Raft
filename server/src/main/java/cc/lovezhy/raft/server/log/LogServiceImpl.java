@@ -34,7 +34,7 @@ public class LogServiceImpl implements LogService {
 
 
     @VisibleForTesting
-    public static final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 8;
+    public static final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 10000;
     private AtomicInteger appliedLogInMemoryCounter = new AtomicInteger(0);
 
     /**
@@ -85,8 +85,8 @@ public class LogServiceImpl implements LogService {
             throw new HasCompactException(String.format("start=%d, index=%d", start, index));
         }
         //如果还未有这个Index，返回空
-        if (index > start + storageService.getLen()) {
-            throw new IndexOutOfBoundsException();
+        if (index >= start + storageService.getLen()) {
+            return null;
         }
         StorageEntry storageEntry = storageService.get((int) (index - start));
         Preconditions.checkNotNull(storageEntry);
@@ -120,6 +120,7 @@ public class LogServiceImpl implements LogService {
         if (index > start + storageService.getLen()) {
             throw new IndexOutOfBoundsException();
         }
+        log.info("hasInSnapshot, start={}, index={}, {}", start, index, start > index);
         return start > index;
     }
 
@@ -134,6 +135,9 @@ public class LogServiceImpl implements LogService {
 
     @Override
     public void commit(long index) {
+        if (index > start + storageService.getLen() - 1) {
+            return;
+        }
         if (index == this.lastCommitLogIndex) {
             return;
         }
@@ -147,6 +151,7 @@ public class LogServiceImpl implements LogService {
             expectNextIndex++;
         }
         this.lastCommitLogIndex = index;
+        this.lastCommitLogTerm = get(index).getTerm();
         createSnapShotIfNecessary();
     }
 
@@ -238,6 +243,7 @@ public class LogServiceImpl implements LogService {
     public void createSnapshot() {
         try {
             LOG_LOCK.lock();
+            eventRecorder.add(EventRecorder.Event.SnapShot, String.format("before snapshot, start=%d, lastCommitLogIndex=%d", this.start, getLastCommitLogIndex()));
             byte[] snapshotValues = stateMachine.takeSnapShot();
             Long lastCommitLogIndex = getLastCommitLogIndex();
             Long lastCommitLogTerm = getLastCommitLogTerm();
@@ -246,15 +252,16 @@ public class LogServiceImpl implements LogService {
             snapshot.setLastLogIndex(lastCommitLogIndex);
             snapshot.setLastLogTerm(lastCommitLogTerm);
             this.snapshot = snapshot;
-            this.storageService.discard((int) (lastCommitLogIndex - start));
-            this.start = Math.toIntExact(lastCommitLogIndex);
+            this.storageService.discard(Math.toIntExact(lastCommitLogIndex - start - 1));
+            this.start = Math.toIntExact(lastCommitLogIndex - 1);
+            eventRecorder.add(EventRecorder.Event.SnapShot, String.format("after snapshot, start=%d, lastCommitLogIndex=%d", this.start, getLastCommitLogIndex()));
         } finally {
             LOG_LOCK.unlock();
         }
     }
 
     @Override
-    public boolean installSnapshot(Snapshot snapshot) {
+    public boolean installSnapshot(Snapshot snapshot, LogEntry logEntry) {
         Preconditions.checkNotNull(snapshot);
         try {
             LOG_LOCK.lock();
@@ -263,6 +270,8 @@ public class LogServiceImpl implements LogService {
             this.lastAppliedLogIndex = snapshot.getLastLogIndex();
             this.lastAppliedLogTerm = snapshot.getLastLogTerm();
             this.lastAppliedLogIndex = snapshot.getLastLogTerm();
+            this.start = Math.toIntExact(lastCommitLogIndex);
+            storageService.append(logEntry.toStorageEntry());
         } finally {
             LOG_LOCK.unlock();
         }

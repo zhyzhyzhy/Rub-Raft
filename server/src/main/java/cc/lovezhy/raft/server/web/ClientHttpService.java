@@ -75,8 +75,11 @@ public class ClientHttpService extends AbstractVerticle {
         router.get("/data").handler(routingContext -> {
             HttpServerResponse response = routingContext.response();
             JsonObject kvData = outerService.getKVData();
+            JsonObject res = new JsonObject();
+            res.put("data", kvData);
+            res.put("size", kvData.size());
             response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
-            response.end(kvData.toString());
+            response.end(res.toString());
         });
 
         /*
@@ -86,7 +89,6 @@ public class ClientHttpService extends AbstractVerticle {
             HttpServerResponse response = routingContext.response();
             JsonObject bodyJson = routingContext.getBodyAsJson();
             ClusterConfCommand clusterConfCommand = bodyJson.mapTo(ClusterConfCommand.class);
-            //TODO
             response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
             response.end("OK");
         });
