@@ -1,17 +1,17 @@
 package cc.lovezhy.raft.server.utils;
 
 import cc.lovezhy.raft.rpc.common.RpcExecutors;
+import com.google.common.util.concurrent.ListenableFuture;
 
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 public class TimeCountDownUtil {
 
-    public static Future addSchedulerTask(long delay,
-                                          TimeUnit timeUnit,
-                                          Runnable task,
-                                          Supplier<Boolean> doWhenReturnTrue) {
+    public static ListenableFuture addSchedulerTask(long delay,
+                                                    TimeUnit timeUnit,
+                                                    Runnable task,
+                                                    Supplier<Boolean> doWhenReturnTrue) {
 
         return RpcExecutors.listeningScheduledExecutor().schedule(() -> {
                     if (doWhenReturnTrue.get()) {

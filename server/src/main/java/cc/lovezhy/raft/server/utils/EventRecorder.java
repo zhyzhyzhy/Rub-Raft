@@ -1,8 +1,10 @@
 package cc.lovezhy.raft.server.utils;
 
 import cc.lovezhy.raft.rpc.util.IdFactory;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import org.joda.time.DateTime;
+import org.slf4j.Logger;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -44,8 +46,11 @@ public class EventRecorder {
     }
 
     private Map<Event, Map<String, Object>> eventRecorderListMap;
+    private Logger log;
 
-    public EventRecorder() {
+    public EventRecorder(Logger logger) {
+        Preconditions.checkNotNull(logger);
+        this.log = logger;
         ImmutableMap.Builder<Event, Map<String, Object>> eventRecorderListMapBuilder = ImmutableMap.builder();
         for (Event event : Event.values()) {
             eventRecorderListMapBuilder.put(event, Collections.synchronizedMap(new LinkedHashMap<>()));
@@ -54,6 +59,7 @@ public class EventRecorder {
     }
 
     public void add(Event event, Object record) {
+        log.info("{}", record);
         eventRecorderListMap.get(event).put(new DateTime().toString() + IdFactory.generateId(), record);
     }
 

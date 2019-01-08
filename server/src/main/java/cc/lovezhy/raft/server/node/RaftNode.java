@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import io.vertx.core.json.JsonObject;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -107,6 +108,8 @@ public class RaftNode implements RaftService {
 
     private EventRecorder eventRecorder;
 
+    private volatile boolean stopped = false;
+
     public RaftNode(NodeId nodeId, EndPoint endPoint, ClusterConfig clusterConfig, List<PeerRaftNode> peerRaftNodes) {
         Preconditions.checkNotNull(nodeId);
         Preconditions.checkNotNull(endPoint);
@@ -159,7 +162,7 @@ public class RaftNode implements RaftService {
         peerRaftNodes.forEach(peerRaftNode -> peerRaftNode.connect(this.nodeId));
         nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
         tickManager.tickElectionTimeOut();
-        eventRecorder = new EventRecorder();
+        eventRecorder = new EventRecorder(log);
         logService = new LogServiceImpl(new DefaultStateMachine(), StorageType.MEMORY, eventRecorder);
     }
 
@@ -308,8 +311,8 @@ public class RaftNode implements RaftService {
     @Override
     public VoteResponse requestPreVote(VoteRequest voteRequest) {
         Long term = currentTerm;
-        if (voteRequest.getTerm() > term && logService.isNewerThanSelf(voteRequest.getLastLogTerm(), voteRequest.getLastLogIndex())) {
-            log.debug("receive preVote grant true " + voteRequest.getCandidateId());
+        if (logService.isNewerThanSelf(voteRequest.getLastLogTerm(), voteRequest.getLastLogIndex())) {
+            log.info("receive preVote grant true " + voteRequest.getCandidateId());
             return new VoteResponse(term, true);
         } else {
             log.debug("receive preVote grant fail " + voteRequest.getCandidateId());
@@ -324,12 +327,16 @@ public class RaftNode implements RaftService {
             return new VoteResponse(term, false);
         }
         if (logService.isNewerThanSelf(voteRequest.getLastLogTerm(), voteRequest.getLastLogIndex())) {
-            if (nodeScheduler.compareAndSetTerm(term, voteRequest.getTerm()) && (nodeScheduler.compareAndSetVotedFor(null, voteRequest.getCandidateId()) || nodeScheduler.compareAndSetVotedFor(voteRequest.getCandidateId(), voteRequest.getCandidateId()))) {
+            if (nodeScheduler.compareAndSetTerm(term, voteRequest.getTerm())) {
+                nodeScheduler.setVotedForForce(voteRequest.getCandidateId());
                 nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
                 nodeScheduler.receiveHeartbeat();
                 tickManager.tickElectionTimeOut();
                 return new VoteResponse(voteRequest.getTerm(), true);
             }
+        } else {
+            //看动画
+            currentTerm = term;
         }
         return new VoteResponse(term, false);
     }
@@ -343,7 +350,8 @@ public class RaftNode implements RaftService {
             return new ReplicatedLogResponse(term, false);
         }
 
-        Preconditions.checkState(!nodeScheduler.isLeader());
+        //要加这句话吗，不需要
+//        Preconditions.checkState(!nodeScheduler.isLeader(), String.format("node is leader, nodeId[%d], currentLeaderId=[%s]", nodeId.getPeerId(), nodeScheduler.getLeader()));
 
         tickManager.tickElectionTimeOut();
 
@@ -407,6 +415,7 @@ public class RaftNode implements RaftService {
         if (Objects.nonNull(this.peerNodeScheduler)) {
             this.peerNodeScheduler.close();
         }
+        stopped = true;
     }
 
     @Override
@@ -611,11 +620,11 @@ public class RaftNode implements RaftService {
 //                        List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex() - 1, currentLastLogIndex);
 //                        replicatedLogRequest.setEntries(logEntries);
 //                    } else {
-//                    if (logService.hasInSnapshot(preLogIndex)) {
-//                        Runnable runnable = prepareInstallSnapshot(peerRaftNode, peerNodeStateMachine);
-//                        peerNodeStateMachine.appendFirst(runnable);
-//                        return;
-//                    }
+                    if (logService.hasInSnapshot(preLogIndex)) {
+                        Runnable runnable = prepareInstallSnapshot(peerRaftNode, peerNodeStateMachine);
+                        peerNodeStateMachine.appendFirst(runnable);
+                        return;
+                    }
                     replicatedLogRequest.setPrevLogIndex(preLogIndex);
                     replicatedLogRequest.setPrevLogTerm(logService.get(preLogIndex).getTerm());
                     List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex(), currentLastLogIndex);
@@ -629,9 +638,8 @@ public class RaftNode implements RaftService {
                      * 然后又好了，此时另外一个分区已经有Leader且Term比自己大
                      */
                     if (replicatedLogResponse.getTerm() > term) {
-                        log.error("currentTerm={}, remoteServerTerm={}", term, replicatedLogResponse.getTerm());
-                        log.debug("may have network isolate");
-                        //TODO
+                        log.error("currentTerm={}, remoteServerTerm={}, remoteNodeId={}", term, replicatedLogResponse.getTerm(), peerRaftNode.getNodeId());
+                        log.error("may have network isolate");
                         return;
                     }
 
@@ -711,14 +719,18 @@ public class RaftNode implements RaftService {
         }
 
         long tickElectionTimeOut() {
+            if (stopped) {
+                return -1;
+            }
             preVoteFuture.ifPresent(future -> future.cancel(false));
             long waitTimeOut = getRandomStartElectionTimeout();
             long voteTerm = currentTerm;
-            Future future = TimeCountDownUtil.addSchedulerTask(
+            ListenableFuture future = TimeCountDownUtil.addSchedulerTask(
                     waitTimeOut,
                     DEFAULT_TIME_UNIT,
                     () -> preVote(voteTerm + 1),
                     () -> nodeScheduler.isLoseHeartbeat(waitTimeOut) && !nodeScheduler.isLeader());
+            future.addListener(this::tickElectionTimeOut, RpcExecutors.commonExecutor());
             this.preVoteFuture = Optional.of(future);
             return waitTimeOut;
         }

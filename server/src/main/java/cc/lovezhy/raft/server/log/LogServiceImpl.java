@@ -34,7 +34,7 @@ public class LogServiceImpl implements LogService {
 
 
     @VisibleForTesting
-    public static final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 10000;
+    public static final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 1000;
     private AtomicInteger appliedLogInMemoryCounter = new AtomicInteger(0);
 
     /**
@@ -120,7 +120,9 @@ public class LogServiceImpl implements LogService {
         if (index > start + storageService.getLen()) {
             throw new IndexOutOfBoundsException();
         }
-        log.info("hasInSnapshot, start={}, index={}, {}", start, index, start > index);
+        if (start > index) {
+            log.info("hasInSnapshot, start={}, index={}, {}", start, index, start > index);
+        }
         return start > index;
     }
 
@@ -179,7 +181,8 @@ public class LogServiceImpl implements LogService {
         try {
             LOG_LOCK.lock();
             if (fromIndex <= storageService.getLen() - 1 + start) {
-                log.warn("index error");
+                log.warn("index error, fromIndex={}", fromIndex);
+                log.warn("index error, log[fromIndex]={}", this.get(fromIndex));
                 entries = entries.subList(Math.toIntExact(storageService.getLen() + start - fromIndex), entries.size());
             }
             for (LogEntry entry : entries) {
@@ -209,7 +212,7 @@ public class LogServiceImpl implements LogService {
 
     @Override
     public long getLastLogIndex() {
-        return storageService.getLen() - 1 + start;
+        return storageService.getLen() - 1 + (long)start;
     }
 
     // 日志比较的原则是，如果本地的最后一条log entry的term更大，则term大的更新，如果term一样大，则log index更大的更新

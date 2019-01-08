@@ -1,6 +1,7 @@
 package cc.lovezhy.raft.server;
 
 import cc.lovezhy.raft.rpc.EndPoint;
+import cc.lovezhy.raft.rpc.util.IdFactory;
 import cc.lovezhy.raft.server.log.DefaultCommand;
 import cc.lovezhy.raft.server.log.LogConstants;
 import cc.lovezhy.raft.server.log.LogServiceImpl;
@@ -50,7 +51,7 @@ public class AppendLogTest {
 
     @Test
     public void appendLogTest() {
-        this.raftNodes = makeCluster(7);
+        this.raftNodes = makeCluster(5);
         this.raftNodes.forEach(raftNode -> {
             log.info("{} => {}", raftNode.getNodeId(), raftNode.getEndPoint());
         });
@@ -61,14 +62,16 @@ public class AppendLogTest {
 
         EndPoint rpcEndPoint = leader.getEndPoint();
         EndPoint httpEndPoint = EndPoint.create(rpcEndPoint.getHost(), rpcEndPoint.getPort() + 1);
-        for (int i = 0; i < LogServiceImpl.MAX_LOG_BEFORE_TAKE_SNAPSHOT * 2; i++) {
+        long l = System.currentTimeMillis();
+        for (int i = 0; i < LogServiceImpl.MAX_LOG_BEFORE_TAKE_SNAPSHOT * 5 ; i++) {
             if (i % 100 == 0) {
                 log.info("i = {}", i);
             }
-            DefaultCommand command = DefaultCommand.setCommand(String.valueOf(i), String.valueOf(i));
+            DefaultCommand command = DefaultCommand.setCommand(String.valueOf(IdFactory.generateId()), String.valueOf(IdFactory.generateId()));
             postCommand(httpEndPoint, command);
             putData(command);
         }
+        System.out.println(System.currentTimeMillis() - l);
         assertData();
     }
 

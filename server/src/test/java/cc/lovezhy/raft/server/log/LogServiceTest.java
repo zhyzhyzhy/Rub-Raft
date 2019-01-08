@@ -25,7 +25,7 @@ public class LogServiceTest {
     @Before
     public void setUp() {
         this.stateMachine = new DefaultStateMachine();
-        this.logService = new LogServiceImpl(stateMachine, StorageType.MEMORY, new EventRecorder());
+        this.logService = new LogServiceImpl(stateMachine, StorageType.MEMORY, new EventRecorder(log));
         this.logEntries = Lists.newArrayList();
         this.logEntries.add(LogEntry.of(DefaultCommand.setCommand("zhuyichen", "0"), 0L));
         this.logEntries.add(LogEntry.of(DefaultCommand.setCommand("zhuyichen1", "1"), 1L));
