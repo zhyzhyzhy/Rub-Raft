@@ -82,6 +82,15 @@ public class ClientHttpService extends AbstractVerticle {
             response.end(res.toString());
         });
 
+        router.get("/key/:key").handler(routingContext -> {
+            HttpServerResponse response = routingContext.response();
+            String key = routingContext.request().getParam("key");
+            JsonObject jsonObject = new JsonObject();
+            jsonObject.put("value", new String(outerService.getKey(key)));
+            response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
+            response.end(jsonObject.toString());
+        });
+
         /*
          * 修改节点配置
          */

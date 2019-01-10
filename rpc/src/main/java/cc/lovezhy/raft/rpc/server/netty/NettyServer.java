@@ -67,7 +67,7 @@ public class NettyServer {
                 bindResultFuture.setException(f.cause());
                 boss.shutdownGracefully();
                 worker.shutdownGracefully();
-                log.error("start rpc server fail, message={}", f.cause().getMessage(), f.cause());
+                log.error("start rpc server fail, message={}, endPoint={}", f.cause().getMessage(), endPoint, f.cause());
             }
         });
         return bindResultFuture;

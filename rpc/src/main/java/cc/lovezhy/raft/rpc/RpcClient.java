@@ -125,9 +125,9 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     @Override
     public RpcResponse sendRequestAsync(RpcRequest request) {
         String requestId = request.getRequestId();
-        nettyClient.getChannel().writeAndFlush(request);
         SettableFuture<Object> settableFuture = SettableFuture.create();
         rpcFutureMap.put(requestId, settableFuture);
+        nettyClient.getChannel().writeAndFlush(request);
         RpcContext.setAsyncResponse(settableFuture);
         RpcResponse rpcResponse = new RpcResponse();
         rpcResponse.setResponseBody(null);
@@ -161,6 +161,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
                 rpcFutureMap.remove(requestId);
             } else {
                 log.error("non async !!!!");
+                log.error("{}", settableFuture == null);
             }
         }
     }

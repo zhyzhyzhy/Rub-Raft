@@ -34,7 +34,7 @@ public class LogServiceImpl implements LogService {
 
 
     @VisibleForTesting
-    public static final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 1000;
+    public static final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 10000;
     private AtomicInteger appliedLogInMemoryCounter = new AtomicInteger(0);
 
     /**
@@ -119,9 +119,6 @@ public class LogServiceImpl implements LogService {
         Preconditions.checkState(index >= 0);
         if (index > start + storageService.getLen()) {
             throw new IndexOutOfBoundsException();
-        }
-        if (start > index) {
-            log.info("hasInSnapshot, start={}, index={}, {}", start, index, start > index);
         }
         return start > index;
     }

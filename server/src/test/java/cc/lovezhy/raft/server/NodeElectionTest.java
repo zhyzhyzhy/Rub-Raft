@@ -22,7 +22,7 @@ import static cc.lovezhy.raft.server.utils.HttpUtils.postCommand;
 
 public class NodeElectionTest {
 
-    private final Logger log = LoggerFactory.getLogger(NodeElectionTest.class);
+    private static final Logger log = LoggerFactory.getLogger(NodeElectionTest.class);
 
     /**
      * 3节点，选出一个Leader
@@ -115,6 +115,9 @@ public class NodeElectionTest {
     @Test
     public void electionLeaderDownAndReconnectTest() throws InterruptedException {
         List<RaftNode> raftNodes = create5RaftNodes();
+        raftNodes.forEach(raftNode -> {
+            log.info("{}, {}", raftNode.getNodeId(), raftNode.getEndPoint());
+        });
         try {
             raftNodes.forEach(RaftNode::init);
             log.info("check one leader");
@@ -123,7 +126,8 @@ public class NodeElectionTest {
             log.info("leader down");
             leader.close();
             log.info("check one leader");
-            checkElection(raftNodes);
+            RaftNode newleader = checkElection(raftNodes);
+            randomPostData(newleader);
             log.info("Downed Node Up");
             leader.init();
             log.info("check one leader");
@@ -212,7 +216,7 @@ public class NodeElectionTest {
      * @param raftNodes running raftNodes
      * @return Leader Node
      */
-    private RaftNode checkElection(List<RaftNode> raftNodes) {
+    public static RaftNode checkElection(List<RaftNode> raftNodes) {
         int num = 0;
         NodeId nodeId = null;
         long term = 0;

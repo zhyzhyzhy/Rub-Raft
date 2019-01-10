@@ -10,10 +10,10 @@ import com.google.common.collect.Maps;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.ByteArrayOutputStream;
 import java.util.Map;
-import java.util.Optional;
 
 @ThreadSafe
 public class DefaultStateMachine implements StateMachine {
+
 
     private final Map<String, Object> map = Maps.newConcurrentMap();
 
@@ -57,8 +57,9 @@ public class DefaultStateMachine implements StateMachine {
         return true;
     }
 
-    public Optional<String> getValue(String key) {
-        return Optional.ofNullable(map.getOrDefault(key, "").toString());
+    @Override
+    public byte[] getValue(String key) {
+        return map.getOrDefault(key, "").toString().getBytes();
     }
 
     public Map<String, Object> getMap() {

@@ -70,4 +70,28 @@ public class HttpUtils {
         }
         return Collections.emptyMap();
     }
+
+    public static String getValue(RaftNode raftNode, String key) {
+        EndPoint httpEndPoint = EndPoint.create(raftNode.getEndPoint().getHost(), raftNode.getEndPoint().getPort() + 1);
+        Request request = new Request.Builder()
+                .url(httpEndPoint.toUrl() + "/key/" + key)
+                .get()
+                .build();
+
+        Response response = null;
+        try {
+            response = client.newCall(request).execute();
+            JsonObject jsonObject = new JsonObject(response.body().string());
+            return jsonObject.getString("value");
+        } catch (IOException e) {
+            //ignore
+            LOG.error(e.getMessage(), e);
+
+        } finally {
+            if (Objects.nonNull(response)) {
+                response.close();
+            }
+        }
+        return "";
+    }
 }

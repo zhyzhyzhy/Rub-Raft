@@ -14,7 +14,7 @@ public class RpcExecutors {
 
     private static final int RPC_FIXED_EXECUTE_THREADS = Runtime.getRuntime().availableProcessors() * 2;
 
-    private static final int RPC_SCHEDULE_EXECUTE_THREADS = Runtime.getRuntime().availableProcessors();
+    private static final int RPC_SCHEDULE_EXECUTE_THREADS = Runtime.getRuntime().availableProcessors() * 2;
 
     private static final ExecutorService FIXED_EXECUTOR = Executors.newFixedThreadPool(RPC_FIXED_EXECUTE_THREADS);
 
