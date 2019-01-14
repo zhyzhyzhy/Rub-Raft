@@ -18,7 +18,6 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Scanner;
 
 import static cc.lovezhy.raft.server.NodeElectionTest.checkElection;
 import static cc.lovezhy.raft.server.RaftConstants.HEART_BEAT_TIME_INTERVAL;
@@ -100,8 +99,6 @@ public class AppendLogTest {
         assertData();
         checkElection(raftNodes);
         System.out.println("done");
-        Scanner scanner = new Scanner(System.in);
-        scanner.next();
     }
 
     private void putData(DefaultCommand defaultCommand) {

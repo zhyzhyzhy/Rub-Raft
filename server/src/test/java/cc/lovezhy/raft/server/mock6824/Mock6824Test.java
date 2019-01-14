@@ -121,7 +121,51 @@ public class Mock6824Test {
         raftNodes.forEach(RaftNode::close);
     }
 
+    @Test
+    public void testFailNoAgree2B() {
+        int servers = 5;
+        List<RaftNode> raftNodes = makeCluster(5);
+        raftNodes.forEach(RaftNode::init);
+        log.info("Test (2B): no agreement if too many followers disconnect");
+        one(raftNodes, randomCommand(), servers, false);
 
+        RaftNode leader = checkOneLeader(raftNodes);
+        int leaderIndex = raftNodes.indexOf(leader);
+        raftNodes.get((leaderIndex + 1) % raftNodes.size()).close();
+        raftNodes.get((leaderIndex + 2) % raftNodes.size()).close();
+        raftNodes.get((leaderIndex + 3) % raftNodes.size()).close();
 
+        boolean appendSuccess = leader.getOuterService().appendLog(randomCommand());
+        if (!appendSuccess) {
+            fail("leader rejected AppendLog");
+        }
+
+        long lastLogIndex = leader.getLogService().getLastLogIndex();
+        if (lastLogIndex != 3) {
+            fail("expected index 2, got {}", lastLogIndex);
+        }
+        pause(2 * RAFT_ELECTION_TIMEOUT);
+
+        Pair<Integer, Command> integerCommandPair = nCommitted(raftNodes, Math.toIntExact(lastLogIndex));
+        if (integerCommandPair.getKey() > 0) {
+            fail("{} committed but no majority", integerCommandPair.getKey());
+        }
+        raftNodes.get((leaderIndex + 1) % raftNodes.size()).init();
+        raftNodes.get((leaderIndex + 2) % raftNodes.size()).init();
+        raftNodes.get((leaderIndex + 3) % raftNodes.size()).init();
+
+        RaftNode leader2 = checkOneLeader(raftNodes);
+        appendSuccess = leader2.getOuterService().appendLog(randomCommand());
+        long lastLogIndex2 = leader.getLogService().getLastLogIndex();
+        if (!appendSuccess) {
+            fail("leader2 rejected appendLog");
+        }
+        if (lastLogIndex2 < 3 || lastLogIndex2 > 4) {
+            fail("unexpected index {}", lastLogIndex2);
+        }
+        one(raftNodes, randomCommand(), servers, false);
+
+        raftNodes.forEach(RaftNode::close);
+    }
 
 }

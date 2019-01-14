@@ -26,8 +26,8 @@ public class PeerNodeStateMachine implements Closeable {
     private ListeningExecutorService taskExecutor;
     private ExecutorService schedulerExecutor;
 
-    private Map<Integer, SettableFuture<Void>> appendLogIndexCompleteFuture = Maps.newConcurrentMap();
-    private volatile Integer maxWaitIndex = 0;
+    private Map<Integer, SettableFuture<Boolean>> appendLogIndexCompleteFuture = Maps.newConcurrentMap();
+    private volatile Integer maxWaitIndex = 1;
 
     private Runnable scheduleTask = () -> {
         for (; ; ) {
@@ -41,10 +41,10 @@ public class PeerNodeStateMachine implements Closeable {
                 continue;
             }
             taskExecutor.submit(task).addListener(() -> {
-                SettableFuture<Void> voidSettableFuture = appendLogIndexCompleteFuture.get(matchIndex.intValue());
-                if (Objects.nonNull(voidSettableFuture)) {
+                SettableFuture<Boolean> voidSettableFuture = appendLogIndexCompleteFuture.get(matchIndex.intValue());
+                if (Objects.nonNull(voidSettableFuture) && !voidSettableFuture.isDone()) {
                     appendLogIndexCompleteFuture.remove(matchIndex.intValue());
-                    voidSettableFuture.set(null);
+                    voidSettableFuture.set(true);
                 }
             }, RpcExecutors.commonExecutor());
         }
@@ -99,14 +99,12 @@ public class PeerNodeStateMachine implements Closeable {
         return taskQueue.isEmpty();
     }
 
-    public SettableFuture setCompleteFuture(Integer notifyIndex) {
-//        Preconditions.checkState(notifyIndex > matchIndex);
-        if (notifyIndex > maxWaitIndex) {
-            SettableFuture<Void> settableFuture = SettableFuture.create();
-            settableFuture.set(null);
+    public SettableFuture<Boolean> setCompleteFuture(Integer notifyIndex) {
+        if (notifyIndex < maxWaitIndex) {
+            SettableFuture<Boolean> settableFuture = SettableFuture.create();
             return settableFuture;
         }
-        SettableFuture<Void> settableFuture = SettableFuture.create();
+        SettableFuture<Boolean> settableFuture = SettableFuture.create();
         maxWaitIndex = maxWaitIndex > notifyIndex ? maxWaitIndex : notifyIndex;
         appendLogIndexCompleteFuture.put(notifyIndex, settableFuture);
         return settableFuture;

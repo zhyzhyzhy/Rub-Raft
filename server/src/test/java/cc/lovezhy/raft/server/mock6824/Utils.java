@@ -64,7 +64,10 @@ public class Utils {
 
         for (RaftNode raftNode : raftNodes) {
             LogService logService = raftNode.getLogService();
-            LogEntry entry = logService.get(index);
+            LogEntry entry = null;
+            if (index <= logService.getLastCommitLogIndex()) {
+                entry = logService.get(index);
+            }
             if (Objects.nonNull(entry)) {
                 if (count > 0 && !Objects.equals(defaultCommand, entry.getCommand())) {
                     fail("committed values do not match: index {}, {}, {}", index, defaultCommand, entry.getCommand());

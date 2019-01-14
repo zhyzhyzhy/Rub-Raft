@@ -36,7 +36,8 @@ public class HttpUtils {
         Response response = null;
         try {
             response = client.newCall(request).execute();
-            return true;
+            JsonObject entries = new JsonObject(response.body().string());
+            return entries.getBoolean("success");
         } catch (IOException e) {
             //ignore
             return false;

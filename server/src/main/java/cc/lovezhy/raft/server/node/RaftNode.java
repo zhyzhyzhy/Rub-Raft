@@ -598,25 +598,25 @@ public class RaftNode implements RaftService {
         }
 
         void tickHeartBeat() {
-            Runnable appendHeartBeatTask = () -> peerNode.forEach((peerRaftNode, peerNodeStateMachine) -> peerNodeStateMachine.append(prepareAppendLog(peerRaftNode, peerNodeStateMachine)));
+            Runnable appendHeartBeatTask = () -> peerNode.forEach((peerRaftNode, peerNodeStateMachine) -> peerNodeStateMachine.append(prepareAppendLog(peerRaftNode, peerNodeStateMachine, SettableFuture.create())));
             appendHeartBeatTask.run();
             TimeCountDownUtil.addSchedulerTask(HEART_BEAT_TIME_INTERVAL, DEFAULT_TIME_UNIT, this::tickHeartBeat, (Supplier<Boolean>) () -> nodeScheduler.isLeader());
         }
 
-        List<SettableFuture<Void>> appendLog(int logIndex) {
-            List<SettableFuture<Void>> settableFutureList = Lists.newArrayList();
+        List<SettableFuture<Boolean>> appendLog(int logIndex) {
+            List<SettableFuture<Boolean>> settableFutureList = Lists.newArrayList();
             peerNode.forEach((peerRaftNode, peerNodeStateMachine) -> {
-                SettableFuture<Void> settableFuture = peerNodeStateMachine.setCompleteFuture(logIndex);
+                SettableFuture<Boolean> settableFuture = peerNodeStateMachine.setCompleteFuture(logIndex);
                 settableFutureList.add(settableFuture);
                 if (peerNodeStateMachine.taskQueueIsEmpty()) {
-                    peerNodeStateMachine.appendFirst(prepareAppendLog(peerRaftNode, peerNodeStateMachine));
+                    peerNodeStateMachine.appendFirst(prepareAppendLog(peerRaftNode, peerNodeStateMachine, settableFuture));
                 }
             });
             return settableFutureList;
         }
 
 
-        private Runnable prepareAppendLog(PeerRaftNode peerRaftNode, PeerNodeStateMachine peerNodeStateMachine) {
+        private Runnable prepareAppendLog(PeerRaftNode peerRaftNode, PeerNodeStateMachine peerNodeStateMachine, SettableFuture<Boolean> appendLogResult) {
             return () -> {
                 try {
                     log.info("prepareAppendLog, to {}", peerRaftNode.getNodeId().getPeerId());
@@ -634,6 +634,7 @@ public class RaftNode implements RaftService {
                             Runnable runnable = prepareInstallSnapshot(peerRaftNode, peerNodeStateMachine);
                             peerNodeStateMachine.appendFirst(runnable);
                         }
+                        appendLogResult.set(false);
                         return;
                     }
                     replicatedLogRequest.setPrevLogIndex(preLogIndex);
@@ -653,6 +654,7 @@ public class RaftNode implements RaftService {
                         currentTerm = replicatedLogRequest.getTerm();
                         nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
                         tickManager.tickElectionTimeOut();
+                        appendLogResult.set(false);
                         close();
                         return;
                     }
@@ -664,7 +666,7 @@ public class RaftNode implements RaftService {
                             peerNodeStateMachine.setNodeStatus(PeerNodeStatus.NORMAL);
                         }
                         if (peerNodeStateMachine.needSendAppendLogImmediately() || peerNodeStateMachine.getMatchIndex() < logService.getLastLogIndex()) {
-                            Runnable runnable = prepareAppendLog(peerRaftNode, peerNodeStateMachine);
+                            Runnable runnable = prepareAppendLog(peerRaftNode, peerNodeStateMachine, SettableFuture.create());
                             peerNodeStateMachine.appendFirst(runnable);
                         }
                     } else {
@@ -676,12 +678,14 @@ public class RaftNode implements RaftService {
                                 peerNodeStateMachine.appendFirst(runnable);
                             } else {
                                 peerNodeStateMachine.setNextIndex(peerNodeStateMachine.getNextIndex() - 1);
-                                Runnable runnable = prepareAppendLog(peerRaftNode, peerNodeStateMachine);
+                                Runnable runnable = prepareAppendLog(peerRaftNode, peerNodeStateMachine, SettableFuture.create());
                                 peerNodeStateMachine.appendFirst(runnable);
                             }
                         }
                     }
+                    appendLogResult.set(replicatedLogResponse.getSuccess());
                 } catch (Exception e) {
+                    appendLogResult.set(Boolean.FALSE);
                     log.error(e.getMessage());
                 }
             };
@@ -807,16 +811,34 @@ public class RaftNode implements RaftService {
                 log.info("http append {}", JSON.toJSONString(command));
                 LogEntry logEntry = LogEntry.of(command, currentTerm);
                 int logIndex = logService.appendLog(logEntry);
-                List<SettableFuture<Void>> settableFutureList = RaftNode.this.peerNodeScheduler.appendLog(logIndex);
-                CountDownLatch latch = new CountDownLatch(clusterConfig.getNodeCount() / 2);
-                settableFutureList.forEach(settableFuture -> settableFuture.addListener(latch::countDown, RpcExecutors.commonExecutor()));
+                VoteAction voteAction = new VoteAction(clusterConfig.getNodeCount() / 2, clusterConfig.getNodeCount() / 2 + 1);
+                List<SettableFuture<Boolean>> settableFutureList = RaftNode.this.peerNodeScheduler.appendLog(logIndex);
+                settableFutureList.forEach(settableFuture -> {
+                    Futures.addCallback(settableFuture, new FutureCallback<Boolean>() {
+                        @Override
+                        public void onSuccess(@Nullable Boolean result) {
+                            if (result) {
+                                voteAction.success();
+                            } else {
+                                voteAction.fail();
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Throwable t) {
+                            voteAction.fail();
+                        }
+                    }, RpcExecutors.commonExecutor());
+                });
                 try {
-                    latch.await();
+                    voteAction.await();
                 } catch (Exception e) {
                     log.error(e.getMessage(), e);
                 }
-                logService.commit(logIndex);
-                log.info("commit success, index=" + logIndex + " command=" + JSON.toJSONString(command));
+                if (voteAction.votedSuccess()) {
+                    logService.commit(logIndex);
+                    log.info("commit success, index=" + logIndex + " command=" + JSON.toJSONString(command));
+                }
                 return true;
             } else {
                 PeerRaftNode leader = nodeScheduler.getLeader();
