@@ -1,4 +1,4 @@
-package cc.lovezhy.raft.server;
+package cc.lovezhy.raft.server.common;
 
 import org.junit.Assert;
 import org.junit.Before;

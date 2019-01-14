@@ -18,6 +18,7 @@ import cc.lovezhy.raft.server.utils.TimeCountDownUtil;
 import cc.lovezhy.raft.server.utils.VoteAction;
 import cc.lovezhy.raft.server.web.ClientHttpService;
 import com.alibaba.fastjson.JSON;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import com.google.common.collect.Lists;
@@ -403,6 +404,16 @@ public class RaftNode implements RaftService {
         System.out.println("installSnapshot " + JSON.toJSONString(installSnapShotRequest));
         logService.installSnapshot(installSnapShotRequest.getSnapshot(), installSnapShotRequest.getLogEntry());
         return new InstallSnapshotResponse(term, true);
+    }
+
+    @VisibleForTesting
+    public LogService getLogService() {
+        return logService;
+    }
+
+    @VisibleForTesting
+    public OuterService getOuterService() {
+        return outerService;
     }
 
     public void close() {

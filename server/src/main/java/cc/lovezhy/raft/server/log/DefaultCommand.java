@@ -7,7 +7,7 @@ import com.google.common.base.Objects;
 import javax.annotation.concurrent.Immutable;
 
 @Immutable
-public class DefaultCommand {
+public class DefaultCommand implements Command {
 
     private static final String EMPTY_VALUE = "";
 

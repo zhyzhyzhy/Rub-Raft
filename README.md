@@ -1,14 +1,12 @@
 # simple-raft
-simple raft
+simple raft  
+随时弃坑。。。
 
 # TODO
-- ~~RpcClient和RpcServer自动重连~~
 - 增加Log复制的Test
-- ~~增加SnapShot的支持~~
 - 支持节点变更
 - 把StateMachine抽象出去
 - 完善基于RandomAccessFile的底层文件
-- update LogService For Corner Case
 
 # BUG记录
 ## 选举
@@ -27,8 +25,13 @@ simple raft
 解决方案：没想到什么好的，自己封装一个方法单独用来选举超时
 一个节点一个单独的线程
 
-## InstallSnapShot时间过长
+## InstallSnapShot时间过长 //TODO
 不说了，本来就实现的不对
 分离StateMachine和LogService，让StateMachine自己异步的Apply
+
+## 节点Down了之后重启，ReplicatedLog的response中增加自己的LogIndex
+不然每次的LogEntries会非常大
+
+
 
  
