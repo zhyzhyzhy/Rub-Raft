@@ -1,6 +1,20 @@
 # simple-raft
 simple raft  
+
 随时弃坑。。。
+
+# 使用
+暂时不支持自定义底层存储
+内置内存的一个Map
+
+默认端口从5283开始
+日志默认在`/var/log/raft`  
+`Rpc端口+1`是一个默认的http服务节点  
+`/status`里有所有的路由
+
+嫌麻烦的话，直接改NodeElectionTest中的一个Test，用Scanner卡住  
+
+
 
 # TODO
 - 增加Log复制的Test
