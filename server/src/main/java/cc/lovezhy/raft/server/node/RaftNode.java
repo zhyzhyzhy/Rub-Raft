@@ -807,12 +807,19 @@ public class RaftNode implements RaftService {
      */
     public class OuterService {
         //TODO
+
+        /**
+         * SelfAppend 一般对于Leader而言，自己append到LogService中就算成功
+         * success 是指append到大多数
+         * //todo,需要做一个区分
+         */
         public synchronized JsonObject appendLog(DefaultCommand command) {
             if (nodeScheduler.isLeader()) {
                 JsonObject jsonObject = new JsonObject();
                 log.info("http append {}", JSON.toJSONString(command));
                 LogEntry logEntry = LogEntry.of(command, currentTerm);
                 int logIndex = logService.appendLog(logEntry);
+                jsonObject.put("selfAppend", true);
                 VoteAction voteAction = new VoteAction(clusterConfig.getNodeCount() / 2, clusterConfig.getNodeCount() / 2 + 1);
                 List<SettableFuture<Boolean>> settableFutureList = RaftNode.this.peerNodeScheduler.appendLog(logIndex);
                 settableFutureList.forEach(settableFuture -> {

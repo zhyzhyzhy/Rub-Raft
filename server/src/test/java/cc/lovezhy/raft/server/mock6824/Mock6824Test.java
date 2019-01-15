@@ -5,6 +5,7 @@ import cc.lovezhy.raft.server.node.RaftNode;
 import cc.lovezhy.raft.server.utils.Pair;
 import com.google.common.collect.Lists;
 import io.vertx.core.json.JsonObject;
+import org.junit.After;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,9 +26,18 @@ public class Mock6824Test {
 
     private static final long RAFT_ELECTION_TIMEOUT = 1000;
 
+    private List<RaftNode> raftNodes;
+
+    @After
+    public void clear() {
+        if (Objects.nonNull(raftNodes)) {
+            raftNodes.forEach(RaftNode::close);
+        }
+    }
+
     @Test
     public void testInitialElection2A() {
-        List<RaftNode> raftNodes = makeCluster(3);
+        raftNodes = makeCluster(3);
         raftNodes.forEach(RaftNode::init);
         log.info("Test (2A): initial election");
         checkOneLeader(raftNodes);
@@ -47,7 +57,7 @@ public class Mock6824Test {
 
     @Test
     public void testReElection2A() {
-        List<RaftNode> raftNodes = makeCluster(3);
+        raftNodes = makeCluster(3);
         raftNodes.forEach(RaftNode::init);
 
         log.info("Test (2A): election after network failure");
@@ -83,7 +93,7 @@ public class Mock6824Test {
     @Test
     public void testBasicAgree2B() {
         int servers = 5;
-        List<RaftNode> raftNodes = makeCluster(servers);
+        raftNodes = makeCluster(servers);
         raftNodes.forEach(RaftNode::init);
         log.info("Test (2B): basic agreement");
 
@@ -105,7 +115,7 @@ public class Mock6824Test {
     @Test
     public void testFailAgree2B() {
         int servers = 3;
-        List<RaftNode> raftNodes = makeCluster(servers);
+        raftNodes = makeCluster(servers);
         raftNodes.forEach(RaftNode::init);
 
         log.info("Test (2B): agreement despite follower disconnection");
@@ -130,7 +140,7 @@ public class Mock6824Test {
     @Test
     public void testFailNoAgree2B() {
         int servers = 5;
-        List<RaftNode> raftNodes = makeCluster(5);
+        raftNodes = makeCluster(5);
         raftNodes.forEach(RaftNode::init);
         log.info("Test (2B): no agreement if too many followers disconnect");
         one(raftNodes, randomCommand(), servers, false);
@@ -141,7 +151,7 @@ public class Mock6824Test {
         raftNodes.get((leaderIndex + 2) % raftNodes.size()).close();
         raftNodes.get((leaderIndex + 3) % raftNodes.size()).close();
 
-        boolean appendSuccess = leader.getOuterService().appendLog(randomCommand()).getBoolean("success");
+        boolean appendSuccess = leader.getOuterService().appendLog(randomCommand()).getBoolean("selfAppend");
         if (!appendSuccess) {
             fail("leader rejected AppendLog");
         }
@@ -177,7 +187,7 @@ public class Mock6824Test {
     @Test
     public void testConcurrentStarts2B() throws InterruptedException {
         int servers = 3;
-        List<RaftNode> raftNodes = makeCluster(servers);
+        raftNodes = makeCluster(servers);
         raftNodes.forEach(RaftNode::init);
         log.info("Test (2B): concurrent Start()s");
 
