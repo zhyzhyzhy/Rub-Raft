@@ -155,22 +155,22 @@ public class LogServiceImpl implements LogService {
     }
 
     @Override
-    public int appendLog(LogEntry logEntry) {
+    public synchronized int appendLog(LogEntry logEntry) {
         return appendLog(storageService.getLen() + start, Collections.singletonList(logEntry));
     }
 
     @Override
-    public int appendLog(long fromIndex, LogEntry logEntry) {
+    public synchronized int appendLog(long fromIndex, LogEntry logEntry) {
         return appendLog(fromIndex, Collections.singletonList(logEntry));
     }
 
     @Override
-    public int appendLog(List<LogEntry> entries) {
+    public synchronized int appendLog(List<LogEntry> entries) {
         return appendLog(storageService.getLen() - 1 + start, entries);
     }
 
     @Override
-    public int appendLog(long fromIndex, List<LogEntry> entries) {
+    public synchronized int appendLog(long fromIndex, List<LogEntry> entries) {
         Preconditions.checkNotNull(entries);
         if (entries.isEmpty()) {
             return start;

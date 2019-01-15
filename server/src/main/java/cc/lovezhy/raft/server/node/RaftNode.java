@@ -806,8 +806,10 @@ public class RaftNode implements RaftService {
      * 向外界提供服务的
      */
     public class OuterService {
-        public boolean appendLog(DefaultCommand command) {
+        //TODO
+        public synchronized JsonObject appendLog(DefaultCommand command) {
             if (nodeScheduler.isLeader()) {
+                JsonObject jsonObject = new JsonObject();
                 log.info("http append {}", JSON.toJSONString(command));
                 LogEntry logEntry = LogEntry.of(command, currentTerm);
                 int logIndex = logService.appendLog(logEntry);
@@ -823,7 +825,6 @@ public class RaftNode implements RaftService {
                                 voteAction.fail();
                             }
                         }
-
                         @Override
                         public void onFailure(Throwable t) {
                             voteAction.fail();
@@ -838,14 +839,18 @@ public class RaftNode implements RaftService {
                 if (voteAction.votedSuccess()) {
                     logService.commit(logIndex);
                     log.info("commit success, index=" + logIndex + " command=" + JSON.toJSONString(command));
+                    jsonObject.put("success", true);
+                } else {
+                    jsonObject.put("success", false);
                 }
-                return true;
+                jsonObject.put("index", logIndex);
+                return jsonObject;
             } else {
                 PeerRaftNode leader = nodeScheduler.getLeader();
                 if (Objects.nonNull(leader)) {
                     return postCommand(EndPoint.create(leader.getEndPoint().getHost(), leader.getEndPoint().getPort() + 1), command);
                 }
-                return false;
+                return new JsonObject().put("success", false);
             }
         }
 

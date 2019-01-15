@@ -62,11 +62,9 @@ public class ClientHttpService extends AbstractVerticle {
             HttpServerResponse response = routingContext.response();
             JsonObject bodyJson = routingContext.getBodyAsJson();
             DefaultCommand command = bodyJson.mapTo(DefaultCommand.class);
-            boolean success = this.outerService.appendLog(command);
-            JsonObject responseJson = new JsonObject();
-            responseJson.put("success", success);
+            JsonObject jsonObject = this.outerService.appendLog(command);
             response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
-            response.end(responseJson.toString());
+            response.end(jsonObject.toString());
         });
 
         /*

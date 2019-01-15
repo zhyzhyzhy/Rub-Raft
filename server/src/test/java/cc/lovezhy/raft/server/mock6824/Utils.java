@@ -104,6 +104,10 @@ public class Utils {
         return DefaultCommand.setCommand(UUID.randomUUID().toString(), UUID.randomUUID().toString());
     }
 
+    public static DefaultCommand defineNumberCommand(int i) {
+        return DefaultCommand.setCommand(String.valueOf(i), String.valueOf(i));
+    }
+
     public static void pause(long mills) {
         try {
             Thread.sleep(mills);
@@ -123,6 +127,32 @@ public class Utils {
             }
         }
         return term;
+    }
+
+    public static Command waitNCommitted(List<RaftNode> raftNodes, int index, int n, long startTerm) {
+        long to = TimeUnit.MILLISECONDS.toMillis(10);
+        for (int i = 0; i < 30; i++) {
+            Pair<Integer, Command> integerCommandPair = nCommitted(raftNodes, index);
+            if (integerCommandPair.getKey() >= n) {
+                break;
+            }
+            pause(to);
+            if (to < TimeUnit.SECONDS.toMillis(1)) {
+                to *= 2;
+            }
+            if (startTerm > -1) {
+                for (RaftNode raftNode : raftNodes) {
+                    if (raftNode.getCurrentTerm() > startTerm) {
+                        return null;
+                    }
+                }
+            }
+        }
+        Pair<Integer, Command> integerCommandPair = nCommitted(raftNodes, index);
+        if (integerCommandPair.getKey() < n) {
+            fail("only {} decided for index {}; wanted {}", integerCommandPair.getKey(), index, n);
+        }
+        return integerCommandPair.getValue();
     }
 
     public static void fail(String errMsg, Object... objects) {

@@ -26,7 +26,7 @@ public class HttpUtils {
     private HttpUtils() {
     }
 
-    public static boolean postCommand(EndPoint endPoint, DefaultCommand defaultCommand) {
+    public static JsonObject postCommand(EndPoint endPoint, DefaultCommand defaultCommand) {
 
         Request request = new Request.Builder()
                 .url(endPoint.toUrl() + "/command")
@@ -36,11 +36,10 @@ public class HttpUtils {
         Response response = null;
         try {
             response = client.newCall(request).execute();
-            JsonObject entries = new JsonObject(response.body().string());
-            return entries.getBoolean("success");
+            return new JsonObject(response.body().string());
         } catch (IOException e) {
             //ignore
-            return false;
+            return new JsonObject().put("success", false);
         } finally {
             if (Objects.nonNull(response)) {
                 response.close();
