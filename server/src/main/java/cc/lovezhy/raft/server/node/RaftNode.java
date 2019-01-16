@@ -107,6 +107,9 @@ public class RaftNode implements RaftService {
 
     private volatile boolean stopped = false;
 
+    @VisibleForTesting
+    private volatile boolean isOnNet = true;
+
     public RaftNode(NodeId nodeId, EndPoint endPoint, ClusterConfig clusterConfig, List<PeerRaftNode> peerRaftNodes) {
         Preconditions.checkNotNull(nodeId);
         Preconditions.checkNotNull(endPoint);
@@ -426,6 +429,30 @@ public class RaftNode implements RaftService {
             this.peerNodeScheduler.close();
         }
         stopped = true;
+    }
+
+    @VisibleForTesting
+    public void disConnect() {
+        this.peerRaftNodes.forEach(PeerRaftNode::close);
+        this.rpcServer.close();
+        this.isOnNet = false;
+    }
+
+    @VisibleForTesting
+    public boolean isOnNet() {
+        return isOnNet;
+    }
+
+    @VisibleForTesting
+    public void connect() {
+        //start rpc server
+        rpcServer = new RpcServer();
+        NodeSlf4jHelper.changeObjectLogger(nodeId, rpcServer);
+        RaftService serverService = new RaftServiceImpl(this);
+        rpcServer.registerService(serverService);
+        rpcServer.start(endPoint);
+        peerRaftNodes.forEach(peerRaftNode -> peerRaftNode.connect(this.nodeId));
+        this.isOnNet = true;
     }
 
     @Override

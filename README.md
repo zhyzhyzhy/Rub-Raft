@@ -48,6 +48,9 @@ GC建议使用G1
 ## 节点Down了之后重启，ReplicatedLog的response中增加自己的LogIndex //todo
 不然每次的LogEntries会非常大
 
+## 针对 Bug => Leader发送重复PrevIndex的List<LogEntry>
+可能是需要被覆盖的LogEntry，不能直接丢掉，要set
+
 
 
  

@@ -63,27 +63,25 @@ public class Mock6824Test {
         log.info("Test (2A): election after network failure");
 
         RaftNode leader1 = checkOneLeader(raftNodes);
-        leader1.close();
+        leader1.disConnect();
 
         checkOneLeader(raftNodes);
 
-        leader1.init();
+        leader1.connect();
         RaftNode leader2 = checkOneLeader(raftNodes);
 
-        leader2.close();
+        leader2.disConnect();
         int leader2Index = raftNodes.indexOf(leader2);
-        raftNodes.get((leader2Index + 1) % raftNodes.size()).close();
+        raftNodes.get((leader2Index + 1) % raftNodes.size()).disConnect();
         pause(2 * RAFT_ELECTION_TIMEOUT);
 
         checkNoLeader(raftNodes);
-        raftNodes.get((leader2Index + 1) % raftNodes.size()).init();
+        raftNodes.get((leader2Index + 1) % raftNodes.size()).connect();
 
         checkOneLeader(raftNodes);
-        leader2.init();
+        leader2.connect();
 
         checkOneLeader(raftNodes);
-
-        raftNodes.forEach(RaftNode::close);
     }
 
 
@@ -109,7 +107,6 @@ public class Mock6824Test {
             }
         }
 
-        raftNodes.forEach(RaftNode::close);
     }
 
     @Test
@@ -123,18 +120,17 @@ public class Mock6824Test {
         one(raftNodes, randomCommand(), servers, false);
         RaftNode leader = checkOneLeader(raftNodes);
         int leaderIndex = raftNodes.indexOf(leader);
-        raftNodes.get((leaderIndex + 1) % raftNodes.size()).close();
+        raftNodes.get((leaderIndex + 1) % raftNodes.size()).disConnect();
 
         one(raftNodes, randomCommand(), servers - 1, false);
         one(raftNodes, randomCommand(), servers - 1, false);
         pause(RAFT_ELECTION_TIMEOUT);
 
-        raftNodes.get((leaderIndex + 1) % raftNodes.size()).init();
+        raftNodes.get((leaderIndex + 1) % raftNodes.size()).connect();
 
         one(raftNodes, randomCommand(), servers, false);
         one(raftNodes, randomCommand(), servers, false);
 
-        raftNodes.forEach(RaftNode::close);
     }
 
     @Test
@@ -147,9 +143,9 @@ public class Mock6824Test {
 
         RaftNode leader = checkOneLeader(raftNodes);
         int leaderIndex = raftNodes.indexOf(leader);
-        raftNodes.get((leaderIndex + 1) % raftNodes.size()).close();
-        raftNodes.get((leaderIndex + 2) % raftNodes.size()).close();
-        raftNodes.get((leaderIndex + 3) % raftNodes.size()).close();
+        raftNodes.get((leaderIndex + 1) % raftNodes.size()).disConnect();
+        raftNodes.get((leaderIndex + 2) % raftNodes.size()).disConnect();
+        raftNodes.get((leaderIndex + 3) % raftNodes.size()).disConnect();
 
         boolean appendSuccess = leader.getOuterService().appendLog(randomCommand()).getBoolean("selfAppend");
         if (!appendSuccess) {
@@ -166,9 +162,9 @@ public class Mock6824Test {
         if (integerCommandPair.getKey() > 0) {
             fail("{} committed but no majority", integerCommandPair.getKey());
         }
-        raftNodes.get((leaderIndex + 1) % raftNodes.size()).init();
-        raftNodes.get((leaderIndex + 2) % raftNodes.size()).init();
-        raftNodes.get((leaderIndex + 3) % raftNodes.size()).init();
+        raftNodes.get((leaderIndex + 1) % raftNodes.size()).connect();
+        raftNodes.get((leaderIndex + 2) % raftNodes.size()).connect();
+        raftNodes.get((leaderIndex + 3) % raftNodes.size()).connect();
 
         RaftNode leader2 = checkOneLeader(raftNodes);
         appendSuccess = leader2.getOuterService().appendLog(randomCommand()).getBoolean("success");
@@ -181,7 +177,6 @@ public class Mock6824Test {
         }
         one(raftNodes, randomCommand(), servers, false);
 
-        raftNodes.forEach(RaftNode::close);
     }
 
     @Test
@@ -282,8 +277,34 @@ public class Mock6824Test {
         if (!success) {
             fail("term changed too often");
         }
-        raftNodes.forEach(RaftNode::close);
 
+    }
+
+
+    @Test
+    public void testRejoin2B() {
+        int servers = 3;
+        raftNodes = makeCluster(servers);
+        raftNodes.forEach(RaftNode::init);
+
+        log.info("Test (2B): rejoin of partitioned leader");
+        one(raftNodes, defineNumberCommand(101), servers, true);
+        RaftNode leader1 = checkOneLeader(raftNodes);
+        leader1.disConnect();
+        leader1.getOuterService().appendLog(defineNumberCommand(102));
+        leader1.getOuterService().appendLog(defineNumberCommand(103));
+        leader1.getOuterService().appendLog(defineNumberCommand(104));
+
+        one(raftNodes, defineNumberCommand(103), 2, true);
+
+        RaftNode leader2 = checkOneLeader(raftNodes);
+        leader2.disConnect();
+
+        leader1.connect();
+
+        one(raftNodes, defineNumberCommand(104), 2, true);
+        leader2.connect();
+        one(raftNodes, defineNumberCommand(105), servers, true);
     }
 
 }

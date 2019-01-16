@@ -26,7 +26,7 @@ public class Utils {
             //term -> raftNodes
             Map<Long, List<RaftNode>> leaders = Maps.newHashMap();
             raftNodes.forEach(raftNode -> {
-                if (raftNode.getNodeScheduler().isLeader()) {
+                if (raftNode.isOnNet() && raftNode.getNodeScheduler().isLeader()) {
                     if (Objects.isNull(leaders.get(raftNode.getCurrentTerm()))) {
                         leaders.put(raftNode.getCurrentTerm(), Lists.newLinkedList());
                     }
@@ -52,7 +52,7 @@ public class Utils {
 
     public static void checkNoLeader(List<RaftNode> raftNodes) {
         for (RaftNode raftNode : raftNodes) {
-            if (raftNode.getNodeScheduler().isLeader()) {
+            if (raftNode.isOnNet() && raftNode.getNodeScheduler().isLeader()) {
                 fail("expected no leader, but {} claims to be leader", raftNode.getNodeId());
             }
         }

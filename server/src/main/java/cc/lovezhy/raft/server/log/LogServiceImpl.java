@@ -177,10 +177,10 @@ public class LogServiceImpl implements LogService {
         }
         try {
             LOG_LOCK.lock();
-            if (fromIndex <= storageService.getLen() - 1 + start) {
-                log.warn("index error, fromIndex={}", fromIndex);
-                log.warn("index error, log[fromIndex]={}", this.get(fromIndex));
-                entries = entries.subList(Math.toIntExact(storageService.getLen() + start - fromIndex), entries.size());
+            while (fromIndex <= storageService.getLen() - 1 + start) {
+                set(fromIndex, entries.get(0));
+                entries.remove(entries.get(0));
+                fromIndex++;
             }
             for (LogEntry entry : entries) {
                 storageService.append(entry.toStorageEntry());
