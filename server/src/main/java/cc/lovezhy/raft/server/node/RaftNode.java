@@ -177,9 +177,14 @@ public class RaftNode implements RaftService {
             return;
         }
         AtomicInteger preVotedGrantedCount = new AtomicInteger(1);
-        CountDownLatch latch = new CountDownLatch(clusterConfig.getNodeCount() / 2);
+        VoteAction voteAction = new VoteAction(clusterConfig.getNodeCount() / 2, clusterConfig.getNodeCount() / 2 + 1);
+        System.out.println(" prevote "+ voteAction);
         peerRaftNodes.forEach(peerRaftNode -> {
             try {
+                if (!this.isOnNet) {
+                    voteAction.setFailForce();
+                    return;
+                }
                 VoteRequest voteRequest = new VoteRequest();
                 voteRequest.setTerm(voteTerm);
                 voteRequest.setCandidateId(nodeId);
@@ -194,29 +199,31 @@ public class RaftNode implements RaftService {
                             if (result.getVoteGranted()) {
                                 eventRecorder.add(EventRecorder.Event.PRE_VOTE, String.format("grant vote from [%d]", peerRaftNode.getNodeId().getPeerId()));
                                 preVotedGrantedCount.incrementAndGet();
+                                voteAction.success();
                             } else if (result.getTerm() > voteTerm) {
                                 eventRecorder.add(EventRecorder.Event.PRE_VOTE, String.format("refused vote from [%d]", peerRaftNode.getNodeId().getPeerId()));
                                 nodeScheduler.compareAndSetTerm(voteTerm, result.getTerm());
+                                voteAction.fail();
+                            } else {
+                                voteAction.fail();
                             }
+                        } else {
+                            voteAction.fail();
                         }
-                        latch.countDown();
                     }
 
                     @Override
                     public void onFailure(Throwable t) {
-                        log.error(t.getMessage(), t);
-                        latch.countDown();
+                        log.error(t.getMessage());
+                        voteAction.fail();
                     }
                 }, RpcExecutors.commonExecutor());
             } catch (Exception e) {
-                log.error(e.getMessage(), e);
+                voteAction.fail();
+                log.error(e.getMessage());
             }
         });
-        try {
-            latch.await(nextElectionTimeOut, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            log.error(e.getMessage(), e);
-        }
+        voteAction.await();
         if (preVotedGrantedCount.get() > clusterConfig.getNodeCount() / 2) {
             eventRecorder.add(EventRecorder.Event.PRE_VOTE, String.format("preVote success, voteTerm=%d", voteTerm));
             voteForLeader(voteTerm);
@@ -233,12 +240,13 @@ public class RaftNode implements RaftService {
             log.debug("voted for leader fail");
             return;
         }
-        log.debug("startElection term={}", currentTerm);
+        log.info("startElection term={}", currentTerm);
         nodeScheduler.changeNodeStatus(NodeStatus.CANDIDATE);
         long nextWaitTimeOut = tickManager.tickElectionTimeOut();
         //初始值为1，把自己加进去
         AtomicInteger votedCount = new AtomicInteger(1);
         VoteAction voteAction = new VoteAction(clusterConfig.getNodeCount() / 2, clusterConfig.getNodeCount() / 2 + 1);
+        System.out.println("vote " + voteAction);
         peerRaftNodes.forEach(peerRaftNode -> {
             try {
                 VoteRequest voteRequest = new VoteRequest();
@@ -262,18 +270,26 @@ public class RaftNode implements RaftService {
                                 eventRecorder.add(EventRecorder.Event.VOTE, String.format("refuse vote from [%d]", peerRaftNode.getNodeId().getPeerId()));
                                 nodeScheduler.compareAndSetTerm(voteTerm, result.getTerm());
                                 voteAction.fail();
+                            } else {
+                                eventRecorder.add(EventRecorder.Event.VOTE, String.format("refuse vote from [%d]", peerRaftNode.getNodeId().getPeerId()));
+                                voteAction.fail();
                             }
+                        } else {
+                            eventRecorder.add(EventRecorder.Event.VOTE, String.format("refuse vote from [%d]", peerRaftNode.getNodeId().getPeerId()));
+                            voteAction.fail();
                         }
-                        voteAction.fail();
+
                     }
 
                     @Override
                     public void onFailure(Throwable t) {
                         log.error(t.getMessage(), t);
+                        eventRecorder.add(EventRecorder.Event.VOTE, String.format("refuse vote from [%d]", peerRaftNode.getNodeId().getPeerId()));
                         voteAction.fail();
                     }
                 }, RpcExecutors.commonExecutor());
             } catch (Exception e) {
+                voteAction.fail();
                 log.error(e.getMessage(), e);
             }
         });
@@ -283,15 +299,17 @@ public class RaftNode implements RaftService {
             log.debug("try to be leader, term={}", voteTerm);
             eventRecorder.add(EventRecorder.Event.VOTE, String.format("trying be leader, term =  [%d]", voteTerm));
             boolean beLeaderSuccess = nodeScheduler.beLeader(voteTerm);
-            if (beLeaderSuccess && nodeScheduler.changeNodeStatusWhenNot(NodeStatus.PRE_CANDIDATE, NodeStatus.LEADER)) {
-                eventRecorder.add(EventRecorder.Event.VOTE, String.format("be leader success, term =  [%d]", voteTerm));
-                log.info("be the leader success, currentTerm={}", voteTerm);
-                peerNodeScheduler = new PeerNodeScheduler();
-                peerNodeScheduler.tickHeartBeat();
-                outerService.appendLog(LogConstants.getDummyCommand());
-            } else {
-                eventRecorder.add(EventRecorder.Event.VOTE, String.format("be leader fail, term =  [%d]", voteTerm));
-                log.debug("be the leader fail, currentTerm={}", voteTerm);
+            synchronized (outerService) {
+                if (beLeaderSuccess && nodeScheduler.changeNodeStatusWhenNot(NodeStatus.PRE_CANDIDATE, NodeStatus.LEADER)) {
+                    eventRecorder.add(EventRecorder.Event.VOTE, String.format("be leader success, term =  [%d]", voteTerm));
+                    log.info("be the leader success, currentTerm={}", voteTerm);
+                    peerNodeScheduler = new PeerNodeScheduler();
+                    peerNodeScheduler.tickHeartBeat();
+                    outerService.appendLog(LogConstants.getDummyCommand());
+                } else {
+                    eventRecorder.add(EventRecorder.Event.VOTE, String.format("be leader fail, term =  [%d]", voteTerm));
+                    log.debug("be the leader fail, currentTerm={}", voteTerm);
+                }
             }
         } else {
             eventRecorder.add(EventRecorder.Event.VOTE, String.format("vote fail, term =  [%d]", voteTerm));
@@ -445,6 +463,9 @@ public class RaftNode implements RaftService {
 
     @VisibleForTesting
     public void connect() {
+        if (isOnNet) {
+            return;
+        }
         //start rpc server
         rpcServer = new RpcServer();
         NodeSlf4jHelper.changeObjectLogger(nodeId, rpcServer);
@@ -453,6 +474,9 @@ public class RaftNode implements RaftService {
         rpcServer.start(endPoint);
         peerRaftNodes.forEach(peerRaftNode -> peerRaftNode.connect(this.nodeId));
         this.isOnNet = true;
+        tickManager.cancelAll();
+        tickManager.init();
+        tickManager.tickElectionTimeOut();
     }
 
     @Override
@@ -646,6 +670,10 @@ public class RaftNode implements RaftService {
         private Runnable prepareAppendLog(PeerRaftNode peerRaftNode, PeerNodeStateMachine peerNodeStateMachine, SettableFuture<Boolean> appendLogResult) {
             return () -> {
                 try {
+                    if (!isOnNet) {
+                        appendLogResult.set(false);
+                        return;
+                    }
                     log.info("prepareAppendLog, to {}", peerRaftNode.getNodeId().getPeerId());
                     long term = currentTerm;
                     long currentLastLogIndex = logService.getLastLogIndex();
@@ -786,9 +814,13 @@ public class RaftNode implements RaftService {
                     return;
                 }
                 if (waitTimeOut == currentWaitTimeOut && currentVersion == electionTimeOutVersion) {
-                    if (nodeScheduler.isLoseHeartbeat(waitTimeOut) && !nodeScheduler.isLeader()) {
+                    System.out.println(nodeId + "fail1 " + nodeScheduler.isLoseHeartbeat(currentWaitTimeOut));
+                    System.out.println(nodeId + "fail2 " + !nodeScheduler.isLeader());
+                    if (nodeScheduler.isLoseHeartbeat(currentWaitTimeOut) && !nodeScheduler.isLeader()) {
                         preVote(currentTerm + 1);
                     }
+                } else {
+                    System.out.println(nodeId + "fail3");
                 }
             }
         };
@@ -805,7 +837,7 @@ public class RaftNode implements RaftService {
                 electionFuture.cancel(true);
             }
             electionExecutor.shutdown();
-            while(!electionExecutor.isShutdown()) {
+            while (!electionExecutor.isShutdown()) {
                 continue;
             }
         }
@@ -848,6 +880,8 @@ public class RaftNode implements RaftService {
                 int logIndex = logService.appendLog(logEntry);
                 jsonObject.put("selfAppend", true);
                 VoteAction voteAction = new VoteAction(clusterConfig.getNodeCount() / 2, clusterConfig.getNodeCount() / 2 + 1);
+                System.out.println("appendLog" + voteAction);
+                //TODO 刚成为Leader，这里就来了一个Append
                 List<SettableFuture<Boolean>> settableFutureList = RaftNode.this.peerNodeScheduler.appendLog(logIndex);
                 settableFutureList.forEach(settableFuture -> {
                     Futures.addCallback(settableFuture, new FutureCallback<Boolean>() {
@@ -859,6 +893,7 @@ public class RaftNode implements RaftService {
                                 voteAction.fail();
                             }
                         }
+
                         @Override
                         public void onFailure(Throwable t) {
                             voteAction.fail();

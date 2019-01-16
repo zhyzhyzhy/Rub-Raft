@@ -2,6 +2,7 @@ package cc.lovezhy.raft.server.utils;
 
 import cc.lovezhy.raft.rpc.util.LockObjectFactory;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class VoteAction {
@@ -47,13 +48,28 @@ public class VoteAction {
         return successCounter.get() >= successMin;
     }
 
+    public void setFailForce() {
+        failCounter.set(failMin);
+        synchronized (awaitObject) {
+            awaitObject.notifyAll();
+        }
+    }
+
     public void await() {
+        long from = System.currentTimeMillis();
         synchronized (awaitObject) {
             while (!meetCondition()) {
                 try {
                     awaitObject.wait(20);
                 } catch (InterruptedException e) {
                     //ignore
+                }
+                if (System.currentTimeMillis() - from > TimeUnit.SECONDS.toMillis(10)) {
+                    try {
+                        throw new IllegalStateException();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         }

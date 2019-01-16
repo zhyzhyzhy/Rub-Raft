@@ -8,6 +8,7 @@ import cc.lovezhy.raft.server.log.LogServiceImpl;
 import cc.lovezhy.raft.server.node.RaftNode;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
+import io.vertx.core.json.JsonObject;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -65,40 +66,19 @@ public class AppendLogTest {
         EndPoint rpcEndPoint = leader.getEndPoint();
         EndPoint httpEndPoint = EndPoint.create(rpcEndPoint.getHost(), rpcEndPoint.getPort() + 1);
         long l = System.currentTimeMillis();
-        for (int i = 0; i < LogServiceImpl.MAX_LOG_BEFORE_TAKE_SNAPSHOT; i++) {
+        for (int i = 0; i < LogServiceImpl.MAX_LOG_BEFORE_TAKE_SNAPSHOT * 3; i++) {
             if (i % 100 == 0) {
                 log.info("i = {}", i);
             }
-            DefaultCommand command = DefaultCommand.setCommand(String.valueOf(IdFactory.generateId()), String.valueOf(IdFactory.generateId()));
-            postCommand(httpEndPoint, command);
-            putData(command);
-        }
-        leader.close();
-        RaftNode newLeader = findLeader(raftNodes);
-        rpcEndPoint = newLeader.getEndPoint();
-        httpEndPoint = EndPoint.create(rpcEndPoint.getHost(), rpcEndPoint.getPort() + 1);
-        for (int i = 0; i < LogServiceImpl.MAX_LOG_BEFORE_TAKE_SNAPSHOT; i++) {
-            if (i % 100 == 0) {
-                log.info("i = {}", i);
+            DefaultCommand command = DefaultCommand.setCommand(IdFactory.generateId(), IdFactory.generateId());
+            JsonObject jsonObject = postCommand(httpEndPoint, command);
+            if (jsonObject.getBoolean("success")) {
+                putData(command);
+            } else {
+                log.error("put command {} fail", command);
             }
-            DefaultCommand command = DefaultCommand.setCommand(String.valueOf(IdFactory.generateId()), String.valueOf(IdFactory.generateId()));
-            postCommand(httpEndPoint, command);
-            putData(command);
         }
-        leader.init();
-        for (int i = 0; i < LogServiceImpl.MAX_LOG_BEFORE_TAKE_SNAPSHOT; i++) {
-            if (i % 100 == 0) {
-                log.info("i = {}", i);
-            }
-            DefaultCommand command = DefaultCommand.setCommand(String.valueOf(IdFactory.generateId()), String.valueOf(IdFactory.generateId()));
-            postCommand(httpEndPoint, command);
-            putData(command);
-        }
-        checkElection(raftNodes);
-        System.out.println(System.currentTimeMillis() - l);
         assertData();
-        checkElection(raftNodes);
-        System.out.println("done");
     }
 
     private void putData(DefaultCommand defaultCommand) {
@@ -110,11 +90,7 @@ public class AppendLogTest {
         raftNodes.forEach(raftNode -> {
             expectKVData.forEach((key, value) -> {
                 String v = getValue(raftNode, key);
-                if (!Objects.equals(value, v)) {
-                    System.out.println(raftNode.getNodeId().toString() + " value= " + value + " v = " + v);
-                }
-//                Assert.assertEquals(raftNode.getNodeId().toString(), value, v);
-
+                Assert.assertEquals(raftNode.getNodeId().toString(), value, v);
             });
         });
     }

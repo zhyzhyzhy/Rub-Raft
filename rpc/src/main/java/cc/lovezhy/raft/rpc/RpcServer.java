@@ -49,7 +49,7 @@ public class RpcServer {
         Preconditions.checkNotNull(rpcServerOptions);
         nettyServer = new NettyServer(rpcServerOptions.getStartEndPoint(), rpcService);
         nettyServer.start();
-        log.info("start rpc server endPoint={}", rpcServerOptions);
+        log.info("start rpc server endPoint={}", rpcServerOptions.getStartEndPoint());
     }
 
     public void registerService(Class<?> serviceClass) {

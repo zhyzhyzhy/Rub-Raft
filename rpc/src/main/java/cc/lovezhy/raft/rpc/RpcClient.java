@@ -106,7 +106,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
         synchronized (lockObject) {
             if (!rpcResponseMap.containsKey(requestId)) {
                 try {
-                    lockObject.wait(TimeUnit.MILLISECONDS.toMillis(80));
+                    lockObject.wait(TimeUnit.MILLISECONDS.toMillis(30));
                 } catch (InterruptedException e) {
                     // ignore
                 }
@@ -129,6 +129,12 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
         rpcFutureMap.put(requestId, settableFuture);
         nettyClient.getChannel().writeAndFlush(request);
         RpcContext.setAsyncResponse(settableFuture);
+        RpcExecutors.listeningScheduledExecutor().schedule(() -> {
+            if (!settableFuture.isDone()) {
+                settableFuture.setException(new RequestTimeoutException("request time out"));
+                rpcFutureMap.remove(requestId);
+            }
+        }, 30, TimeUnit.MILLISECONDS);
         RpcResponse rpcResponse = new RpcResponse();
         rpcResponse.setResponseBody(null);
         return rpcResponse;

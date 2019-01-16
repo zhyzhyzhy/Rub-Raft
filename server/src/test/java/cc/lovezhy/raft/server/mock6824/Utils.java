@@ -83,17 +83,37 @@ public class Utils {
      * 我理解的就是commit一个Command，然后返回LogEntry的Index
      */
     public static int one(List<RaftNode> raftNodes, Command command, int expectedServers, boolean retry) {
-        RaftNode leader = checkOneLeader(raftNodes);
+        RaftNode leader = null;
+        long current = System.currentTimeMillis();
+        while (System.currentTimeMillis() - current < TimeUnit.SECONDS.toMillis(10)) {
+            try {
+                leader = checkOneLeader(raftNodes);
+                if (Objects.nonNull(leader)) {
+                    break;
+                }
+            } catch (Exception e) {
+                //ignore
+            }
+        }
+        if (Objects.isNull(leader)) {
+            fail("one({}) failed to reach agreement", command);
+        }
+
         leader.getOuterService().appendLog((DefaultCommand) command);
         long lastLogIndex = leader.getLogService().getLastLogIndex();
-        long t0 = System.currentTimeMillis();
-        while (System.currentTimeMillis() - t0 < TimeUnit.SECONDS.toMillis(2)) {
-            Pair<Integer, Command> commandPair = nCommitted(raftNodes, Math.toIntExact(lastLogIndex));
-            if (commandPair.getKey() > 0 && commandPair.getKey() >= expectedServers) {
-                if (Objects.equals(command, commandPair.getValue())) {
-                    return Math.toIntExact(lastLogIndex);
+
+        int times = retry ? 2 : 1;
+        while (times >= 1) {
+            long t0 = System.currentTimeMillis();
+            while (System.currentTimeMillis() - t0 < TimeUnit.SECONDS.toMillis(2)) {
+                Pair<Integer, Command> commandPair = nCommitted(raftNodes, Math.toIntExact(lastLogIndex));
+                if (commandPair.getKey() > 0 && commandPair.getKey() >= expectedServers) {
+                    if (Objects.equals(command, commandPair.getValue())) {
+                        return Math.toIntExact(lastLogIndex);
+                    }
                 }
             }
+            times--;
         }
         fail("one({}) failed to reach agreement", command);
         return -1;

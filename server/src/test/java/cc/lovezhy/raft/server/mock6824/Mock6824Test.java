@@ -280,7 +280,6 @@ public class Mock6824Test {
 
     }
 
-
     @Test
     public void testRejoin2B() {
         int servers = 3;
@@ -295,6 +294,7 @@ public class Mock6824Test {
         leader1.getOuterService().appendLog(defineNumberCommand(103));
         leader1.getOuterService().appendLog(defineNumberCommand(104));
 
+
         one(raftNodes, defineNumberCommand(103), 2, true);
 
         RaftNode leader2 = checkOneLeader(raftNodes);
@@ -305,6 +305,70 @@ public class Mock6824Test {
         one(raftNodes, defineNumberCommand(104), 2, true);
         leader2.connect();
         one(raftNodes, defineNumberCommand(105), servers, true);
+    }
+
+    @Test
+    public void testBackup2B() {
+        int servers = 5;
+        raftNodes = makeCluster(servers);
+        raftNodes.forEach(RaftNode::init);
+        log.info("Test (2B): leader backs up quickly over incorrect follower logs");
+
+        one(raftNodes, randomCommand(), servers, false);
+
+        RaftNode leader1 = checkOneLeader(raftNodes);
+        int leader1Index = raftNodes.indexOf(leader1);
+        raftNodes.get((leader1Index + 2) % raftNodes.size()).disConnect();
+        raftNodes.get((leader1Index + 3) % raftNodes.size()).disConnect();
+        raftNodes.get((leader1Index + 4) % raftNodes.size()).disConnect();
+
+        for (int i = 0; i < 50; i++) {
+            leader1.getOuterService().appendLog(randomCommand());
+        }
+
+        pause(RAFT_ELECTION_TIMEOUT * 2);
+
+        raftNodes.get((leader1Index + 0) % raftNodes.size()).disConnect();
+        raftNodes.get((leader1Index + 1) % raftNodes.size()).disConnect();
+
+        raftNodes.get((leader1Index + 2) % raftNodes.size()).connect();
+        raftNodes.get((leader1Index + 3) % raftNodes.size()).connect();
+        raftNodes.get((leader1Index + 4) % raftNodes.size()).connect();
+
+        for (int i = 0; i < 50; i++) {
+            System.out.println(i);
+            one(raftNodes, randomCommand(), 3, true);
+        }
+
+        RaftNode leader2 = checkOneLeader(raftNodes);
+        int leader2Index = raftNodes.indexOf(leader2);
+        RaftNode other = raftNodes.get((leader1Index + 2) % raftNodes.size());
+        if (leader2 == other) {
+            other = raftNodes.get((leader2Index + 1) % raftNodes.size());
+        }
+        other.disConnect();
+
+        for (int i = 0; i < 50; i++) {
+            System.out.println(i);
+            leader2.getOuterService().appendLog(randomCommand());
+        }
+
+        pause(RAFT_ELECTION_TIMEOUT * 2);
+
+        raftNodes.forEach(RaftNode::disConnect);
+
+        raftNodes.get((leader1Index + 0) % servers).connect();
+        raftNodes.get((leader1Index + 1) % servers).connect();
+        other.connect();
+
+        for (int i = 0; i < 50; i++) {
+            System.out.println(i);
+            one(raftNodes, randomCommand(), 3, true);
+        }
+
+        raftNodes.forEach(RaftNode::connect);
+
+        one(raftNodes, randomCommand(), servers, true);
     }
 
 }

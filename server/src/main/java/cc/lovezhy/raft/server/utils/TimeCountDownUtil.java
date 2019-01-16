@@ -16,9 +16,6 @@ public class TimeCountDownUtil {
                                                     TimeUnit timeUnit,
                                                     Runnable task,
                                                     Supplier<Boolean> doWhenReturnTrue) {
-        if (delay != 80) {
-            System.out.println(counter.incrementAndGet() + " " + delay);
-        }
         return RpcExecutors.listeningScheduledExecutor().schedule(() -> {
                     if (doWhenReturnTrue.get()) {
                         task.run();
