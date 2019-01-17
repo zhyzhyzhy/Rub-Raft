@@ -175,6 +175,12 @@ public class Utils {
         return integerCommandPair.getValue();
     }
 
+
+    public static void start1(RaftNode raftNode) {
+        raftNode.close();
+        raftNode.init();
+    }
+
     public static void fail(String errMsg, Object... objects) {
         log.error(errMsg, objects);
         throw new FailException();

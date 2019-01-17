@@ -371,4 +371,54 @@ public class Mock6824Test {
         one(raftNodes, randomCommand(), servers, true);
     }
 
+    @Test
+    public void testCount2B() {
+        int servers = 3;
+        raftNodes = makeCluster(servers);
+        raftNodes.forEach(RaftNode::init);
+
+        log.info("Test (2B): RPC counts aren't too high");
+
+        //TODO 测这个有啥用。。。
+    }
+
+    @Test
+    public void testPersist12C() {
+        int servers = 3;
+        raftNodes = makeCluster(servers);
+        raftNodes.forEach(RaftNode::init);
+
+        log.info("Test (2C): basic persistence");
+
+        one(raftNodes, defineNumberCommand(11), servers, true);
+
+        for (RaftNode raftNode : raftNodes) {
+            start1(raftNode);
+        }
+
+        for (RaftNode raftNode : raftNodes) {
+            raftNode.disConnect();
+            raftNode.connect();
+        }
+
+        one(raftNodes, defineNumberCommand(12), servers, true);
+
+        RaftNode leader1 = checkOneLeader(raftNodes);
+        leader1.disConnect();
+        start1(leader1);
+        leader1.connect();
+
+        one(raftNodes, defineNumberCommand(13), servers, true);
+
+        RaftNode leader2 = checkOneLeader(raftNodes);
+        leader2.disConnect();
+        one(raftNodes, defineNumberCommand(14), servers - 1, true);
+        start1(leader2);
+        leader2.connect();
+
+        waitNCommitted(raftNodes, 4, servers, -1);
+
+
+    }
+
 }

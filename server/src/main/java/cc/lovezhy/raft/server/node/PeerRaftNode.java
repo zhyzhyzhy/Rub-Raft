@@ -50,10 +50,10 @@ public class PeerRaftNode implements Closeable {
     }
 
     public void connect(NodeId clientNodeId) {
-        if (Objects.isNull(rpcClient) || (Objects.nonNull(rpcClient.isConnectAlive()) && !rpcClient.isConnectAlive())) {
+        if (Objects.isNull(rpcClient) || !rpcClient.isConnectAlive()) {
             this.rpcClient = RpcClient.create(RaftService.class, endPoint, rpcClientOptions);
             this.raftService = rpcClient.getInstance();
-            SettableFuture settableFuture = SettableFuture.create();
+            SettableFuture<Void> settableFuture = SettableFuture.create();
             this.rpcClient.connect(settableFuture);
             settableFuture.addListener(() -> this.raftService.requestConnect(ConnectRequest.of(clientNodeId)), RpcExecutors.commonExecutor());
         }

@@ -99,7 +99,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     @Override
     public RpcResponse sendRequest(RpcRequest request) throws RequestTimeoutException {
         String requestId = request.getRequestId();
-        nettyClient.getChannel().writeAndFlush(request);
+        writeRequest(request);
         LockObject lockObject = getLockObject();
         waitConditionMap.put(requestId, lockObject);
 
@@ -127,7 +127,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
         String requestId = request.getRequestId();
         SettableFuture<Object> settableFuture = SettableFuture.create();
         rpcFutureMap.put(requestId, settableFuture);
-        nettyClient.getChannel().writeAndFlush(request);
+        writeRequest(request);
         RpcContext.setAsyncResponse(settableFuture);
         RpcExecutors.listeningScheduledExecutor().schedule(() -> {
             if (!settableFuture.isDone()) {
@@ -142,7 +142,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
 
     @Override
     public void sendOneWayRequest(RpcRequest request) {
-        nettyClient.getChannel().writeAndFlush(request);
+        writeRequest(request);
     }
 
     @Override
@@ -175,5 +175,13 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     @Override
     public void handleRequest(Channel channel, RpcRequest request) {
         throw new UnsupportedOperationException("RpcClient not support RpcRequest");
+    }
+
+    private void writeRequest(RpcRequest request) {
+        if (rpcClientOptions.isOnNet()) {
+            nettyClient.getChannel().writeAndFlush(request);
+        } else {
+            //ignore
+        }
     }
 }
