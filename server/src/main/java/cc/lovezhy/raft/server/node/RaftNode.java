@@ -107,9 +107,6 @@ public class RaftNode implements RaftService {
 
     private volatile boolean stopped = false;
 
-    @VisibleForTesting
-    private volatile boolean isOnNet = true;
-
     public RaftNode(NodeId nodeId, EndPoint endPoint, ClusterConfig clusterConfig, List<PeerRaftNode> peerRaftNodes) {
         Preconditions.checkNotNull(nodeId);
         Preconditions.checkNotNull(endPoint);
@@ -180,10 +177,6 @@ public class RaftNode implements RaftService {
         VoteAction voteAction = new VoteAction(clusterConfig.getNodeCount() / 2, clusterConfig.getNodeCount() / 2 + 1);
         peerRaftNodes.forEach(peerRaftNode -> {
             try {
-                if (!this.isOnNet) {
-                    voteAction.setFailForce();
-                    return;
-                }
                 VoteRequest voteRequest = new VoteRequest();
                 voteRequest.setTerm(voteTerm);
                 voteRequest.setCandidateId(nodeId);
@@ -245,7 +238,6 @@ public class RaftNode implements RaftService {
         //初始值为1，把自己加进去
         AtomicInteger votedCount = new AtomicInteger(1);
         VoteAction voteAction = new VoteAction(clusterConfig.getNodeCount() / 2, clusterConfig.getNodeCount() / 2 + 1);
-        System.out.println("vote " + voteAction);
         peerRaftNodes.forEach(peerRaftNode -> {
             try {
                 VoteRequest voteRequest = new VoteRequest();
@@ -445,36 +437,6 @@ public class RaftNode implements RaftService {
         stopped = true;
     }
 
-    @VisibleForTesting
-    public void disConnect() {
-        this.peerRaftNodes.forEach(PeerRaftNode::close);
-        this.rpcServer.close();
-        this.isOnNet = false;
-    }
-
-    @VisibleForTesting
-    public boolean isOnNet() {
-        return isOnNet;
-    }
-
-    @VisibleForTesting
-    public void connect() {
-        if (isOnNet) {
-            return;
-        }
-        //start rpc server
-        rpcServer = new RpcServer();
-        NodeSlf4jHelper.changeObjectLogger(nodeId, rpcServer);
-        RaftService serverService = new RaftServiceImpl(this);
-        rpcServer.registerService(serverService);
-        rpcServer.start(endPoint);
-        peerRaftNodes.forEach(peerRaftNode -> peerRaftNode.connect(this.nodeId));
-        this.isOnNet = true;
-        tickManager.cancelAll();
-        tickManager.init();
-        tickManager.tickElectionTimeOut();
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -666,10 +628,6 @@ public class RaftNode implements RaftService {
         private Runnable prepareAppendLog(PeerRaftNode peerRaftNode, PeerNodeStateMachine peerNodeStateMachine, SettableFuture<Boolean> appendLogResult) {
             return () -> {
                 try {
-                    if (!isOnNet) {
-                        appendLogResult.set(false);
-                        return;
-                    }
                     log.info("prepareAppendLog, to {}", peerRaftNode.getNodeId().getPeerId());
                     long term = currentTerm;
                     long currentLastLogIndex = logService.getLastLogIndex();
@@ -872,7 +830,6 @@ public class RaftNode implements RaftService {
                 int logIndex = logService.appendLog(logEntry);
                 jsonObject.put("selfAppend", true);
                 VoteAction voteAction = new VoteAction(clusterConfig.getNodeCount() / 2, clusterConfig.getNodeCount() / 2 + 1);
-                System.out.println("appendLog" + voteAction);
                 //TODO 刚成为Leader，这里就来了一个Append
                 List<SettableFuture<Boolean>> settableFutureList = RaftNode.this.peerNodeScheduler.appendLog(logIndex);
                 settableFutureList.forEach(settableFuture -> {

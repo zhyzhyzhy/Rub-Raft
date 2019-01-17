@@ -5,61 +5,21 @@ import cc.lovezhy.raft.server.log.*;
 import cc.lovezhy.raft.server.node.PeerRaftNode;
 import cc.lovezhy.raft.server.node.RaftNode;
 import cc.lovezhy.raft.server.utils.Pair;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import static cc.lovezhy.raft.server.RaftConstants.getRandomStartElectionTimeout;
+import static cc.lovezhy.raft.server.mock6824.Mock6824Utils.checkOneLeader;
 
 public class Utils {
 
     private static final Logger log = LoggerFactory.getLogger(Utils.class);
 
-    public static RaftNode checkOneLeader(List<RaftNode> raftNodes) {
-        for (int i = 0; i < 10; i++) {
-            pause(getRandomStartElectionTimeout() + 200);
-            //term -> raftNodes
-            Map<Long, List<RaftNode>> leaders = Maps.newHashMap();
-            raftNodes.forEach(raftNode -> {
-                if (raftNode.isOnNet() && raftNode.getNodeScheduler().isLeader()) {
-                    if (Objects.isNull(leaders.get(raftNode.getCurrentTerm()))) {
-                        leaders.put(raftNode.getCurrentTerm(), Lists.newLinkedList());
-                    }
-                    leaders.get(raftNode.getCurrentTerm()).add(raftNode);
-                }
-            });
-            long lastTermWithLeader = -1;
-            for (Map.Entry<Long, List<RaftNode>> entry : leaders.entrySet()) {
-                if (entry.getValue().size() > 1) {
-                    fail("term {} has %d (>1) leaders", entry.getKey(), entry.getValue().size());
-                }
-                if (entry.getKey() > lastTermWithLeader) {
-                    lastTermWithLeader = entry.getKey();
-                }
-            }
-            if (leaders.size() != 0) {
-                return leaders.get(lastTermWithLeader).get(0);
-            }
-        }
-        fail("expected one leader, got none");
-        return null;
-    }
-
-    public static void checkNoLeader(List<RaftNode> raftNodes) {
-        for (RaftNode raftNode : raftNodes) {
-            if (raftNode.isOnNet() && raftNode.getNodeScheduler().isLeader()) {
-                fail("expected no leader, but {} claims to be leader", raftNode.getNodeId());
-            }
-        }
-    }
 
     public static Pair<Integer, Command> nCommitted(List<RaftNode> raftNodes, int index) {
         int count = 0;
@@ -140,18 +100,6 @@ public class Utils {
     }
 
 
-    public static long checkTerms(List<RaftNode> raftNodes) {
-        long term = -1;
-        for (RaftNode raftNode : raftNodes) {
-            if (term == -1) {
-                term = raftNode.getCurrentTerm();
-            } else if (term != raftNode.getCurrentTerm()) {
-                log.error("servers disagree on term");
-            }
-        }
-        return term;
-    }
-
     public static Command waitNCommitted(List<RaftNode> raftNodes, int index, int n, long startTerm) {
         long to = TimeUnit.MILLISECONDS.toMillis(10);
         for (int i = 0; i < 30; i++) {
@@ -178,7 +126,7 @@ public class Utils {
         return integerCommandPair.getValue();
     }
 
-    public void setNetReliable(List<RaftNode> raftNodes, boolean reliable) {
+    public static void setNetReliable(List<RaftNode> raftNodes, boolean reliable) {
         raftNodes.forEach(raftNode -> {
             List<PeerRaftNode> peerRaftNodes = getObjectMember(raftNode, "peerRaftNodes");
             peerRaftNodes.forEach(peerRaftNode -> {
@@ -187,6 +135,27 @@ public class Utils {
             });
         });
     }
+
+    public static void setIsOnNet(RaftNode targetNode, List<RaftNode> raftNodes, boolean isOnNet) {
+        List<PeerRaftNode> targetNodePeerRaftNodes = getObjectMember(targetNode, "peerRaftNodes");
+        targetNodePeerRaftNodes.forEach(peerRaftNode -> {
+            RpcClientOptions rpcClientOptions = getObjectMember(peerRaftNode, "rpcClientOptions");
+            rpcClientOptions.setOnNet(isOnNet);
+        });
+        raftNodes.forEach(raftNode -> {
+            if (raftNode == targetNode) {
+                return;
+            }
+            List<PeerRaftNode> peerRaftNodes = getObjectMember(raftNode, "peerRaftNodes");
+            peerRaftNodes.forEach(peerRaftNode -> {
+                if (peerRaftNode.getNodeId().equals(targetNode.getNodeId())) {
+                    RpcClientOptions rpcClientOptions = getObjectMember(peerRaftNode, "rpcClientOptions");
+                    rpcClientOptions.setOnNet(isOnNet);
+                }
+            });
+        });
+    }
+
 
 
     public static void start1(RaftNode raftNode) {
@@ -199,11 +168,24 @@ public class Utils {
         throw new FailException();
     }
 
+    /**
+     * 判断一个节点是否在Net上
+     */
+    public static boolean isOnNet(RaftNode raftNode) {
+        boolean isOnNet = false;
+        List<PeerRaftNode> peerRaftNodes = getObjectMember(raftNode, "peerRaftNodes");
+        for (PeerRaftNode peerRaftNode : peerRaftNodes) {
+            RpcClientOptions rpcClientOptions = getObjectMember(peerRaftNode, "rpcClientOptions");
+            isOnNet = isOnNet | rpcClientOptions.isOnNet();
+        }
+        return isOnNet;
+    }
+
 
     @SuppressWarnings("unchecked")
     private static <T> T getObjectMember(Object object, String memberName) {
         try {
-            Field field = object.getClass().getField(memberName);
+            Field field = object.getClass().getDeclaredField(memberName);
             field.setAccessible(true);
             Object o = field.get(object);
             return (T) o;
