@@ -1,4 +1,8 @@
 package cc.lovezhy.raft.rpc.annotation;
 
-public class ForTestingMethod {
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
+@Retention(RetentionPolicy.SOURCE)
+public @interface ForTestingMethod {
 }

@@ -45,6 +45,16 @@ public class RpcClientOptions {
     }
 
     @ForTestingMethod
+    public void setOnNet(boolean onNet) {
+        this.isOnNet = onNet;
+    }
+
+    @ForTestingMethod
+    public void setReliable(boolean reliable) {
+        this.reliable = reliable;
+    }
+
+    @ForTestingMethod
     public boolean isOnNet() {
         return isOnNet;
     }
@@ -53,20 +63,4 @@ public class RpcClientOptions {
     public boolean isReliable() {
         return reliable;
     }
-
-    @ForTestingMethod
-    public void disConnect() {
-        this.isOnNet = false;
-    }
-
-    @ForTestingMethod
-    public void connect() {
-        this.isOnNet = true;
-    }
-
-    @ForTestingMethod
-    public void setReliable(boolean reliable) {
-        this.reliable = reliable;
-    }
-
 }

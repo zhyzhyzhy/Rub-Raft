@@ -178,7 +178,6 @@ public class RaftNode implements RaftService {
         }
         AtomicInteger preVotedGrantedCount = new AtomicInteger(1);
         VoteAction voteAction = new VoteAction(clusterConfig.getNodeCount() / 2, clusterConfig.getNodeCount() / 2 + 1);
-        System.out.println(" prevote "+ voteAction);
         peerRaftNodes.forEach(peerRaftNode -> {
             try {
                 if (!this.isOnNet) {
@@ -370,9 +369,6 @@ public class RaftNode implements RaftService {
         if (term > replicatedLogRequest.getTerm()) {
             return new ReplicatedLogResponse(term, false);
         }
-
-        //要加这句话吗，不需要
-//        Preconditions.checkState(!nodeScheduler.isLeader(), String.format("node is leader, nodeId[%d], currentLeaderId=[%s]", nodeId.getPeerId(), nodeScheduler.getLeader()));
 
         tickManager.tickElectionTimeOut();
 
@@ -814,13 +810,9 @@ public class RaftNode implements RaftService {
                     return;
                 }
                 if (waitTimeOut == currentWaitTimeOut && currentVersion == electionTimeOutVersion) {
-                    System.out.println(nodeId + "fail1 " + nodeScheduler.isLoseHeartbeat(currentWaitTimeOut));
-                    System.out.println(nodeId + "fail2 " + !nodeScheduler.isLeader());
                     if (nodeScheduler.isLoseHeartbeat(currentWaitTimeOut) && !nodeScheduler.isLeader()) {
                         preVote(currentTerm + 1);
                     }
-                } else {
-                    System.out.println(nodeId + "fail3");
                 }
             }
         };

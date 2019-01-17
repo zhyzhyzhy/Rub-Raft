@@ -1,6 +1,8 @@
 package cc.lovezhy.raft.server.mock6824;
 
+import cc.lovezhy.raft.rpc.RpcClientOptions;
 import cc.lovezhy.raft.server.log.*;
+import cc.lovezhy.raft.server.node.PeerRaftNode;
 import cc.lovezhy.raft.server.node.RaftNode;
 import cc.lovezhy.raft.server.utils.Pair;
 import com.google.common.collect.Lists;
@@ -8,6 +10,7 @@ import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -175,6 +178,16 @@ public class Utils {
         return integerCommandPair.getValue();
     }
 
+    public void setNetReliable(List<RaftNode> raftNodes, boolean reliable) {
+        raftNodes.forEach(raftNode -> {
+            List<PeerRaftNode> peerRaftNodes = getObjectMember(raftNode, "peerRaftNodes");
+            peerRaftNodes.forEach(peerRaftNode -> {
+                RpcClientOptions rpcClientOptions = getObjectMember(peerRaftNode, "rpcClientOptions");
+                rpcClientOptions.setReliable(reliable);
+            });
+        });
+    }
+
 
     public static void start1(RaftNode raftNode) {
         raftNode.close();
@@ -184,5 +197,19 @@ public class Utils {
     public static void fail(String errMsg, Object... objects) {
         log.error(errMsg, objects);
         throw new FailException();
+    }
+
+
+    @SuppressWarnings("unchecked")
+    private static <T> T getObjectMember(Object object, String memberName) {
+        try {
+            Field field = object.getClass().getField(memberName);
+            field.setAccessible(true);
+            Object o = field.get(object);
+            return (T) o;
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            log.error(e.getMessage());
+        }
+        return null;
     }
 }

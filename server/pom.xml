@@ -36,7 +36,12 @@
             <artifactId>okhttp</artifactId>
             <version>3.12.1</version>
         </dependency>
-
+        <dependency>
+            <groupId>org.jetbrains</groupId>
+            <artifactId>annotations</artifactId>
+            <version>13.0</version>
+            <scope>compile</scope>
+        </dependency>
 
 
     </dependencies>
