@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import static cc.lovezhy.raft.rpc.util.LockObjectFactory.getLockObject;
@@ -106,7 +107,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
         synchronized (lockObject) {
             if (!rpcResponseMap.containsKey(requestId)) {
                 try {
-                    lockObject.wait(TimeUnit.MILLISECONDS.toMillis(30));
+                    lockObject.wait(TimeUnit.MILLISECONDS.toMillis(60));
                 } catch (InterruptedException e) {
                     // ignore
                 }
@@ -134,7 +135,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
                 settableFuture.setException(new RequestTimeoutException("request time out"));
                 rpcFutureMap.remove(requestId);
             }
-        }, 30, TimeUnit.MILLISECONDS);
+        }, 60, TimeUnit.MILLISECONDS);
         RpcResponse rpcResponse = new RpcResponse();
         rpcResponse.setResponseBody(null);
         return rpcResponse;
@@ -147,6 +148,12 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
 
     @Override
     public void onResponse(RpcResponse response) {
+
+        // drop response
+        if (!rpcClientOptions.isReliable() && (ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE) % 1000 ) < 100) {
+            log.debug("drop");
+            return;
+        }
         String requestId = response.getRequestId();
         LockObject lockObject = waitConditionMap.get(requestId);
         //normal
@@ -167,7 +174,6 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
                 rpcFutureMap.remove(requestId);
             } else {
                 log.error("non async !!!!");
-                log.error("{}", settableFuture == null);
             }
         }
     }
@@ -178,7 +184,19 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     }
 
     private void writeRequest(RpcRequest request) {
+        ThreadLocalRandom threadLocalRandom = ThreadLocalRandom.current();
         if (rpcClientOptions.isOnNet()) {
+            if (!rpcClientOptions.isReliable()) {
+                try {
+                    Thread.sleep(threadLocalRandom.nextInt(Integer.MAX_VALUE) % 27);
+                } catch (InterruptedException e) {
+                    //ignore
+                }
+            }
+            if (!rpcClientOptions.isReliable() && (threadLocalRandom.nextInt(Integer.MAX_VALUE) % 1000) % 1000 < 100) {
+                log.debug("drop");
+                return;
+            }
             nettyClient.getChannel().writeAndFlush(request);
         } else {
             //ignore

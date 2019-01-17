@@ -1,7 +1,8 @@
 package cc.lovezhy.raft.rpc;
 
+import cc.lovezhy.raft.rpc.annotation.ForTesting;
+import cc.lovezhy.raft.rpc.annotation.ForTestingMethod;
 import cc.lovezhy.raft.rpc.protocal.RpcRequestType;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 
@@ -17,11 +18,16 @@ public class RpcClientOptions {
     // methodName -> RpcRequestType
     private Map<String, RpcRequestType> requestTypeOption;
 
+    @ForTesting
     private boolean isOnNet;
+
+    @ForTesting
+    private boolean reliable;
 
     public RpcClientOptions() {
         requestTypeOption = Collections.synchronizedMap(Maps.newHashMap());
         isOnNet = true;
+        reliable = true;
     }
 
     public void defineMethodRequestType(String methodName, RpcRequestType requestType) {
@@ -38,20 +44,29 @@ public class RpcClientOptions {
         return requestTypeOption.getOrDefault(methodName, RpcRequestType.NORMAL);
     }
 
-    @VisibleForTesting
-    public void disConnect() {
-        this.isOnNet = false;
-    }
-
-    @VisibleForTesting
-    public void connect() {
-        this.isOnNet = true;
-    }
-
-    @VisibleForTesting
+    @ForTestingMethod
     public boolean isOnNet() {
         return isOnNet;
     }
 
+    @ForTestingMethod
+    public boolean isReliable() {
+        return reliable;
+    }
+
+    @ForTestingMethod
+    public void disConnect() {
+        this.isOnNet = false;
+    }
+
+    @ForTestingMethod
+    public void connect() {
+        this.isOnNet = true;
+    }
+
+    @ForTestingMethod
+    public void setReliable(boolean reliable) {
+        this.reliable = reliable;
+    }
 
 }

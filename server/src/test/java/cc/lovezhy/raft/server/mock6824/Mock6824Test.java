@@ -371,7 +371,7 @@ public class Mock6824Test {
         one(raftNodes, randomCommand(), servers, true);
     }
 
-    @Test
+//    @Test
     public void testCount2B() {
         int servers = 3;
         raftNodes = makeCluster(servers);
@@ -382,7 +382,7 @@ public class Mock6824Test {
         //TODO 测这个有啥用。。。
     }
 
-    @Test
+//    @Test
     public void testPersist12C() {
         int servers = 3;
         raftNodes = makeCluster(servers);
