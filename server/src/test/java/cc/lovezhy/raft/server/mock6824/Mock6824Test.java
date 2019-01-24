@@ -1,5 +1,7 @@
 package cc.lovezhy.raft.server.mock6824;
 
+import cc.lovezhy.raft.server.ClusterManager;
+import cc.lovezhy.raft.server.Mock6824Config;
 import cc.lovezhy.raft.server.log.Command;
 import cc.lovezhy.raft.server.node.RaftNode;
 import cc.lovezhy.raft.server.utils.Pair;
@@ -29,32 +31,31 @@ public class Mock6824Test {
 
     private List<RaftNode> raftNodes;
 
+    private Mock6824Config clusterConfig;
+
     @After
     public void clear() {
         if (Objects.nonNull(raftNodes)) {
             raftNodes.forEach(RaftNode::close);
         }
+        if (Objects.nonNull(clusterConfig)) {
+            clusterConfig.end();
+        }
     }
 
     @Test
     public void testInitialElection2A() {
-        raftNodes = makeCluster(3);
-        raftNodes.forEach(RaftNode::init);
-
+        clusterConfig = ClusterManager.newCluster(3);
         log.info("Test (2A): initial election");
-
-        checkOneLeader(raftNodes);
-
+        clusterConfig.checkOneLeader();
         pause(TimeUnit.MILLISECONDS.toMillis(50));
         long term1 = checkTerms(raftNodes);
         pause(TimeUnit.MILLISECONDS.toMillis(50));
         long term2 = checkTerms(raftNodes);
-
         if (term1 != term2) {
             log.warn("warning: term changed even though there were no failures");
         }
         checkOneLeader(raftNodes);
-        raftNodes.forEach(RaftNode::close);
     }
 
     @Test

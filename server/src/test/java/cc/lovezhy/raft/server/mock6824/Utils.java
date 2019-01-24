@@ -1,6 +1,7 @@
 package cc.lovezhy.raft.server.mock6824;
 
 import cc.lovezhy.raft.rpc.RpcClientOptions;
+import cc.lovezhy.raft.server.FailException;
 import cc.lovezhy.raft.server.log.*;
 import cc.lovezhy.raft.server.node.PeerRaftNode;
 import cc.lovezhy.raft.server.node.RaftNode;
