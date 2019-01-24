@@ -1,4 +1,4 @@
-package cc.lovezhy.raft.server.vertx;
+package cc.lovezhy.raft.server.common.vertx;
 
 import cc.lovezhy.raft.server.log.DefaultCommand;
 import com.alibaba.fastjson.JSON;
@@ -12,7 +12,6 @@ public class JsonObjectTest {
     public void jsonObjectMapTest() {
         DefaultCommand defaultCommand = DefaultCommand.setCommand("zhuyichen", "23");
         String jsonString = JSON.toJSONString(defaultCommand);
-        System.out.println(jsonString);
         JsonObject jsonObject = new JsonObject(jsonString);
         Assert.assertEquals(defaultCommand, jsonObject.mapTo(DefaultCommand.class));
     }

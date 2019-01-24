@@ -1,4 +1,4 @@
-package cc.lovezhy.raft.server.mock6824;
+package cc.lovezhy.raft.server;
 
 public class FailException extends RuntimeException {
 }

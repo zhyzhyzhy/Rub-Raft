@@ -1,4 +1,14 @@
 package cc.lovezhy.raft.server;
 
-public class Mock6824Config {
+import cc.lovezhy.raft.server.node.RaftNode;
+
+public interface Mock6824Config {
+
+    RaftNode checkOneLeader();
+
+    int checkTerms();
+
+    void checkNoLeader();
+
+    void end();
 }
