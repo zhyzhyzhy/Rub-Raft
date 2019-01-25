@@ -3,6 +3,7 @@ package cc.lovezhy.raft.rpc;
 import cc.lovezhy.raft.rpc.protocal.RpcRequest;
 import cc.lovezhy.raft.rpc.protocal.RpcRequestType;
 import cc.lovezhy.raft.rpc.protocal.RpcResponse;
+import cc.lovezhy.raft.rpc.resource.RpcServerStateResource;
 import cc.lovezhy.raft.rpc.server.netty.NettyServer;
 import cc.lovezhy.raft.rpc.server.netty.RpcService;
 import com.google.common.base.Preconditions;
@@ -28,6 +29,10 @@ public class RpcServer {
 
     private RpcService rpcService;
 
+    private RpcStatistics rpcStatistics;
+
+    private RpcServerStateResource rpcServerStateResource;
+
     public RpcServer() {
         this.serviceMap = Collections.synchronizedMap(Maps.newHashMap());
         this.providers = Collections.synchronizedList(Lists.newArrayList());
@@ -50,6 +55,12 @@ public class RpcServer {
         nettyServer = new NettyServer(rpcServerOptions.getStartEndPoint(), rpcService);
         nettyServer.start();
         log.info("start rpc server endPoint={}", rpcServerOptions.getStartEndPoint());
+
+        this.rpcStatistics = RpcStatistics.create();
+        int rpcServerStateResourcePort = rpcServerOptions.getStartEndPoint().getPort() + 1;
+        this.rpcServerStateResource = RpcServerStateResource.create(rpcServerStateResourcePort, rpcStatistics);
+        this.rpcServerStateResource.start();
+        log.info("start rpcServerStateResource at port {}", rpcServerStateResourcePort);
     }
 
     public void registerService(Class<?> serviceClass) {
@@ -72,6 +83,7 @@ public class RpcServer {
 
     public void close() {
         nettyServer.closeSync();
+        rpcServerStateResource.close();
     }
 
     class RpcServerService implements RpcService {
@@ -82,7 +94,7 @@ public class RpcServer {
 
         @Override
         public void handleRequest(Channel channel, RpcRequest request) {
-
+            rpcStatistics.incrIncomingRequestAsync();
             RpcProvider provider = serviceMap.get(request.getClazz());
             Object responseObject = provider.invoke(request.getMethod(), request.getArgs());
             if (request.getRpcRequestType().equals(RpcRequestType.ONE_WAY)) {

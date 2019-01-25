@@ -152,7 +152,7 @@ public class RaftNode implements RaftService {
         rpcServer.start(endPoint);
         outerService = new OuterService();
         //start http service
-        httpService = new ClientHttpService(outerService, endPoint.getPort() + 1);
+        httpService = new ClientHttpService(outerService, endPoint.getPort() + 2);
         NodeSlf4jHelper.changeObjectLogger(nodeId, httpService);
 
         httpService.createHttpServer();
@@ -879,7 +879,7 @@ public class RaftNode implements RaftService {
             jsonObject.put("Leader", RaftNode.this.nodeScheduler.getVotedFor().getPeerId());
 
             List<String> currentUrls = Lists.newArrayList();
-            EndPoint endPoint = EndPoint.create(RaftNode.this.getEndPoint().getHost(), RaftNode.this.getEndPoint().getPort() + 1);
+            EndPoint endPoint = EndPoint.create(RaftNode.this.getEndPoint().getHost(), RaftNode.this.getEndPoint().getPort() + 2);
             currentUrls.add(endPoint.toUrl() + "/status");
             currentUrls.add(endPoint.toUrl() + "/data");
             currentUrls.add(endPoint.toUrl() + "/command");
@@ -891,7 +891,7 @@ public class RaftNode implements RaftService {
             jsonObject.put("keySize", logService.getLastCommitLogIndex());
             Map<NodeId, List<String>> nodeIdUrlMap = Maps.newHashMap();
             RaftNode.this.peerRaftNodes.forEach(peerRaftNode -> {
-                EndPoint peerNodeHttpEndPoint = EndPoint.create(peerRaftNode.getEndPoint().getHost(), peerRaftNode.getEndPoint().getPort() + 1);
+                EndPoint peerNodeHttpEndPoint = EndPoint.create(peerRaftNode.getEndPoint().getHost(), peerRaftNode.getEndPoint().getPort() + 2);
                 List<String> urls = Lists.newArrayList();
                 urls.add(peerNodeHttpEndPoint.toUrl() + "/status");
                 urls.add(peerNodeHttpEndPoint.toUrl() + "/data");

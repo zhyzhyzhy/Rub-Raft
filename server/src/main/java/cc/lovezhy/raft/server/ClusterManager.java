@@ -23,19 +23,28 @@ public class ClusterManager implements Mock6824Config {
 
     private static final Logger log = LoggerFactory.getLogger(ClusterManager.class);
 
-    public static ClusterManager newCluster(int servers) {
+    public static ClusterManager newCluster(int servers, boolean unreliable) {
         ClusterManager clusterManager = new ClusterManager();
-        clusterManager.makeCluster(servers);
+        clusterManager.makeCluster(servers, unreliable);
         return clusterManager;
     }
 
     private List<RaftNode> raftNodes;
 
+    /**
+     * @see #begin(String)
+     */
+    private long t0;
+    private long rpcs0;
+    private long cmds0;
+    private long maxIndex0;
+
     private ClusterManager() {
     }
 
-    private void makeCluster(int servers) {
+    private void makeCluster(int servers, boolean unreliable) {
         Preconditions.checkArgument(servers > 0);
+
         List<RaftNode> raftNodes = Lists.newArrayList();
         Properties properties = new Properties();
         properties.setProperty("cluster.nodes", String.valueOf(servers));
@@ -44,7 +53,7 @@ public class ClusterManager implements Mock6824Config {
 
         List<String> nodeList = Lists.newArrayList();
         for (int i = 0; i < servers; i++) {
-            nodeList.add("localhost:" + nodeRpcPortAllocator.getAndAdd(2) + ":" + i);
+            nodeList.add("localhost:" + nodeRpcPortAllocator.getAndAdd(3) + ":" + i);
         }
         nodeList.forEach(currentNode -> {
             properties.setProperty("local", currentNode);
@@ -54,6 +63,7 @@ public class ClusterManager implements Mock6824Config {
             raftNodes.add(new RaftStarter().start(properties));
         });
         this.raftNodes = raftNodes;
+        setNetReliable(!unreliable);
         this.raftNodes.forEach(RaftNode::init);
     }
 
@@ -90,7 +100,17 @@ public class ClusterManager implements Mock6824Config {
 
     @Override
     public int checkTerms() {
-        return 0;
+        long term = -1;
+        for (RaftNode raftNode : raftNodes) {
+            if (isOnNet(raftNode)) {
+                if (term == -1) {
+                    term = raftNode.getCurrentTerm();
+                } else if (term != raftNode.getCurrentTerm()) {
+                    fail("servers disagree on term");
+                }
+            }
+        }
+        return Math.toIntExact(term);
     }
 
     @Override
@@ -99,10 +119,43 @@ public class ClusterManager implements Mock6824Config {
     }
 
     @Override
+    public void begin(String description) {
+        log.info("{} ...", description);
+        this.t0 = System.currentTimeMillis();
+        //TODO
+        this.rpcs0 = 0;
+        this.cmds0 = 0;
+        //TODO
+        this.maxIndex0 = 0;
+    }
+
+    @Override
     public void end() {
         if (Objects.nonNull(raftNodes)) {
             raftNodes.forEach(RaftNode::close);
         }
+    }
+
+    @Override
+    public int rpcTotal() {
+        //TODO
+        return 0;
+    }
+
+
+    /**
+     * 设置网络的可靠性
+     */
+    private void setNetReliable(boolean reliable) {
+        raftNodes.forEach(raftNode -> {
+            List<PeerRaftNode> peerRaftNodes = getObjectMember(raftNode, "peerRaftNodes");
+            Preconditions.checkNotNull(peerRaftNodes);
+            peerRaftNodes.forEach(peerRaftNode -> {
+                RpcClientOptions rpcClientOptions = getObjectMember(peerRaftNode, "rpcClientOptions");
+                Preconditions.checkNotNull(rpcClientOptions);
+                rpcClientOptions.setReliable(reliable);
+            });
+        });
     }
 
     /**
