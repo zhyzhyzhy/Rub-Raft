@@ -40,7 +40,7 @@ public class VoteAction {
         }
     }
 
-    public boolean meetCondition() {
+    private boolean meetCondition() {
         return successCounter.get() >= successMin || failCounter.get() >= failMin;
     }
 

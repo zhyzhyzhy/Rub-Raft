@@ -116,7 +116,7 @@ public class LogServiceImpl implements LogService {
 
     @Override
     public boolean hasInSnapshot(long index) {
-        Preconditions.checkState(index >= 0);
+        Preconditions.checkState(index >= 0, String.format("index < 0, index = %d", index));
         if (index > start + storageService.getLen()) {
             throw new IndexOutOfBoundsException();
         }

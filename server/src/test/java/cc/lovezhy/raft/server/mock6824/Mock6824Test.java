@@ -2,6 +2,7 @@ package cc.lovezhy.raft.server.mock6824;
 
 import cc.lovezhy.raft.server.ClusterManager;
 import cc.lovezhy.raft.server.Mock6824Config;
+import cc.lovezhy.raft.server.node.NodeId;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,39 +39,35 @@ public class Mock6824Test {
         clusterConfig.end();
     }
 
-//    @Test
-//    public void testReElection2A() {
-//        raftNodes = makeCluster(3);
-//        raftNodes.forEach(RaftNode::init);
-//
-//        log.info("Test (2A): election after network failure");
-//
-//        RaftNode leader1 = checkOneLeader(raftNodes);
-//        System.out.println(leader1.getNodeId());
-//        disConnect(leader1, raftNodes);
-//
-//        checkOneLeader(raftNodes);
-//
-//        connect(leader1, raftNodes);
-//        RaftNode leader2 = checkOneLeader(raftNodes);
-//        System.out.println(leader2.getNodeId());
-//
-//
-//
-//        disConnect(leader2, raftNodes);
-//        int leader2Index = raftNodes.indexOf(leader2);
-//        System.out.println(raftNodes.get((leader2Index + 1) % raftNodes.size()).getNodeId());
-//        disConnect(raftNodes.get((leader2Index + 1) % raftNodes.size()), raftNodes);
-//        pause(2 * RAFT_ELECTION_TIMEOUT);
-//
-//        checkNoLeader(raftNodes);
-//        connect(raftNodes.get((leader2Index + 1) % raftNodes.size()), raftNodes);
-//
-//        checkOneLeader(raftNodes);
-//        connect(leader2, raftNodes);
-//
-//        checkOneLeader(raftNodes);
-//    }
+    @Test
+    public void testReElection2A() {
+        int servers = 3;
+        clusterConfig = ClusterManager.newCluster(servers, false);
+
+        log.info("Test (2A): election after network failure");
+
+        NodeId leaderNode1 = clusterConfig.checkOneLeader();
+        clusterConfig.disconnect(leaderNode1);
+
+        clusterConfig.checkOneLeader();
+
+        clusterConfig.connect(leaderNode1);
+        NodeId leaderNode2 = clusterConfig.checkOneLeader();
+
+        clusterConfig.disconnect(leaderNode2);
+        NodeId nextNodeId = clusterConfig.nextNode(leaderNode2);
+        clusterConfig.disconnect(nextNodeId);
+
+        pause(2 * RAFT_ELECTION_TIMEOUT);
+
+        clusterConfig.checkNoLeader();
+        clusterConfig.connect(nextNodeId);
+
+        NodeId leader = clusterConfig.checkOneLeader();
+        clusterConfig.connect(leaderNode2);
+
+        clusterConfig.checkOneLeader();
+    }
 //
 //
 //    /**

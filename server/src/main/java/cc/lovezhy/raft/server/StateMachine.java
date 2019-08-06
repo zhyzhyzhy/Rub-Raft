@@ -10,5 +10,5 @@ public interface StateMachine {
 
     byte[] takeSnapShot();
 
-    boolean fromSnapShot(byte[] bytes);
+    void fromSnapShot(byte[] bytes);
 }

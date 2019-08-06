@@ -651,7 +651,9 @@ public class RaftNode implements RaftService {
                     List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex(), currentLastLogIndex);
                     replicatedLogRequest.setEntries(logEntries);
                     //同步方法
+                    log.info("send replicatedLogRequest={}", JSON.toJSONString(replicatedLogRequest));
                     ReplicatedLogResponse replicatedLogResponse = peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
+                    log.info("receive replicatedLogResponse={}", JSON.toJSONString(replicatedLogResponse));
                     /*
                      * 可能发生
                      * 成为Leader后直接被网络分区了
@@ -695,7 +697,7 @@ public class RaftNode implements RaftService {
                     appendLogResult.set(replicatedLogResponse.getSuccess());
                 } catch (Exception e) {
                     appendLogResult.set(Boolean.FALSE);
-                    log.error(e.getMessage());
+                    log.error(e.getMessage(), e);
                 }
             };
         }

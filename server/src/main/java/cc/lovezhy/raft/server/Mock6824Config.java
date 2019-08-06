@@ -1,6 +1,6 @@
 package cc.lovezhy.raft.server;
 
-import cc.lovezhy.raft.server.node.RaftNode;
+import cc.lovezhy.raft.server.node.NodeId;
 
 public interface Mock6824Config {
 
@@ -13,7 +13,13 @@ public interface Mock6824Config {
      */
     int rpcTotal();
 
-    RaftNode checkOneLeader();
+    void disconnect(NodeId nodeId);
+
+    void connect(NodeId nodeId);
+
+    NodeId checkOneLeader();
+
+    NodeId nextNode(NodeId nodeId);
 
     /**
      * check that everyone agrees on the term.

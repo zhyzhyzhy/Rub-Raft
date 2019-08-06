@@ -10,6 +10,7 @@ import com.google.common.collect.Maps;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.ByteArrayOutputStream;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @ThreadSafe
 public class DefaultStateMachine implements StateMachine {
@@ -46,15 +47,18 @@ public class DefaultStateMachine implements StateMachine {
 
     @Override
     @SuppressWarnings("unchecked")
-    public synchronized boolean fromSnapShot(byte[] bytes) {
-        map.clear();
-        Input input = new Input(bytes);
-        Kryo kryo = KryoUtils.getPool().borrow();
-        Map<String, String> snapShotMap = (Map<String, String>) kryo.readClassAndObject(input);
-        input.close();
-        KryoUtils.getPool().release(kryo);
-        map.putAll(snapShotMap);
-        return true;
+    public void fromSnapShot(byte[] bytes) {
+        CompletableFuture.runAsync(() -> {
+            synchronized (this) {
+                map.clear();
+                Input input = new Input(bytes);
+                Kryo kryo = KryoUtils.getPool().borrow();
+                Map<String, String> snapShotMap = (Map<String, String>) kryo.readClassAndObject(input);
+                input.close();
+                KryoUtils.getPool().release(kryo);
+                map.putAll(snapShotMap);
+            }
+        });
     }
 
     @Override
