@@ -1,9 +1,11 @@
 package cc.lovezhy.raft.server;
 
 import cc.lovezhy.raft.rpc.RpcClientOptions;
+import cc.lovezhy.raft.server.log.*;
 import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.node.PeerRaftNode;
 import cc.lovezhy.raft.server.node.RaftNode;
+import cc.lovezhy.raft.server.utils.Pair;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
@@ -15,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -32,6 +35,7 @@ public class ClusterManager implements Mock6824Config {
     }
 
     private List<RaftNode> raftNodes;
+    private Map<NodeId, RaftNode> nodeIdRaftNodeMap = Maps.newHashMap();
     private Map<NodeId, RaftNodeExtConfig> raftNodeExtConfigMap = Maps.newHashMap();
 
 
@@ -83,6 +87,7 @@ public class ClusterManager implements Mock6824Config {
             RaftNode node = new RaftStarter().start(properties);
             raftNodes.add(node);
             raftNodeExtConfigMap.put(node.getNodeId(), new RaftNodeExtConfig());
+            nodeIdRaftNodeMap.put(node.getNodeId(), node);
         });
         this.raftNodes = raftNodes;
         setNetReliable(!unreliable);
@@ -154,6 +159,66 @@ public class ClusterManager implements Mock6824Config {
                 fail("expected no leader, but {} claims to be leader", raftNode.getNodeId());
             }
         }
+    }
+
+    @Override
+    public Pair<Integer, Command> nCommitted(int index) {
+        int count = 0;
+        Command defaultCommand = LogConstants.getDummyCommand();
+
+        for (RaftNode raftNode : raftNodes) {
+            LogService logService = raftNode.getLogService();
+            LogEntry entry = null;
+            if (index <= logService.getLastCommitLogIndex()) {
+                entry = logService.get(index);
+            }
+            if (Objects.nonNull(entry)) {
+                if (count > 0 && !Objects.equals(defaultCommand, entry.getCommand())) {
+                    fail("committed values do not match: index {}, {}, {}", index, defaultCommand, entry.getCommand());
+                }
+                count++;
+                defaultCommand = entry.getCommand();
+            }
+        }
+        return Pair.of(count, defaultCommand);
+    }
+
+    @Override
+    public int one(Command command, int expectedServers, boolean retry) {
+        NodeId leaderNodeId = null;
+        long current = System.currentTimeMillis();
+        while (System.currentTimeMillis() - current < TimeUnit.SECONDS.toMillis(10)) {
+            try {
+                leaderNodeId = checkOneLeader();
+                if (Objects.nonNull(leaderNodeId)) {
+                    break;
+                }
+            } catch (Exception e) {
+                //ignore
+            }
+        }
+        if (Objects.isNull(leaderNodeId)) {
+            fail("one({}) failed to reach agreement", command);
+        }
+        RaftNode leaderRaftNode = nodeIdRaftNodeMap.get(leaderNodeId);
+        leaderRaftNode.getOuterService().appendLog((DefaultCommand) command);
+        long lastLogIndex = leaderRaftNode.getLogService().getLastLogIndex();
+
+        int times = retry ? 2 : 1;
+        while (times >= 1) {
+            long t0 = System.currentTimeMillis();
+            while (System.currentTimeMillis() - t0 < TimeUnit.SECONDS.toMillis(2)) {
+                Pair<Integer, Command> commandPair = nCommitted(Math.toIntExact(lastLogIndex));
+                if (commandPair.getKey() > 0 && commandPair.getKey() >= expectedServers) {
+                    if (Objects.equals(command, commandPair.getValue())) {
+                        return Math.toIntExact(lastLogIndex);
+                    }
+                }
+            }
+            times--;
+        }
+        fail("one({}) failed to reach agreement", command);
+        return -1;
     }
 
     @Override

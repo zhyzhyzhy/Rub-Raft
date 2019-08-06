@@ -2,14 +2,16 @@ package cc.lovezhy.raft.server.mock6824;
 
 import cc.lovezhy.raft.server.ClusterManager;
 import cc.lovezhy.raft.server.Mock6824Config;
+import cc.lovezhy.raft.server.log.Command;
 import cc.lovezhy.raft.server.node.NodeId;
+import cc.lovezhy.raft.server.utils.Pair;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.TimeUnit;
 
-import static cc.lovezhy.raft.server.mock6824.Utils.pause;
+import static cc.lovezhy.raft.server.mock6824.Utils.*;
 
 public class Mock6824Test {
 
@@ -44,7 +46,7 @@ public class Mock6824Test {
         int servers = 3;
         clusterConfig = ClusterManager.newCluster(servers, false);
 
-        log.info("Test (2A): election after network failure");
+        clusterConfig.begin("Test (2A): election after network failure");
 
         NodeId leaderNode1 = clusterConfig.checkOneLeader();
         clusterConfig.disconnect(leaderNode1);
@@ -67,32 +69,33 @@ public class Mock6824Test {
         clusterConfig.connect(leaderNode2);
 
         clusterConfig.checkOneLeader();
+        clusterConfig.end();
     }
-//
-//
-//    /**
-//     * 这里有个不一致的地方，6.824中，成为Leader之后不进行一个Dummy Log的Commit
-//     */
-//    @Test
-//    public void testBasicAgree2B() {
-//        int servers = 5;
-//        raftNodes = makeCluster(servers);
-//        raftNodes.forEach(RaftNode::init);
-//        log.info("Test (2B): basic agreement");
-//
-//        //由于提交了两条dummy，所以从2开始
-//        for (int i = 2; i < 6; i++) {
-//            Pair<Integer, Command> integerCommandPair = nCommitted(raftNodes, i);
-//            if (integerCommandPair.getKey() > 0) {
-//                fail("some one has committed before Start()");
-//            }
-//            int xindex = one(raftNodes, randomCommand(), servers, false);
-//            if (xindex != i) {
-//                fail("got index {} but expected {}", xindex, i);
-//            }
-//        }
-//
-//    }
+
+
+    /**
+     * 这里有个不一致的地方，6.824中，成为Leader之后不进行一个Dummy Log的Commit
+     */
+    @Test
+    public void testBasicAgree2B() {
+        int servers = 5;
+        clusterConfig = ClusterManager.newCluster(servers, false);
+        clusterConfig.begin("Test (2B): basic agreement");
+
+        //由于提交了两条dummy，所以从2开始
+        for (int i = 2; i < 6; i++) {
+            Pair<Integer, Command> integerCommandPair = clusterConfig.nCommitted(i);
+            if (integerCommandPair.getKey() > 0) {
+                fail("some one has committed before Start()");
+            }
+            int xindex = clusterConfig.one(randomCommand(), servers, false);
+            if (xindex != i) {
+                fail("got index {} but expected {}", xindex, i);
+            }
+        }
+        clusterConfig.end();
+
+    }
 //
 //    @Test
 //    public void testFailAgree2B() {
