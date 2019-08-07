@@ -96,76 +96,81 @@ public class Mock6824Test {
         clusterConfig.end();
 
     }
-//
-//    @Test
-//    public void testFailAgree2B() {
-//        int servers = 3;
-//        raftNodes = makeCluster(servers);
-//        raftNodes.forEach(RaftNode::init);
-//
-//        log.info("Test (2B): agreement despite follower disconnection");
-//
-//        one(raftNodes, randomCommand(), servers, false);
-//        RaftNode leader = checkOneLeader(raftNodes);
-//        int leaderIndex = raftNodes.indexOf(leader);
-//        disConnect(raftNodes.get((leaderIndex + 1) % raftNodes.size()), raftNodes);
-//
-//        one(raftNodes, randomCommand(), servers - 1, false);
-//        one(raftNodes, randomCommand(), servers - 1, false);
-//        pause(RAFT_ELECTION_TIMEOUT);
-//
-//        connect(raftNodes.get((leaderIndex + 1) % raftNodes.size()), raftNodes);
-//
-//        one(raftNodes, randomCommand(), servers, false);
-//        one(raftNodes, randomCommand(), servers, false);
-//
-//    }
-//
-//    @Test
-//    public void testFailNoAgree2B() {
-//        int servers = 5;
-//        raftNodes = makeCluster(5);
-//        raftNodes.forEach(RaftNode::init);
-//        log.info("Test (2B): no agreement if too many followers disconnect");
-//        one(raftNodes, randomCommand(), servers, false);
-//
-//        RaftNode leader = checkOneLeader(raftNodes);
-//        int leaderIndex = raftNodes.indexOf(leader);
-//        disConnect(raftNodes.get((leaderIndex + 1) % raftNodes.size()), raftNodes);
-//        disConnect(raftNodes.get((leaderIndex + 2) % raftNodes.size()), raftNodes);
-//        disConnect(raftNodes.get((leaderIndex + 3) % raftNodes.size()), raftNodes);
-//
-//        boolean appendSuccess = leader.getOuterService().appendLog(randomCommand()).getBoolean("selfAppend");
-//        if (!appendSuccess) {
-//            fail("leader rejected AppendLog");
-//        }
-//
-//        long lastLogIndex = leader.getLogService().getLastLogIndex();
-//        if (lastLogIndex != 3) {
-//            fail("expected index 2, got {}", lastLogIndex);
-//        }
-//        pause(2 * RAFT_ELECTION_TIMEOUT);
-//
-//        Pair<Integer, Command> integerCommandPair = nCommitted(raftNodes, Math.toIntExact(lastLogIndex));
-//        if (integerCommandPair.getKey() > 0) {
-//            fail("{} committed but no majority", integerCommandPair.getKey());
-//        }
-//        connect(raftNodes.get((leaderIndex + 1) % raftNodes.size()), raftNodes);
-//        connect(raftNodes.get((leaderIndex + 2) % raftNodes.size()), raftNodes);
-//        connect(raftNodes.get((leaderIndex + 3) % raftNodes.size()), raftNodes);
-//
-//        RaftNode leader2 = checkOneLeader(raftNodes);
-//        appendSuccess = leader2.getOuterService().appendLog(randomCommand()).getBoolean("success");
-//        long lastLogIndex2 = leader.getLogService().getLastLogIndex();
-//        if (!appendSuccess) {
-//            fail("leader2 rejected appendLog");
-//        }
-//        if (lastLogIndex2 < 3 || lastLogIndex2 > 4) {
-//            fail("unexpected index {}", lastLogIndex2);
-//        }
-//        one(raftNodes, randomCommand(), servers, false);
-//
-//    }
+
+    @Test
+    public void testFailAgree2B() {
+        int servers = 3;
+        clusterConfig = ClusterManager.newCluster(servers, false);
+
+        clusterConfig.begin("Test (2B): agreement despite follower disconnection");
+
+        clusterConfig.one(randomCommand(), servers, false);
+        NodeId leaderNodeId = clusterConfig.checkOneLeader();
+        NodeId nextNodeId = clusterConfig.nextNode(leaderNodeId);
+        clusterConfig.disconnect(nextNodeId);
+
+        clusterConfig.one(randomCommand(), servers - 1, false);
+        clusterConfig.one(randomCommand(), servers - 1, false);
+        pause(RAFT_ELECTION_TIMEOUT);
+        clusterConfig.one(randomCommand(), servers - 1, false);
+        clusterConfig.one(randomCommand(), servers - 1, false);
+
+        clusterConfig.connect(nextNodeId);
+
+        clusterConfig.one(randomCommand(), servers, false);
+        pause(RAFT_ELECTION_TIMEOUT);
+        clusterConfig.one(randomCommand(), servers, false);
+
+        clusterConfig.end();
+    }
+
+    @Test
+    public void testFailNoAgree2B() {
+        int servers = 5;
+        clusterConfig = ClusterManager.newCluster(5, false);
+
+        clusterConfig.begin("Test (2B): no agreement if too many followers disconnect");
+        clusterConfig.one(randomCommand(), servers, false);
+
+        NodeId leaderNodeId = clusterConfig.checkOneLeader();
+        NodeId nextNodeId1 = clusterConfig.nextNode(leaderNodeId);
+        clusterConfig.disconnect(nextNodeId1);
+        NodeId nextNodeId2 = clusterConfig.nextNode(nextNodeId1);
+        clusterConfig.disconnect(nextNodeId2);
+        NodeId nextNodeId3 = clusterConfig.nextNode(nextNodeId2);
+        clusterConfig.disconnect(nextNodeId3);
+
+        boolean appendSuccess = leader.getOuterService().appendLog(randomCommand()).getBoolean("selfAppend");
+        if (!appendSuccess) {
+            fail("leader rejected AppendLog");
+        }
+
+        long lastLogIndex = leader.getLogService().getLastLogIndex();
+        if (lastLogIndex != 3) {
+            fail("expected index 2, got {}", lastLogIndex);
+        }
+        pause(2 * RAFT_ELECTION_TIMEOUT);
+
+        Pair<Integer, Command> integerCommandPair = nCommitted(raftNodes, Math.toIntExact(lastLogIndex));
+        if (integerCommandPair.getKey() > 0) {
+            fail("{} committed but no majority", integerCommandPair.getKey());
+        }
+        connect(raftNodes.get((leaderIndex + 1) % raftNodes.size()), raftNodes);
+        connect(raftNodes.get((leaderIndex + 2) % raftNodes.size()), raftNodes);
+        connect(raftNodes.get((leaderIndex + 3) % raftNodes.size()), raftNodes);
+
+        RaftNode leader2 = checkOneLeader(raftNodes);
+        appendSuccess = leader2.getOuterService().appendLog(randomCommand()).getBoolean("success");
+        long lastLogIndex2 = leader.getLogService().getLastLogIndex();
+        if (!appendSuccess) {
+            fail("leader2 rejected appendLog");
+        }
+        if (lastLogIndex2 < 3 || lastLogIndex2 > 4) {
+            fail("unexpected index {}", lastLogIndex2);
+        }
+        one(raftNodes, randomCommand(), servers, false);
+
+    }
 //
 //    @Test
 //    public void testConcurrentStarts2B() throws InterruptedException {
