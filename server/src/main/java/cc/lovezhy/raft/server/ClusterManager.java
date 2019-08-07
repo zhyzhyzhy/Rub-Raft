@@ -55,6 +55,7 @@ public class ClusterManager implements Mock6824Config {
             isOnNet = onNet;
         }
     }
+
     /**
      * @see #begin(String)
      */
@@ -296,6 +297,16 @@ public class ClusterManager implements Mock6824Config {
                 rpcClientOptions.setReliable(reliable);
             });
         });
+    }
+
+    @Override
+    public StartResponse start(NodeId nodeId, DefaultCommand command) {
+        RaftNode node = nodeIdRaftNodeMap.get(nodeId);
+        node.getOuterService().appendLog(command);
+        boolean isLeader = node.getNodeScheduler().isLeader();
+        int term = Math.toIntExact(node.getCurrentTerm());
+        int lastLogIndex = Math.toIntExact(node.getLogService().getLastLogIndex());
+        return StartResponse.create(lastLogIndex, term, isLeader);
     }
 
     /**

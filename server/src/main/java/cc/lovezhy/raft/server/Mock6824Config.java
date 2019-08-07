@@ -1,6 +1,7 @@
 package cc.lovezhy.raft.server;
 
 import cc.lovezhy.raft.server.log.Command;
+import cc.lovezhy.raft.server.log.DefaultCommand;
 import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.utils.Pair;
 
@@ -54,5 +55,47 @@ public interface Mock6824Config {
      * 我理解的就是commit一个Command，然后返回LogEntry的Index
      */
     int one(Command command, int expectedServers, boolean retry);
+
+
+
+    class StartResponse {
+
+        public static StartResponse create(int index, int term, boolean ok) {
+            StartResponse startResponse = new StartResponse();
+            startResponse.setIndex(index);
+            startResponse.setTerm(term);
+            startResponse.setLeader(ok);
+            return startResponse;
+        }
+
+        private int index;
+        private int term;
+        private boolean isLeader;
+
+        public int getIndex() {
+            return index;
+        }
+
+        public void setIndex(int index) {
+            this.index = index;
+        }
+
+        public int getTerm() {
+            return term;
+        }
+
+        public void setTerm(int term) {
+            this.term = term;
+        }
+
+        public boolean isLeader() {
+            return isLeader;
+        }
+
+        public void setLeader(boolean leader) {
+            isLeader = leader;
+        }
+    }
+    StartResponse start(NodeId nodeId, DefaultCommand command);
 
 }

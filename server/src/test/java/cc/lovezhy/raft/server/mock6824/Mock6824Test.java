@@ -140,36 +140,36 @@ public class Mock6824Test {
         NodeId nextNodeId3 = clusterConfig.nextNode(nextNodeId2);
         clusterConfig.disconnect(nextNodeId3);
 
-        boolean appendSuccess = leader.getOuterService().appendLog(randomCommand()).getBoolean("selfAppend");
-        if (!appendSuccess) {
+        Mock6824Config.StartResponse startResponse = clusterConfig.start(leaderNodeId, randomCommand());
+        if (!startResponse.isLeader()) {
             fail("leader rejected AppendLog");
         }
 
-        long lastLogIndex = leader.getLogService().getLastLogIndex();
-        if (lastLogIndex != 3) {
-            fail("expected index 2, got {}", lastLogIndex);
+        if (startResponse.getIndex() != 3) {
+            fail("expected index 3, got {}", startResponse.getIndex());
         }
         pause(2 * RAFT_ELECTION_TIMEOUT);
 
-        Pair<Integer, Command> integerCommandPair = nCommitted(raftNodes, Math.toIntExact(lastLogIndex));
+        Pair<Integer, Command> integerCommandPair = clusterConfig.nCommitted(Math.toIntExact(startResponse.getIndex()));
         if (integerCommandPair.getKey() > 0) {
             fail("{} committed but no majority", integerCommandPair.getKey());
         }
-        connect(raftNodes.get((leaderIndex + 1) % raftNodes.size()), raftNodes);
-        connect(raftNodes.get((leaderIndex + 2) % raftNodes.size()), raftNodes);
-        connect(raftNodes.get((leaderIndex + 3) % raftNodes.size()), raftNodes);
 
-        RaftNode leader2 = checkOneLeader(raftNodes);
-        appendSuccess = leader2.getOuterService().appendLog(randomCommand()).getBoolean("success");
-        long lastLogIndex2 = leader.getLogService().getLastLogIndex();
-        if (!appendSuccess) {
+        clusterConfig.connect(nextNodeId1);
+        clusterConfig.connect(nextNodeId2);
+        clusterConfig.connect(nextNodeId3);
+
+        NodeId leaderNodeId2 = clusterConfig.checkOneLeader();
+        Mock6824Config.StartResponse startResponse1 = clusterConfig.start(leaderNodeId2, randomCommand());
+
+        if (!startResponse1.isLeader()) {
             fail("leader2 rejected appendLog");
         }
-        if (lastLogIndex2 < 3 || lastLogIndex2 > 4) {
-            fail("unexpected index {}", lastLogIndex2);
+        if (startResponse1.getIndex() < 3 || startResponse1.getIndex() > 4) {
+            fail("unexpected index {}", startResponse1.getIndex());
         }
-        one(raftNodes, randomCommand(), servers, false);
-
+        clusterConfig.one(randomCommand(), servers, true);
+        clusterConfig.end();
     }
 //
 //    @Test
