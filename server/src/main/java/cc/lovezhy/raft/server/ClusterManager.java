@@ -13,10 +13,7 @@ import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -307,6 +304,43 @@ public class ClusterManager implements Mock6824Config {
         int term = Math.toIntExact(node.getCurrentTerm());
         int lastLogIndex = Math.toIntExact(node.getLogService().getLastLogIndex());
         return StartResponse.create(lastLogIndex, term, isLeader);
+    }
+
+    @Override
+    public Command wait(int index, int n, long startTerm) {
+        long to = TimeUnit.MILLISECONDS.toMillis(10);
+        for (int i = 0; i < 30; i++) {
+            Pair<Integer, Command> integerCommandPair = nCommitted(index);
+            if (integerCommandPair.getKey() >= n) {
+                break;
+            }
+            pause(to);
+            if (to < TimeUnit.SECONDS.toMillis(1)) {
+                to *= 2;
+            }
+            if (startTerm > -1) {
+                for (RaftNode raftNode : raftNodes) {
+                    if (raftNode.getCurrentTerm() > startTerm) {
+                        return null;
+                    }
+                }
+            }
+        }
+        Pair<Integer, Command> integerCommandPair = nCommitted(index);
+        if (integerCommandPair.getKey() < n) {
+            fail("only {} decided for index {}; wanted {}", integerCommandPair.getKey(), index, n);
+        }
+        return integerCommandPair.getValue();
+    }
+
+    @Override
+    public int fetchTerm(NodeId nodeId) {
+        return Math.toIntExact(nodeIdRaftNodeMap.get(nodeId).getCurrentTerm());
+    }
+
+    @Override
+    public Collection<NodeId> fetchAllNodeId() {
+        return nodeIdRaftNodeMap.keySet();
     }
 
     /**

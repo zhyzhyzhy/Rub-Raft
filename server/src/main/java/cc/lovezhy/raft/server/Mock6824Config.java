@@ -5,6 +5,8 @@ import cc.lovezhy.raft.server.log.DefaultCommand;
 import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.utils.Pair;
 
+import java.util.Collection;
+
 public interface Mock6824Config {
 
     void begin(String description);
@@ -57,7 +59,6 @@ public interface Mock6824Config {
     int one(Command command, int expectedServers, boolean retry);
 
 
-
     class StartResponse {
 
         public static StartResponse create(int index, int term, boolean ok) {
@@ -96,6 +97,19 @@ public interface Mock6824Config {
             isLeader = leader;
         }
     }
+
     StartResponse start(NodeId nodeId, DefaultCommand command);
+
+
+    int fetchTerm(NodeId nodeId);
+
+    Collection<NodeId> fetchAllNodeId();
+
+
+    /**
+     * wait for at least n servers to commit.
+     * but don't wait forever.
+     */
+    Command wait(int index, int n, long startTerm);
 
 }

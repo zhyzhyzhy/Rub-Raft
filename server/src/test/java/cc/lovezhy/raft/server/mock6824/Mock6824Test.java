@@ -5,10 +5,17 @@ import cc.lovezhy.raft.server.Mock6824Config;
 import cc.lovezhy.raft.server.log.Command;
 import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.utils.Pair;
+import com.google.common.collect.Lists;
+import org.junit.After;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static cc.lovezhy.raft.server.mock6824.Utils.*;
@@ -20,6 +27,11 @@ public class Mock6824Test {
     private static final long RAFT_ELECTION_TIMEOUT = 1000;
 
     private Mock6824Config clusterConfig;
+
+    @After
+    public void after() {
+        clusterConfig.end();
+    }
 
     @Test
     public void testInitialElection2A() {
@@ -38,7 +50,6 @@ public class Mock6824Test {
             log.warn("warning: term changed even though there were no failures");
         }
         clusterConfig.checkOneLeader();
-        clusterConfig.end();
     }
 
     @Test
@@ -69,7 +80,6 @@ public class Mock6824Test {
         clusterConfig.connect(leaderNode2);
 
         clusterConfig.checkOneLeader();
-        clusterConfig.end();
     }
 
 
@@ -93,7 +103,6 @@ public class Mock6824Test {
                 fail("got index {} but expected {}", xindex, i);
             }
         }
-        clusterConfig.end();
 
     }
 
@@ -121,7 +130,6 @@ public class Mock6824Test {
         pause(RAFT_ELECTION_TIMEOUT);
         clusterConfig.one(randomCommand(), servers, false);
 
-        clusterConfig.end();
     }
 
     @Test
@@ -169,136 +177,129 @@ public class Mock6824Test {
             fail("unexpected index {}", startResponse1.getIndex());
         }
         clusterConfig.one(randomCommand(), servers, true);
-        clusterConfig.end();
     }
-//
-//    @Test
-//    public void testConcurrentStarts2B() throws InterruptedException {
-//        int servers = 3;
-//        raftNodes = makeCluster(servers);
-//        raftNodes.forEach(RaftNode::init);
-//        log.info("Test (2B): concurrent Start()s");
-//
-//        boolean success = false;
-//        boolean jump = false;
-//        while (!jump) {
-//            jump = true;
-//            for (int tryi = 0; tryi < 5; tryi++) {
-//                if (tryi > 0) {
-//                    pause(3 * TimeUnit.SECONDS.toMillis(1));
-//                }
-//
-//                RaftNode leader = checkOneLeader(raftNodes);
-//                boolean appendLogSuccess = leader.getOuterService().appendLog(randomCommand()).getBoolean("success");
-//                long term = leader.getLogService().get(leader.getLogService().getLastLogIndex()).getTerm();
-//                if (!appendLogSuccess) {
-//                    continue;
-//                }
-//                ExecutorService executorService = Executors.newCachedThreadPool();
-//                CountDownLatch latch = new CountDownLatch(5);
-//                List<Long> indexList = Lists.newArrayList();
-//                int iter = 5;
-//                for (int i = 0; i < iter; i++) {
-//                    int tempi = i;
-//                    executorService.execute(() -> {
-//                        try {
-//                            JsonObject jsonObject = leader.getOuterService().appendLog(defineNumberCommand(100 + tempi));
-//                            boolean appendLogSuccess1 = jsonObject.getBoolean("success");
-//                            long lastLogIndex = jsonObject.getInteger("index");
-//                            Long term1 = leader.getLogService().get(lastLogIndex).getTerm();
-//                            if (term1 != term) {
-//                                return;
-//                            }
-//                            if (!appendLogSuccess1) {
-//                                return;
-//                            }
-//                            indexList.add(lastLogIndex);
-//                        } finally {
-//                            latch.countDown();
-//                        }
-//                    });
-//                }
-//                latch.await();
-//
-//                boolean breakToLoop = false;
-//                for (RaftNode raftNode : raftNodes) {
-//                    if (raftNode.getCurrentTerm() != term) {
-//                        jump = false;
-//                        breakToLoop = true;
-//                        break;
-//                    }
-//                }
-//                if (breakToLoop) {
-//                    break;
-//                }
-//
-//                boolean failed = false;
-//                List<Command> commands = Lists.newArrayList();
-//                for (long index : indexList) {
-//                    Command command = waitNCommitted(raftNodes, Math.toIntExact(index), servers, term);
-//                    if (Objects.nonNull(command)) {
-//                        commands.add(command);
-//                    } else {
-//                        failed = true;
-//                        jump = true;
-//                        break;
-//                    }
-//                }
-//
-//                if (failed) {
-//                    //ignore
-//                }
-//
-//                for (int i = 0; i < iter; i++) {
-//                    Command command = defineNumberCommand(100 + i);
-//                    boolean ok = false;
-//                    for (int j = 0; j < commands.size(); j++) {
-//                        if (Objects.equals(commands.get(j), command)) {
-//                            ok = true;
-//                        }
-//                    }
-//                    if (!ok) {
-//                        fail("cmd {} missing in {}", command, commands);
-//                    }
-//
-//                }
-//                success = true;
-//                jump = true;
-//                break;
-//            }
-//        }
-//        if (!success) {
-//            fail("term changed too often");
-//        }
-//
-//    }
-//
-//    @Test
-//    public void testRejoin2B() {
-//        int servers = 3;
-//        raftNodes = makeCluster(servers);
-//        raftNodes.forEach(RaftNode::init);
-//
-//        log.info("Test (2B): rejoin of partitioned leader");
-//        one(raftNodes, defineNumberCommand(101), servers, true);
-//        RaftNode leader1 = checkOneLeader(raftNodes);
-//        disConnect(leader1, raftNodes);
-//        leader1.getOuterService().appendLog(defineNumberCommand(102));
-//        leader1.getOuterService().appendLog(defineNumberCommand(103));
-//        leader1.getOuterService().appendLog(defineNumberCommand(104));
-//
-//
-//        one(raftNodes, defineNumberCommand(103), 2, true);
-//
-//        RaftNode leader2 = checkOneLeader(raftNodes);
-//        disConnect(leader2, raftNodes);
-//
-//        connect(leader1, raftNodes);
-//
-//        one(raftNodes, defineNumberCommand(104), 2, true);
-//        connect(leader2, raftNodes);
-//        one(raftNodes, defineNumberCommand(105), servers, true);
-//    }
+
+    @Test
+    public void testConcurrentStarts2B() throws InterruptedException {
+        int servers = 3;
+        clusterConfig = ClusterManager.newCluster(servers, false);
+        clusterConfig.begin("Test (2B): concurrent Start()s");
+
+        boolean success = false;
+        boolean jump = false;
+        while (!jump) {
+            jump = true;
+            for (int tryi = 0; tryi < 5; tryi++) {
+                if (tryi > 0) {
+                    pause(3 * TimeUnit.SECONDS.toMillis(1));
+                }
+
+                NodeId leaderNodeId = clusterConfig.checkOneLeader();
+                Mock6824Config.StartResponse startResponse = clusterConfig.start(leaderNodeId, randomCommand());
+                if (!startResponse.isLeader()) {
+                    continue;
+                }
+                ExecutorService executorService = Executors.newCachedThreadPool();
+                CountDownLatch latch = new CountDownLatch(5);
+                List<Integer> indexList = Lists.newArrayList();
+                int iter = 5;
+                for (int i = 0; i < iter; i++) {
+                    int tempi = i;
+                    executorService.execute(() -> {
+                        try {
+                            Mock6824Config.StartResponse startResponse1 = clusterConfig.start(leaderNodeId, defineNumberCommand(100 + tempi));
+                            if (startResponse1.getTerm() != startResponse.getTerm()) {
+                                return;
+                            }
+                            if (!startResponse1.isLeader()) {
+                                return;
+                            }
+                            indexList.add(startResponse1.getIndex());
+                        } finally {
+                            latch.countDown();
+                        }
+                    });
+                }
+                latch.await();
+
+                boolean breakToLoop = false;
+                for (NodeId nodeId : clusterConfig.fetchAllNodeId()) {
+                    if (clusterConfig.fetchTerm(nodeId) != startResponse.getTerm()) {
+                        jump = false;
+                        breakToLoop = true;
+                        break;
+                    }
+                }
+                if (breakToLoop) {
+                    break;
+                }
+
+                boolean failed = false;
+                List<Command> commands = Lists.newArrayList();
+                for (long index : indexList) {
+                    Command command = clusterConfig.wait(Math.toIntExact(index), servers, startResponse.getTerm());
+                    if (Objects.nonNull(command)) {
+                        commands.add(command);
+                    } else {
+                        failed = true;
+                        jump = true;
+                        break;
+                    }
+                }
+
+                if (failed) {
+                    //ignore
+                }
+
+                for (int i = 0; i < iter; i++) {
+                    Command command = defineNumberCommand(100 + i);
+                    boolean ok = false;
+                    for (int j = 0; j < commands.size(); j++) {
+                        if (Objects.equals(commands.get(j), command)) {
+                            ok = true;
+                        }
+                    }
+                    if (!ok) {
+                        fail("cmd {} missing in {}", command, commands);
+                    }
+
+                }
+                success = true;
+                jump = true;
+                break;
+            }
+        }
+        if (!success) {
+            fail("term changed too often");
+        }
+
+    }
+
+    @Test
+    public void testRejoin2B() {
+        int servers = 3;
+        clusterConfig = ClusterManager.newCluster(servers, false);
+
+        clusterConfig.begin("Test (2B): rejoin of partitioned leader");
+        clusterConfig.one(defineNumberCommand(101), servers, true);
+        NodeId leader1 = clusterConfig.checkOneLeader();
+        clusterConfig.disconnect(leader1);
+        clusterConfig.start(leader1, defineNumberCommand(102));
+        clusterConfig.start(leader1, defineNumberCommand(103));
+        clusterConfig.start(leader1, defineNumberCommand(104));
+
+
+        clusterConfig.one(defineNumberCommand(103), 2, true);
+
+        NodeId leader2 = clusterConfig.checkOneLeader();
+        clusterConfig.disconnect(leader2);
+
+        clusterConfig.connect(leader1);
+
+        clusterConfig.one(defineNumberCommand(104), 2, true);
+        clusterConfig.connect(leader2);
+        clusterConfig.one(defineNumberCommand(105), servers, true);
+    }
 //
 //    @Test
 //    public void testBackup2B() {
