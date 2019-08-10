@@ -1,11 +1,14 @@
 package cc.lovezhy.raft.server;
 
 import cc.lovezhy.raft.rpc.RpcClientOptions;
+import cc.lovezhy.raft.rpc.RpcServer;
+import cc.lovezhy.raft.rpc.RpcServerOptions;
 import cc.lovezhy.raft.server.log.*;
 import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.node.PeerRaftNode;
 import cc.lovezhy.raft.server.node.RaftNode;
 import cc.lovezhy.raft.server.utils.Pair;
+import com.alibaba.fastjson.JSON;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
@@ -16,7 +19,6 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 import static cc.lovezhy.raft.server.RaftConstants.getRandomStartElectionTimeout;
 import static cc.lovezhy.raft.server.utils.ReflectUtils.getObjectMember;
@@ -245,40 +247,32 @@ public class ClusterManager implements Mock6824Config {
 
     @Override
     public void disconnect(NodeId nodeId) {
-        //当前节点断开与peerNode的网络
-        setConnectStatus(nodeId, false);
+        setNetStatus(nodeId, false);
     }
 
     @Override
     public void connect(NodeId nodeId) {
-        setConnectStatus(nodeId, true);
+        setNetStatus(nodeId, true);
     }
 
-    private void setConnectStatus(NodeId nodeId, boolean onNet) {
-        //当前节点与其他节点的网络
+    private void setNetStatus(NodeId nodeId, boolean isOnNet) {
+        //当前节点断开与peerNode的网络，当前节点向其他节点发送请求
         RaftNode currentNode = raftNodes.stream().filter(raftNode -> raftNode.getNodeId().equals(nodeId)).findAny().get();
         List<PeerRaftNode> currentNodePeerRaftNodes = getObjectMember(currentNode, "peerRaftNodes");
         currentNodePeerRaftNodes.forEach(peerRaftNode -> {
             RpcClientOptions rpcClientOptions = getObjectMember(peerRaftNode, "rpcClientOptions");
             Preconditions.checkNotNull(rpcClientOptions);
-            rpcClientOptions.setOnNet(onNet);
+            rpcClientOptions.setOnNet(isOnNet);
         });
 
+        //当前节点能否回复请求
+        RpcServer rpcServer = getObjectMember(currentNode, "rpcServer");
+        Preconditions.checkNotNull(rpcServer);
+        RpcServerOptions rpcServerOptions = getObjectMember(rpcServer, "rpcServerOptions");
+        Preconditions.checkNotNull(rpcServerOptions);
+        rpcServerOptions.setOnNet(isOnNet);
 
-        //其他节点与当前节点的网络
-        List<RaftNode> otherNodes = raftNodes.stream().filter(raftNode -> !raftNode.getNodeId().equals(nodeId)).collect(Collectors.toList());
-        otherNodes.forEach(raftNode -> {
-            List<PeerRaftNode> peerRaftNodes = getObjectMember(raftNode, "peerRaftNodes");
-            Preconditions.checkNotNull(peerRaftNodes);
-            peerRaftNodes.forEach(peerRaftNode -> {
-                if (peerRaftNode.getNodeId().equals(nodeId)) {
-                    RpcClientOptions rpcClientOptions = getObjectMember(peerRaftNode, "rpcClientOptions");
-                    Preconditions.checkNotNull(rpcClientOptions);
-                    rpcClientOptions.setOnNet(onNet);
-                }
-            });
-        });
-        raftNodeExtConfigMap.get(nodeId).setOnNet(onNet);
+        raftNodeExtConfigMap.get(nodeId).setOnNet(isOnNet);
     }
 
     /**
@@ -353,6 +347,11 @@ public class ClusterManager implements Mock6824Config {
     private void fail(String errMsg, Object... objects) {
         log.error(errMsg, objects);
         throw new FailException();
+    }
+
+    @Override
+    public void status() {
+        System.out.println(JSON.toJSONString(raftNodeExtConfigMap));
     }
 
     private void pause(long mills) {

@@ -33,6 +33,8 @@ public class RpcServer {
 
     private RpcServerStateResource rpcServerStateResource;
 
+    private RpcServerOptions rpcServerOptions;
+
     public RpcServer() {
         this.serviceMap = Collections.synchronizedMap(Maps.newHashMap());
         this.providers = Collections.synchronizedList(Lists.newArrayList());
@@ -52,6 +54,7 @@ public class RpcServer {
 
     public void start(RpcServerOptions rpcServerOptions) {
         Preconditions.checkNotNull(rpcServerOptions);
+        this.rpcServerOptions = rpcServerOptions;
         nettyServer = new NettyServer(rpcServerOptions.getStartEndPoint(), rpcService);
         nettyServer.start();
         log.info("start rpc server endPoint={}", rpcServerOptions.getStartEndPoint());
@@ -94,6 +97,9 @@ public class RpcServer {
 
         @Override
         public void handleRequest(Channel channel, RpcRequest request) {
+            if (!rpcServerOptions.isOnNet()) {
+                return;
+            }
             rpcStatistics.incrIncomingRequestAsync();
             RpcProvider provider = serviceMap.get(request.getClazz());
             Object responseObject = provider.invoke(request.getMethod(), request.getArgs());

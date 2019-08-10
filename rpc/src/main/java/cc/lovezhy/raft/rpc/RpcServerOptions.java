@@ -8,6 +8,9 @@ public class RpcServerOptions {
 
     private EndPoint startEndPoint;
 
+    private volatile boolean isOnNet = true;
+
+
     public EndPoint getStartEndPoint() {
         if (Objects.isNull(startEndPoint)) {
             return DEFAULT_ENDPOINT;
@@ -17,5 +20,13 @@ public class RpcServerOptions {
 
     public void setStartEndPoint(EndPoint startEndPoint) {
         this.startEndPoint = startEndPoint;
+    }
+
+    public boolean isOnNet() {
+        return isOnNet;
+    }
+
+    public void setOnNet(boolean onNet) {
+        isOnNet = onNet;
     }
 }

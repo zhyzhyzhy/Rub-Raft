@@ -9,6 +9,7 @@ import java.util.Collection;
 
 public interface Mock6824Config {
 
+    void status();
     void begin(String description);
 
     void end();

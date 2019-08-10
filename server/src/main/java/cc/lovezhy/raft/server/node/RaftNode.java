@@ -40,6 +40,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 import static cc.lovezhy.raft.server.RaftConstants.*;
 import static cc.lovezhy.raft.server.utils.EventRecorder.Event.LOG;
@@ -879,6 +880,8 @@ public class RaftNode implements RaftService {
             jsonObject.put("NodeStatus", currentNodeStatus.get().toString());
             jsonObject.put("term", currentTerm.toString());
             jsonObject.put("Leader", RaftNode.this.nodeScheduler.getVotedFor().getPeerId());
+
+            jsonObject.put("peerNodes", RaftNode.this.peerRaftNodes.stream().map(peerRaftNode -> peerRaftNode.getRpcClientOptions()).collect(Collectors.toList()));
 
             List<String> currentUrls = Lists.newArrayList();
             EndPoint endPoint = EndPoint.create(RaftNode.this.getEndPoint().getHost(), RaftNode.this.getEndPoint().getPort() + 2);

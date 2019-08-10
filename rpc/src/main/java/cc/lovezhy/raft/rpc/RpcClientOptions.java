@@ -19,10 +19,10 @@ public class RpcClientOptions {
     private Map<String, RpcRequestType> requestTypeOption;
 
     @ForTesting
-    private boolean isOnNet;
+    private volatile boolean isOnNet;
 
     @ForTesting
-    private boolean reliable;
+    private volatile boolean reliable;
 
     public RpcClientOptions() {
         requestTypeOption = Collections.synchronizedMap(Maps.newHashMap());

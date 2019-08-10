@@ -63,6 +63,11 @@ public class PeerRaftNode implements Closeable {
         return raftService;
     }
 
+
+    public RpcClientOptions getRpcClientOptions() {
+        return rpcClientOptions;
+    }
+
     @Override
     public void close() {
         if (Objects.nonNull(rpcClient)) {

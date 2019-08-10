@@ -300,74 +300,104 @@ public class Mock6824Test {
         clusterConfig.connect(leader2);
         clusterConfig.one(defineNumberCommand(105), servers, true);
     }
-//
-//    @Test
-//    public void testBackup2B() {
-//        int servers = 5;
-//        raftNodes = makeCluster(servers);
-//        raftNodes.forEach(RaftNode::init);
-//        log.info("Test (2B): leader backs up quickly over incorrect follower logs");
-//
-//        one(raftNodes, randomCommand(), servers, false);
-//
-//        RaftNode leader1 = checkOneLeader(raftNodes);
-//        int leader1Index = raftNodes.indexOf(leader1);
-//        disConnect(raftNodes.get((leader1Index + 2) % raftNodes.size()), raftNodes);
-//        disConnect(raftNodes.get((leader1Index + 3) % raftNodes.size()), raftNodes);
-//        disConnect(raftNodes.get((leader1Index + 4) % raftNodes.size()), raftNodes);
-//
-//        for (int i = 0; i < 50; i++) {
-//            leader1.getOuterService().appendLog(randomCommand());
-//        }
-//
-//        pause(RAFT_ELECTION_TIMEOUT * 2);
-//
-//        disConnect(raftNodes.get((leader1Index + 0) % raftNodes.size()), raftNodes);
-//        disConnect(raftNodes.get((leader1Index + 1) % raftNodes.size()), raftNodes);
-//
-//        connect(raftNodes.get((leader1Index + 2) % raftNodes.size()), raftNodes);
-//        connect(raftNodes.get((leader1Index + 3) % raftNodes.size()), raftNodes);
-//        connect(raftNodes.get((leader1Index + 4) % raftNodes.size()), raftNodes);
-//
-//        for (int i = 0; i < 50; i++) {
-//            System.out.println(i);
-//            one(raftNodes, randomCommand(), 3, true);
-//        }
-//
-//        RaftNode leader2 = checkOneLeader(raftNodes);
-//        int leader2Index = raftNodes.indexOf(leader2);
-//        RaftNode other = raftNodes.get((leader1Index + 2) % raftNodes.size());
-//        if (leader2 == other) {
-//            other = raftNodes.get((leader2Index + 1) % raftNodes.size());
-//        }
-//        disConnect(other, raftNodes);
-//
-//        for (int i = 0; i < 50; i++) {
-//            System.out.println(i);
-//            leader2.getOuterService().appendLog(randomCommand());
-//        }
-//
-//        pause(RAFT_ELECTION_TIMEOUT * 2);
-//
-//        raftNodes.forEach(raftNode -> {
-//            disConnect(raftNode, raftNodes);
-//        });
-//
-//        connect(raftNodes.get((leader1Index + 0) % servers), raftNodes);
-//        connect(raftNodes.get((leader1Index + 1) % servers), raftNodes);
-//        connect(other, raftNodes);
-//
-//        for (int i = 0; i < 50; i++) {
-//            System.out.println(i);
-//            one(raftNodes, randomCommand(), 3, true);
-//        }
-//
-//        raftNodes.forEach(raftNode -> {
-//            connect(raftNode, raftNodes);
-//        });
-//
-//        one(raftNodes, randomCommand(), servers, true);
-//    }
+
+    @Test
+    public void testBackup2B() {
+        int servers = 5;
+        clusterConfig = ClusterManager.newCluster(servers, false);
+        clusterConfig.begin("Test (2B): leader backs up quickly over incorrect follower logs");
+
+        clusterConfig.one(randomCommand(), servers, false);
+
+
+        /**
+         * // put leader and one follower in a partition
+         * 	leader1 := cfg.checkOneLeader()
+         * 	cfg.disconnect((leader1 + 2) % servers)
+         * 	cfg.disconnect((leader1 + 3) % servers)
+         * 	cfg.disconnect((leader1 + 4) % servers)
+         */
+        NodeId leaderNodeId1 = clusterConfig.checkOneLeader();
+        NodeId nextNodeId = clusterConfig.nextNode(leaderNodeId1);
+        nextNodeId = clusterConfig.nextNode(nextNodeId);
+        clusterConfig.disconnect(nextNodeId);
+        nextNodeId = clusterConfig.nextNode(nextNodeId);
+        clusterConfig.disconnect(nextNodeId);
+        nextNodeId = clusterConfig.nextNode(nextNodeId);
+        clusterConfig.disconnect(nextNodeId);
+
+        // submit lots of commands that won't commit
+        for (int i = 0; i < 50; i++) {
+            clusterConfig.start(leaderNodeId1, randomCommand());
+        }
+
+        pause(RAFT_ELECTION_TIMEOUT * 2);
+
+        //disconnect 1 2
+        /**
+         * cfg.disconnect((leader1 + 0) % servers)
+         * cfg.disconnect((leader1 + 1) % servers)
+         */
+        nextNodeId = leaderNodeId1;
+        clusterConfig.disconnect(nextNodeId);
+
+        nextNodeId = clusterConfig.nextNode(nextNodeId);
+        clusterConfig.disconnect(nextNodeId);
+
+        //connect 3 4 5
+        /**
+         * // allow other partition to recover
+         * 	cfg.connect((leader1 + 2) % servers)
+         * 	cfg.connect((leader1 + 3) % servers)
+         * 	cfg.connect((leader1 + 4) % servers)
+         */
+        nextNodeId = clusterConfig.nextNode(nextNodeId);
+        clusterConfig.connect(nextNodeId);
+        nextNodeId = clusterConfig.nextNode(nextNodeId);
+        clusterConfig.connect(nextNodeId);
+        nextNodeId = clusterConfig.nextNode(nextNodeId);
+        clusterConfig.connect(nextNodeId);
+
+
+        // lots of successful commands to new group.
+        for (int i = 0; i < 50; i++) {
+            clusterConfig.one(randomCommand(), 3, true);
+        }
+
+        NodeId leaderNodeId2 = clusterConfig.checkOneLeader();
+        NodeId otherNodeId = clusterConfig.nextNode(leaderNodeId1);
+        otherNodeId = clusterConfig.nextNode(otherNodeId);
+        if (leaderNodeId2 == otherNodeId) {
+            otherNodeId = clusterConfig.nextNode(leaderNodeId2);
+        }
+        clusterConfig.disconnect(otherNodeId);
+
+        for (int i = 0; i < 50; i++) {
+            clusterConfig.start(leaderNodeId2, randomCommand());
+        }
+
+        pause(RAFT_ELECTION_TIMEOUT * 2);
+
+        for (NodeId nodeId : clusterConfig.fetchAllNodeId()) {
+            clusterConfig.disconnect(nodeId);
+        }
+
+        nextNodeId = leaderNodeId1;
+        clusterConfig.connect(nextNodeId);
+        nextNodeId = clusterConfig.nextNode(nextNodeId);
+        clusterConfig.connect(nextNodeId);
+        clusterConfig.connect(otherNodeId);
+
+        for (int i = 0; i < 50; i++) {
+            clusterConfig.one(randomCommand(), 3, true);
+        }
+
+        for (NodeId nodeId : clusterConfig.fetchAllNodeId()) {
+            clusterConfig.connect(nodeId);
+        }
+
+        clusterConfig.one(randomCommand(), servers, true);
+    }
 //
 //    //    @Test
 //    public void testCount2B() {
