@@ -113,4 +113,10 @@ public interface Mock6824Config {
      */
     Command wait(int index, int n, long startTerm);
 
+
+    /**
+     * 指定Raft的Rpc的个数，注意，必须是Enabled且随机算法没有丢弃的，真正调用了方法的请求
+     */
+    int rpcCount(NodeId nodeId);
+
 }

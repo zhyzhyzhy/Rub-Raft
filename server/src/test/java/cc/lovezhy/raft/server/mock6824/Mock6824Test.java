@@ -3,6 +3,7 @@ package cc.lovezhy.raft.server.mock6824;
 import cc.lovezhy.raft.server.ClusterManager;
 import cc.lovezhy.raft.server.Mock6824Config;
 import cc.lovezhy.raft.server.log.Command;
+import cc.lovezhy.raft.server.log.DefaultCommand;
 import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.utils.Pair;
 import com.google.common.collect.Lists;
@@ -11,13 +12,16 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
+import static cc.lovezhy.raft.server.log.LogConstants.getDummyCommand;
 import static cc.lovezhy.raft.server.mock6824.Utils.*;
 
 public class Mock6824Test {
@@ -310,7 +314,7 @@ public class Mock6824Test {
         clusterConfig.one(randomCommand(), servers, false);
 
 
-        /**
+        /*
          * // put leader and one follower in a partition
          * 	leader1 := cfg.checkOneLeader()
          * 	cfg.disconnect((leader1 + 2) % servers)
@@ -398,17 +402,139 @@ public class Mock6824Test {
 
         clusterConfig.one(randomCommand(), servers, true);
     }
-//
-//    //    @Test
-//    public void testCount2B() {
-//        int servers = 3;
-//        raftNodes = makeCluster(servers);
-//        raftNodes.forEach(RaftNode::init);
-//
-//        log.info("Test (2B): RPC counts aren't too high");
-//
-//        //TODO 测这个有啥用。。。
-//    }
+
+    /**
+     * 测试需要的Rpc个数不会太多，因为涉及到心跳包的缘故，所以我这里适当调大了一些
+     */
+    @Test
+    public void testCount2B() {
+        int servers = 3;
+        clusterConfig = ClusterManager.newCluster(servers, false);
+
+        clusterConfig.begin("Test (2B): RPC counts aren't too high");
+
+        Supplier<Integer> rpcs = () -> {
+            int count = 0;
+            Collection<NodeId> nodeIds = clusterConfig.fetchAllNodeId();
+            for (NodeId nodeId : nodeIds) {
+                count += clusterConfig.rpcCount(nodeId);
+            }
+            return count;
+        };
+
+        NodeId leaderNodeId = clusterConfig.checkOneLeader();
+
+        int total1 = rpcs.get();
+
+        if (total1 > 30 || total1 < 1) {
+            fail("too many or few RPCs ({}) to elect initial leader", total1);
+        }
+
+        int total2 = 0;
+        boolean success = false;
+        boolean jump = false;
+
+        while (!jump) {
+            for (int tryi = 0; tryi < 5; tryi++) {
+                if (tryi > 0) {
+                    pause(TimeUnit.SECONDS.toMillis(3));
+                }
+                leaderNodeId = clusterConfig.checkOneLeader();
+                total1 = rpcs.get();
+
+                int iters = 10;
+                Mock6824Config.StartResponse startResponse = clusterConfig.start(leaderNodeId, defineNumberCommand(1));
+                if (!startResponse.isLeader()) {
+                    if (tryi == 4) {
+                        jump = true;
+                    }
+                    continue;
+                }
+                List<DefaultCommand> cmds = Lists.newArrayList();
+
+                boolean breakToJump = false;
+                for (int i = 1; i < iters + 2; i++) {
+                    DefaultCommand defaultCommand = randomCommand();
+                    cmds.add(defaultCommand);
+                    Mock6824Config.StartResponse startResponse1 = clusterConfig.start(leaderNodeId, defaultCommand);
+                    if (startResponse1.getTerm() != startResponse.getTerm()) {
+                        breakToJump = true;
+                        break;
+                    }
+                    if (!startResponse1.isLeader()) {
+                        breakToJump = true;
+                        break;
+                    }
+
+                    if ((startResponse.getIndex() + i) != startResponse1.getIndex()) {
+                        fail("Start() failed");
+                    }
+                }
+                if (breakToJump) {
+                    break;
+                }
+
+
+                for (int i = 1; i < iters + 1; i++) {
+                    Command cmd = clusterConfig.wait(startResponse.getIndex() + i, servers, startResponse.getTerm());
+                    if (!cmd.equals(cmds.get(i-1))) {
+                        if (cmd.equals(getDummyCommand())) {
+                            // term changed -- try again
+                            breakToJump = true;
+                            break;
+                        }
+                        fail("wrong value {} committed for index {}; expected {}", cmd, startResponse.getIndex() + i, cmds);
+                    }
+                }
+                if (breakToJump) {
+                    break;
+                }
+
+                boolean failed = false;
+                total2 = 0;
+
+                for (NodeId nodeId : clusterConfig.fetchAllNodeId()) {
+                    int term = clusterConfig.fetchTerm(nodeId);
+                    if (term != startResponse.getTerm()) {
+                        failed = true;
+                    }
+                    total2 += clusterConfig.rpcCount(nodeId);
+                }
+
+                if (failed) {
+                    breakToJump = true;
+                    break;
+                }
+
+                /**
+                 * (iters + 1 + 3) * 3 = 42
+                 * (iters + 1 + 3) * 4 = 56
+                 * 这里我适当放宽，变成56
+                 */
+                if ((total2 - total1) > ((iters + 1 + 3) * 4)) {
+                    fail("too many RPCs ({}) for {} entries", total2 - total1, iters);
+                }
+
+                success = true;
+                jump = true;
+                break;
+            }
+        }
+        if (!success) {
+            fail("term changed too often");
+        }
+
+        pause(RAFT_ELECTION_TIMEOUT);
+
+        int total3 = 0;
+        for (NodeId nodeId : clusterConfig.fetchAllNodeId()) {
+            total3 += clusterConfig.rpcCount(nodeId);
+        }
+
+        if ((total3 - total2) > 3*20) {
+            fail("too many RPCs ({}) for 1 second of idleness", total3-total2);
+        }
+    }
 //
 //    //    @Test
 //    public void testPersist12C() {

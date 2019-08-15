@@ -27,6 +27,10 @@ public class RpcStatistics {
         CompletableFuture.runAsync(() -> incomingTotalRequest.incrementAndGet());
     }
 
+    public Long fetchIncomingRequestCount() {
+        return incomingTotalRequest.get();
+    }
+
     public JsonObject toJsonObject() {
         JsonObject jsonObject = new JsonObject();
         jsonObject.put(INCOMING_TOTAL_REQUEST, incomingTotalRequest);

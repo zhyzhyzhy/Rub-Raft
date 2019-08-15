@@ -3,6 +3,7 @@ package cc.lovezhy.raft.server;
 import cc.lovezhy.raft.rpc.RpcClientOptions;
 import cc.lovezhy.raft.rpc.RpcServer;
 import cc.lovezhy.raft.rpc.RpcServerOptions;
+import cc.lovezhy.raft.rpc.RpcStatistics;
 import cc.lovezhy.raft.server.log.*;
 import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.node.PeerRaftNode;
@@ -337,6 +338,14 @@ public class ClusterManager implements Mock6824Config {
         return nodeIdRaftNodeMap.keySet();
     }
 
+    @Override
+    public int rpcCount(NodeId nodeId) {
+        RaftNode raftNode = nodeIdRaftNodeMap.get(nodeId);
+        RpcServer rpcServer = getObjectMember(raftNode, "rpcServer");
+        RpcStatistics rpcStatistics = getObjectMember(rpcServer, "rpcStatistics");
+        return Math.toIntExact(rpcStatistics.fetchIncomingRequestCount());
+    }
+
     /**
      * 判断一个节点是否在Net上
      */
@@ -348,6 +357,7 @@ public class ClusterManager implements Mock6824Config {
         log.error(errMsg, objects);
         throw new FailException();
     }
+
 
     @Override
     public void status() {
