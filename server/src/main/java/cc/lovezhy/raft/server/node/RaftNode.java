@@ -226,7 +226,7 @@ public class RaftNode implements RaftService {
                                 nodeScheduler.compareAndSetTerm(voteTerm, result.getTerm());
                                 voteAction.fail();
                             } else {
-                                eventRecorder.add(EventRecorder.Event.PRE_VOTE, String.format("voteResponse = %s, voteTerm=%d, peerId=[%d]",JSON.toJSONString(result), voteTerm, peerRaftNode.getNodeId().getPeerId()));
+                                eventRecorder.add(EventRecorder.Event.PRE_VOTE, String.format("voteResponse = %s, voteTerm=%d, peerId=[%d]", JSON.toJSONString(result), voteTerm, peerRaftNode.getNodeId().getPeerId()));
                                 voteAction.fail();
                             }
                         } else {
@@ -648,9 +648,11 @@ public class RaftNode implements RaftService {
             peerNode.forEach((peerRaftNode, peerNodeStateMachine) -> {
                 SettableFuture<Boolean> settableFuture = peerNodeStateMachine.setCompleteFuture(logIndex);
                 settableFutureList.add(settableFuture);
-                if (peerNodeStateMachine.taskQueueIsEmpty()) {
-                    peerNodeStateMachine.appendFirst(prepareAppendLog(peerRaftNode, peerNodeStateMachine, settableFuture));
-                }
+                //TODO 为啥一定是Empty才能appendTask？当时我是咋想的？？
+//                if (peerNodeStateMachine.taskQueueIsEmpty()) {
+//                    peerNodeStateMachine.appendFirst(prepareAppendLog(peerRaftNode, peerNodeStateMachine, settableFuture));
+//                }
+                peerNodeStateMachine.appendFirst(prepareAppendLog(peerRaftNode, peerNodeStateMachine, settableFuture));
             });
             return settableFutureList;
         }

@@ -289,6 +289,7 @@ public class Mock6824Test {
         clusterConfig.one(defineNumberCommand(101), servers, true);
         NodeId leader1 = clusterConfig.checkOneLeader();
         clusterConfig.disconnect(leader1);
+        System.out.println(leader1);
         clusterConfig.start(leader1, defineNumberCommand(102));
         clusterConfig.start(leader1, defineNumberCommand(103));
         clusterConfig.start(leader1, defineNumberCommand(104));
@@ -306,7 +307,7 @@ public class Mock6824Test {
         clusterConfig.one(defineNumberCommand(105), servers, true);
     }
 
-    @Test
+//    @Test
     public void testBackup2B() {
         int servers = 5;
         clusterConfig = ClusterManager.newCluster(servers, false);
@@ -672,6 +673,56 @@ public class Mock6824Test {
             clusterConfig.connect(leaderNodeId1);
         }
         clusterConfig.one(defineNumberCommand(100), servers, true);
+
+    }
+
+
+    @Test
+    public void testPersist32C() {
+        int servers = 3;
+        clusterConfig = ClusterManager.newCluster(servers, false);
+
+        clusterConfig.begin("Test (2C): partitioned leader and one follower crash, leader restarts");
+
+        clusterConfig.one(defineNumberCommand(101), 3, true);
+
+        NodeId leaderNodeId = clusterConfig.checkOneLeader();
+
+        NodeId nodeId = clusterConfig.nextNode(leaderNodeId);
+        nodeId = clusterConfig.nextNode(nodeId);
+        clusterConfig.disconnect(nodeId);
+
+        clusterConfig.one(defineNumberCommand(102), 2, true);
+
+        /**
+         * cfg.crash1((leader + 0) % servers)
+         * 	cfg.crash1((leader + 1) % servers)
+         * 	cfg.connect((leader + 2) % servers)
+         * 	cfg.start1((leader + 0) % servers)
+         * 	cfg.connect((leader + 0) % servers)
+         */
+        nodeId = leaderNodeId;
+        clusterConfig.crash1(nodeId);
+        nodeId = clusterConfig.nextNode(nodeId);
+        clusterConfig.crash1(nodeId);
+
+        nodeId = clusterConfig.nextNode(nodeId);
+        clusterConfig.connect(nodeId);
+        clusterConfig.start1(leaderNodeId);
+        clusterConfig.connect(leaderNodeId);
+
+        clusterConfig.one(defineNumberCommand(103), 2, true);
+
+        /**
+         * cfg.start1((leader + 1) % servers)
+         * 	cfg.connect((leader + 1) % servers)
+         */
+        nodeId = leaderNodeId;
+        nodeId = clusterConfig.nextNode(nodeId);
+        clusterConfig.start1(nodeId);
+        clusterConfig.connect(nodeId);
+
+        clusterConfig.one(defineNumberCommand(104), servers, true);
 
     }
 

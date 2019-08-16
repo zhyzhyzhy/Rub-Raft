@@ -68,6 +68,7 @@ public class VoteAction {
                     try {
                         throw new IllegalStateException();
                     } catch (Exception e) {
+                        System.out.println(successCounter.get() + " " + failCounter.get());
                         e.printStackTrace();
                     }
                 }
