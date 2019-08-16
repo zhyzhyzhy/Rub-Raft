@@ -31,12 +31,18 @@ public class ClusterManager implements Mock6824Config {
     public static ClusterManager newCluster(int servers, boolean unreliable) {
         ClusterManager clusterManager = new ClusterManager();
         clusterManager.makeCluster(servers, unreliable);
+        for (NodeId nodeId : clusterManager.fetchAllNodeId()) {
+            clusterManager.setNetStatus(nodeId, true);
+        }
         return clusterManager;
     }
 
     private List<RaftNode> raftNodes;
     private Map<NodeId, RaftNode> nodeIdRaftNodeMap = Maps.newHashMap();
     private Map<NodeId, RaftNodeExtConfig> raftNodeExtConfigMap = Maps.newHashMap();
+    private Map<NodeId, Properties> raftNodeStartProperties = Maps.newHashMap();
+    private Map<NodeId, SavedNodeStatus> raftNodeSavedNodeStatus = Maps.newHashMap();
+    private boolean reliable;
 
 
     class RaftNodeExtConfig {
@@ -71,8 +77,7 @@ public class ClusterManager implements Mock6824Config {
         Preconditions.checkArgument(servers > 0);
 
         List<RaftNode> raftNodes = Lists.newArrayList();
-        Properties properties = new Properties();
-        properties.setProperty("cluster.nodes", String.valueOf(servers));
+
 
         AtomicInteger nodeRpcPortAllocator = new AtomicInteger(5283);
 
@@ -81,6 +86,8 @@ public class ClusterManager implements Mock6824Config {
             nodeList.add("localhost:" + nodeRpcPortAllocator.getAndAdd(3) + ":" + i);
         }
         nodeList.forEach(currentNode -> {
+            Properties properties = new Properties();
+            properties.setProperty("cluster.nodes", String.valueOf(servers));
             properties.setProperty("local", currentNode);
             List<String> peerNode = Lists.newLinkedList(nodeList);
             peerNode.remove(currentNode);
@@ -89,8 +96,10 @@ public class ClusterManager implements Mock6824Config {
             raftNodes.add(node);
             raftNodeExtConfigMap.put(node.getNodeId(), new RaftNodeExtConfig());
             nodeIdRaftNodeMap.put(node.getNodeId(), node);
+            raftNodeStartProperties.put(node.getNodeId(), properties);
         });
         this.raftNodes = raftNodes;
+        this.reliable = !unreliable;
         setNetReliable(!unreliable);
         this.raftNodes.forEach(RaftNode::init);
     }
@@ -344,6 +353,33 @@ public class ClusterManager implements Mock6824Config {
         RpcServer rpcServer = getObjectMember(raftNode, "rpcServer");
         RpcStatistics rpcStatistics = getObjectMember(rpcServer, "rpcStatistics");
         return Math.toIntExact(rpcStatistics.fetchIncomingRequestCount());
+    }
+
+    @Override
+    public void crash1(NodeId nodeId) {
+        disconnect(nodeId);
+        RaftNode raftNode = nodeIdRaftNodeMap.get(nodeId);
+        Long currentTerm = raftNode.getCurrentTerm();
+        NodeId voteFor = raftNode.getNodeScheduler().getVotedFor();
+        LogService logService = raftNode.getLogService();
+        SavedNodeStatus savedNodeStatus = new SavedNodeStatus();
+        savedNodeStatus.setCurrentTerm(currentTerm);
+        savedNodeStatus.setLogService(logService);
+        savedNodeStatus.setVoteFor(voteFor);
+        raftNode.close();
+        raftNodeSavedNodeStatus.put(nodeId, savedNodeStatus);
+    }
+
+    @Override
+    public void start1(NodeId nodeId) {
+        crash1(nodeId);
+        SavedNodeStatus savedNodeStatus = raftNodeSavedNodeStatus.get(nodeId);
+        RaftNode raftNode = new RaftStarter().start(raftNodeStartProperties.get(nodeId));
+        raftNode.init1(savedNodeStatus.getLogService(), savedNodeStatus.getCurrentTerm(), savedNodeStatus.getVoteFor());
+        nodeIdRaftNodeMap.put(nodeId, raftNode);
+        raftNodeExtConfigMap.put(nodeId, new RaftNodeExtConfig());
+        raftNodes = Lists.newArrayList(nodeIdRaftNodeMap.values());
+        setNetReliable(reliable);
     }
 
     /**

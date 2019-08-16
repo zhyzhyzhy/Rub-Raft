@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 
 public class ClientHttpService extends AbstractVerticle {
 
@@ -130,14 +131,15 @@ public class ClientHttpService extends AbstractVerticle {
         });
 
 
-
         this.httpServer.requestHandler(router::accept).listen(this.port);
         log.info("start httpServer at port={}", this.port);
     }
 
     public void close() {
         try {
-            this.httpServer.close();
+            CountDownLatch countDownLatch = new CountDownLatch(1);
+            this.httpServer.close(as -> countDownLatch.countDown());
+            countDownLatch.await();
         } catch (Exception e) {
             log.error(e.getMessage(), e);
         }

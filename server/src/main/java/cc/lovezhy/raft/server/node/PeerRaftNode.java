@@ -30,6 +30,10 @@ public class PeerRaftNode implements Closeable {
     private RpcClientOptions rpcClientOptions;
 
     public PeerRaftNode(NodeId nodeId, EndPoint endPoint) {
+        this(nodeId, endPoint, true);
+    }
+
+    public PeerRaftNode(NodeId nodeId, EndPoint endPoint, boolean isOnNet) {
         Preconditions.checkNotNull(nodeId);
         Preconditions.checkNotNull(endPoint);
         this.nodeId = nodeId;
@@ -38,6 +42,7 @@ public class PeerRaftNode implements Closeable {
         rpcClientOptions.defineMethodRequestType("requestPreVote", RpcRequestType.ASYNC);
         rpcClientOptions.defineMethodRequestType("requestVote", RpcRequestType.ASYNC);
         rpcClientOptions.defineMethodRequestType("requestConnect", RpcRequestType.ONE_WAY);
+        rpcClientOptions.setOnNet(isOnNet);
         this.rpcClientOptions = rpcClientOptions;
     }
 

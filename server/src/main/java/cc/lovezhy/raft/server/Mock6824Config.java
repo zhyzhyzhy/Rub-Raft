@@ -2,6 +2,7 @@ package cc.lovezhy.raft.server;
 
 import cc.lovezhy.raft.server.log.Command;
 import cc.lovezhy.raft.server.log.DefaultCommand;
+import cc.lovezhy.raft.server.log.LogService;
 import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.utils.Pair;
 
@@ -118,5 +119,44 @@ public interface Mock6824Config {
      * 指定Raft的Rpc的个数，注意，必须是Enabled且随机算法没有丢弃的，真正调用了方法的请求
      */
     int rpcCount(NodeId nodeId);
+
+
+    /**
+     * 和close再init的区别就是保留了term，voteFor和logService
+     */
+    void start1(NodeId nodeId);
+
+
+    class SavedNodeStatus {
+        private Long currentTerm;
+        private NodeId voteFor;
+        private LogService logService;
+
+        public Long getCurrentTerm() {
+            return currentTerm;
+        }
+
+        public void setCurrentTerm(Long currentTerm) {
+            this.currentTerm = currentTerm;
+        }
+
+        public NodeId getVoteFor() {
+            return voteFor;
+        }
+
+        public void setVoteFor(NodeId voteFor) {
+            this.voteFor = voteFor;
+        }
+
+        public LogService getLogService() {
+            return logService;
+        }
+
+        public void setLogService(LogService logService) {
+            this.logService = logService;
+        }
+    }
+
+    void crash1(NodeId nodeId);
 
 }

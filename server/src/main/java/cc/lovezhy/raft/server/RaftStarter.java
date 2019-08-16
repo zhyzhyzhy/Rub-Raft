@@ -36,7 +36,7 @@ public class RaftStarter {
                     Preconditions.checkState(peerConfig.length == 3);
                     EndPoint endPoint = EndPoint.create(peerConfig[0], peerConfig[1]);
                     NodeId nodeId = NodeId.create(Integer.parseInt(peerConfig[2]));
-                    PeerRaftNode peerRaftNode = new PeerRaftNode(nodeId, endPoint);
+                    PeerRaftNode peerRaftNode = new PeerRaftNode(nodeId, endPoint, false);
                     peerRaftNodes.add(peerRaftNode);
                 });
     }

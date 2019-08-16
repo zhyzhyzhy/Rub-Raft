@@ -11,6 +11,8 @@ import io.vertx.ext.web.Router;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.CountDownLatch;
+
 import static com.google.common.base.Preconditions.checkNotNull;
 
 public class RpcServerStateResource extends AbstractVerticle {
@@ -55,7 +57,11 @@ public class RpcServerStateResource extends AbstractVerticle {
 
     public void close() {
         try {
-            this.httpServer.close();
+            CountDownLatch countDownLatch = new CountDownLatch(1);
+            this.httpServer.close(as -> {
+                countDownLatch.countDown();
+            });
+            countDownLatch.await();
         } catch (Exception e) {
             log.error(e.getMessage(), e);
         }

@@ -477,7 +477,7 @@ public class Mock6824Test {
 
                 for (int i = 1; i < iters + 1; i++) {
                     Command cmd = clusterConfig.wait(startResponse.getIndex() + i, servers, startResponse.getTerm());
-                    if (!cmd.equals(cmds.get(i-1))) {
+                    if (!cmd.equals(cmds.get(i - 1))) {
                         if (cmd.equals(getDummyCommand())) {
                             // term changed -- try again
                             breakToJump = true;
@@ -531,48 +531,54 @@ public class Mock6824Test {
             total3 += clusterConfig.rpcCount(nodeId);
         }
 
-        if ((total3 - total2) > 3*20) {
-            fail("too many RPCs ({}) for 1 second of idleness", total3-total2);
+        if ((total3 - total2) > 3 * 20) {
+            fail("too many RPCs ({}) for 1 second of idleness", total3 - total2);
         }
     }
-//
-//    //    @Test
-//    public void testPersist12C() {
-//        int servers = 3;
-//        raftNodes = makeCluster(servers);
-//        raftNodes.forEach(RaftNode::init);
-//
-//        log.info("Test (2C): basic persistence");
-//
-//        one(raftNodes, defineNumberCommand(11), servers, true);
-//
-//        for (RaftNode raftNode : raftNodes) {
-//            start1(raftNode);
-//        }
-//
-//        for (RaftNode raftNode : raftNodes) {
-//            disConnect(raftNode, raftNodes);
-//            connect(raftNode, raftNodes);
-//        }
-//
-//        one(raftNodes, defineNumberCommand(12), servers, true);
-//
-//        RaftNode leader1 = checkOneLeader(raftNodes);
-//        disConnect(leader1, raftNodes);
-//        start1(leader1);
-//        connect(leader1, raftNodes);
-//
-//        one(raftNodes, defineNumberCommand(13), servers, true);
-//
-//        RaftNode leader2 = checkOneLeader(raftNodes);
-//        disConnect(leader2, raftNodes);
-//        one(raftNodes, defineNumberCommand(14), servers - 1, true);
-//        start1(leader2);
-//        connect(leader2, raftNodes);
-//
-//        waitNCommitted(raftNodes, 4, servers, -1);
-//
-//
-//    }
+
+    @Test
+    public void testPersist12C() {
+        int servers = 3;
+        clusterConfig = ClusterManager.newCluster(servers, false);
+
+        clusterConfig.begin("Test (2C): basic persistence");
+
+        clusterConfig.one(defineNumberCommand(11), servers, true);
+
+        List<NodeId> nodeIds = Lists.newArrayList(clusterConfig.fetchAllNodeId());
+        for (NodeId nodeId : nodeIds) {
+            clusterConfig.start1(nodeId);
+        }
+
+        for (NodeId nodeId : nodeIds) {
+            clusterConfig.disconnect(nodeId);
+            clusterConfig.connect(nodeId);
+        }
+
+
+        clusterConfig.one(defineNumberCommand(12), servers, true);
+
+        NodeId leaderNodeId1 = clusterConfig.checkOneLeader();
+        clusterConfig.disconnect(leaderNodeId1);
+        clusterConfig.start1(leaderNodeId1);
+        clusterConfig.connect(leaderNodeId1);
+
+        clusterConfig.one(defineNumberCommand(13), servers, true);
+
+        NodeId leaderNodeId2 = clusterConfig.checkOneLeader();
+        clusterConfig.disconnect(leaderNodeId2);
+        clusterConfig.one(defineNumberCommand(14), servers - 1, true);
+        clusterConfig.start1(leaderNodeId2);
+        clusterConfig.connect(leaderNodeId2);
+
+        clusterConfig.wait(4, servers, -1);
+
+        NodeId i3 = clusterConfig.nextNode(clusterConfig.checkOneLeader());
+        clusterConfig.disconnect(i3);
+        clusterConfig.one(defineNumberCommand(15), servers -1, true);
+        clusterConfig.start1(i3);
+        clusterConfig.connect(i3);
+        clusterConfig.one(defineNumberCommand(16), servers, true);
+    }
 
 }

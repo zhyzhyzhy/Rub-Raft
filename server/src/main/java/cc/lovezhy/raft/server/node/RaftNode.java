@@ -165,6 +165,34 @@ public class RaftNode implements RaftService {
         stopped = false;
     }
 
+    public void init1(LogService logService, Long currentTerm, NodeId voteFor) {
+        NodeSlf4jHelper.initialize(nodeId);
+        NodeSlf4jHelper.changeObjectLogger(nodeId, this);
+        tickManager.init();
+        this.currentTerm = currentTerm;
+        heartbeatTimeRecorder.set(0L);
+        //start rpc server
+        rpcServer = new RpcServer();
+        NodeSlf4jHelper.changeObjectLogger(nodeId, rpcServer);
+
+        nodeScheduler.setVotedForForce(voteFor);
+        RaftService serverService = new RaftServiceImpl(this);
+        rpcServer.registerService(serverService);
+        rpcServer.start(endPoint);
+        outerService = new OuterService();
+        //start http service
+        httpService = new ClientHttpService(outerService, endPoint.getPort() + 2);
+        NodeSlf4jHelper.changeObjectLogger(nodeId, httpService);
+
+        httpService.createHttpServer();
+        peerRaftNodes.forEach(peerRaftNode -> peerRaftNode.connect(this.nodeId));
+        nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
+        tickManager.tickElectionTimeOut();
+        eventRecorder = new EventRecorder(log);
+        this.logService = logService;
+        stopped = false;
+    }
+
 
     private void preVote(Long voteTerm) {
         log.info("start preVote, voteTerm={}", voteTerm);
@@ -563,7 +591,7 @@ public class RaftNode implements RaftService {
          *
          * @return {nullable} NodeId
          */
-        NodeId getVotedFor() {
+        public NodeId getVotedFor() {
             return votedFor.get();
         }
 
