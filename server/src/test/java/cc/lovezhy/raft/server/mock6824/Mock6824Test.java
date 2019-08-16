@@ -583,11 +583,96 @@ public class Mock6824Test {
         NodeId i3 = clusterConfig.nextNode(clusterConfig.checkOneLeader());
         clusterConfig.disconnect(i3);
         clusterConfig.dumpAllNode();
-        clusterConfig.one(defineNumberCommand(15), servers -1, true);
+        clusterConfig.one(defineNumberCommand(15), servers - 1, true);
         clusterConfig.start1(i3);
         clusterConfig.connect(i3);
         clusterConfig.dumpAllNode();
         clusterConfig.one(defineNumberCommand(16), servers, true);
+    }
+
+    @Test
+    public void testPersist22C() {
+        int servers = 5;
+        clusterConfig = ClusterManager.newCluster(servers, false);
+        clusterConfig.begin("Test (2C): more persistence");
+
+        int index = 1;
+        for (int i = 0; i < 5; i++) {
+            clusterConfig.one(defineNumberCommand(10 + index), servers, true);
+            index++;
+
+            NodeId leaderNodeId1 = clusterConfig.checkOneLeader();
+
+            NodeId nodeId = clusterConfig.nextNode(leaderNodeId1);
+            clusterConfig.disconnect(nodeId);
+            nodeId = clusterConfig.nextNode(nodeId);
+            clusterConfig.disconnect(nodeId);
+
+            clusterConfig.one(defineNumberCommand(10 + index), servers - 2, true);
+            index++;
+
+            /**
+             * cfg.disconnect((leader1 + 0) % servers)
+             * cfg.disconnect((leader1 + 3) % servers)
+             * cfg.disconnect((leader1 + 4) % servers)
+             */
+            nodeId = leaderNodeId1;
+            clusterConfig.disconnect(nodeId);
+            nodeId = clusterConfig.nextNode(nodeId);
+            nodeId = clusterConfig.nextNode(nodeId);
+            nodeId = clusterConfig.nextNode(nodeId);
+            clusterConfig.disconnect(nodeId);
+            nodeId = clusterConfig.nextNode(nodeId);
+            clusterConfig.disconnect(nodeId);
+
+            /**
+             * cfg.start1((leader1 + 1) % servers)
+             * cfg.start1((leader1 + 2) % servers)
+             * cfg.connect((leader1 + 1) % servers)
+             * cfg.connect((leader1 + 2) % servers)
+             */
+            nodeId = leaderNodeId1;
+            nodeId = clusterConfig.nextNode(nodeId);
+            clusterConfig.start1(nodeId);
+            nodeId = clusterConfig.nextNode(nodeId);
+            clusterConfig.start1(nodeId);
+
+            nodeId = leaderNodeId1;
+            nodeId = clusterConfig.nextNode(nodeId);
+            clusterConfig.connect(nodeId);
+            nodeId = clusterConfig.nextNode(nodeId);
+            clusterConfig.connect(nodeId);
+
+            pause(RAFT_ELECTION_TIMEOUT);
+
+            /**
+             * cfg.start1((leader1 + 3) % servers)
+             * 		cfg.connect((leader1 + 3) % servers)
+             */
+            nodeId = leaderNodeId1;
+            nodeId = clusterConfig.nextNode(nodeId);
+            nodeId = clusterConfig.nextNode(nodeId);
+            nodeId = clusterConfig.nextNode(nodeId);
+            clusterConfig.start1(nodeId);
+            clusterConfig.connect(nodeId);
+
+            clusterConfig.one(defineNumberCommand(10 + index), servers - 2, true);
+            index++;
+
+            /**
+             * cfg.connect((leader1 + 4) % servers)
+             * 		cfg.connect((leader1 + 0) % servers)
+             */
+            nodeId = leaderNodeId1;
+            nodeId = clusterConfig.nextNode(nodeId);
+            nodeId = clusterConfig.nextNode(nodeId);
+            nodeId = clusterConfig.nextNode(nodeId);
+            nodeId = clusterConfig.nextNode(nodeId);
+            clusterConfig.connect(nodeId);
+            clusterConfig.connect(leaderNodeId1);
+        }
+        clusterConfig.one(defineNumberCommand(100), servers, true);
+
     }
 
     private void stop() {
