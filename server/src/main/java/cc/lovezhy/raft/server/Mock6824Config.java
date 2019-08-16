@@ -10,7 +10,7 @@ import java.util.Collection;
 
 public interface Mock6824Config {
 
-    void status();
+    void dumpAllNode();
     void begin(String description);
 
     void end();

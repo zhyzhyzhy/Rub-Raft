@@ -226,9 +226,11 @@ public class RaftNode implements RaftService {
                                 nodeScheduler.compareAndSetTerm(voteTerm, result.getTerm());
                                 voteAction.fail();
                             } else {
+                                eventRecorder.add(EventRecorder.Event.PRE_VOTE, String.format("voteResponse = %s, voteTerm=%d, peerId=[%d]",JSON.toJSONString(result), voteTerm, peerRaftNode.getNodeId().getPeerId()));
                                 voteAction.fail();
                             }
                         } else {
+                            eventRecorder.add(EventRecorder.Event.PRE_VOTE, String.format("voteResponse = null, peerId=[%d]", peerRaftNode.getNodeId().getPeerId()));
                             voteAction.fail();
                         }
                     }
@@ -680,9 +682,9 @@ public class RaftNode implements RaftService {
                     List<LogEntry> logEntries = logService.get(peerNodeStateMachine.getNextIndex(), currentLastLogIndex);
                     replicatedLogRequest.setEntries(logEntries);
                     //同步方法
-                    log.info("send replicatedLogRequest={}", JSON.toJSONString(replicatedLogRequest));
+                    log.info("send to {} replicatedLogRequest={}", JSON.toJSONString(peerRaftNode), JSON.toJSONString(replicatedLogRequest));
                     ReplicatedLogResponse replicatedLogResponse = peerRaftNode.getRaftService().requestAppendLog(replicatedLogRequest);
-                    log.info("receive replicatedLogResponse={}", JSON.toJSONString(replicatedLogResponse));
+                    log.info("receive from {} replicatedLogResponse={}", JSON.toJSONString(peerRaftNode), JSON.toJSONString(replicatedLogResponse));
                     /*
                      * 可能发生
                      * 成为Leader后直接被网络分区了
@@ -726,6 +728,8 @@ public class RaftNode implements RaftService {
                     appendLogResult.set(replicatedLogResponse.getSuccess());
                 } catch (Exception e) {
                     appendLogResult.set(Boolean.FALSE);
+                    log.error("fail appendLog to {}", JSON.toJSONString(peerRaftNode));
+                    log.error("isConnectAlive={}", peerRaftNode.isConnectAlive());
                     log.error(e.getMessage(), e);
                 }
             };

@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Scanner;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -547,6 +548,7 @@ public class Mock6824Test {
 
         List<NodeId> nodeIds = Lists.newArrayList(clusterConfig.fetchAllNodeId());
         for (NodeId nodeId : nodeIds) {
+            log.info("start1 nodeId={}", nodeId);
             clusterConfig.start1(nodeId);
         }
 
@@ -556,14 +558,19 @@ public class Mock6824Test {
         }
 
 
+        System.out.println("before one");
         clusterConfig.one(defineNumberCommand(12), servers, true);
 
         NodeId leaderNodeId1 = clusterConfig.checkOneLeader();
+        log.info("leaderNode1={}", leaderNodeId1);
         clusterConfig.disconnect(leaderNodeId1);
         clusterConfig.start1(leaderNodeId1);
         clusterConfig.connect(leaderNodeId1);
-
+        log.info("before one");
+        clusterConfig.dumpAllNode();
         clusterConfig.one(defineNumberCommand(13), servers, true);
+        log.info("after one");
+        clusterConfig.dumpAllNode();
 
         NodeId leaderNodeId2 = clusterConfig.checkOneLeader();
         clusterConfig.disconnect(leaderNodeId2);
@@ -575,10 +582,17 @@ public class Mock6824Test {
 
         NodeId i3 = clusterConfig.nextNode(clusterConfig.checkOneLeader());
         clusterConfig.disconnect(i3);
+        clusterConfig.dumpAllNode();
         clusterConfig.one(defineNumberCommand(15), servers -1, true);
         clusterConfig.start1(i3);
         clusterConfig.connect(i3);
+        clusterConfig.dumpAllNode();
         clusterConfig.one(defineNumberCommand(16), servers, true);
+    }
+
+    private void stop() {
+        Scanner scanner = new Scanner(System.in);
+        scanner.next();
     }
 
 }

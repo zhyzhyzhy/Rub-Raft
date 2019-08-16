@@ -51,11 +51,11 @@ public class NettyClient {
         this.channel = connectFuture.channel();
         connectFuture.addListener(f -> {
             if (f.isSuccess()) {
-                log.debug("rpc client connected endPoint={}", endPoint);
+                log.info("rpc client connected endPoint={}", endPoint);
                 connectResultFuture.set(null);
                 Runtime.getRuntime().addShutdownHook(new Thread(this::closeSync));
             } else {
-                log.debug("rpc connected fail! waiting for retry！", f.cause());
+                log.info("rpc connected fail! waiting for retry！", f.cause());
                 connectResultFuture.setException(f.cause());
                 worker.shutdownGracefully();
             }

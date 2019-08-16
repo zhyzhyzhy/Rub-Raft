@@ -9,11 +9,11 @@ import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.node.PeerRaftNode;
 import cc.lovezhy.raft.server.node.RaftNode;
 import cc.lovezhy.raft.server.utils.Pair;
-import com.alibaba.fastjson.JSON;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -210,6 +210,7 @@ public class ClusterManager implements Mock6824Config {
         if (Objects.isNull(leaderNodeId)) {
             fail("one({}) failed to reach agreement", command);
         }
+        log.info("leaderNodeId={}", leaderNodeId);
         RaftNode leaderRaftNode = nodeIdRaftNodeMap.get(leaderNodeId);
         leaderRaftNode.getOuterService().appendLog((DefaultCommand) command);
         long lastLogIndex = leaderRaftNode.getLogService().getLastLogIndex();
@@ -227,6 +228,8 @@ public class ClusterManager implements Mock6824Config {
             }
             times--;
         }
+        log.info("before fail one");
+        dumpAllNode();
         fail("one({}) failed to reach agreement", command);
         return -1;
     }
@@ -394,10 +397,16 @@ public class ClusterManager implements Mock6824Config {
         throw new FailException();
     }
 
-
     @Override
-    public void status() {
-        System.out.println(JSON.toJSONString(raftNodeExtConfigMap));
+    public void dumpAllNode() {
+        for (RaftNode raftNode : raftNodes) {
+            JsonObject jsonObject = new JsonObject();
+            jsonObject.put("nodeId", raftNode.getNodeId().toString());
+            jsonObject.put("role", raftNode.getNodeScheduler().isLeader() ? "leader" : "follower");
+            jsonObject.put("currentTerm", raftNode.getCurrentTerm());
+            jsonObject.put("LogEntry", raftNode.getLogService().getStateMachine().fetchAllEntry());
+            log.info(jsonObject.toString());
+        }
     }
 
     private void pause(long mills) {

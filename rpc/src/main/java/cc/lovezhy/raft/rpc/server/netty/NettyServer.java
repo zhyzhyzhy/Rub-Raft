@@ -70,6 +70,11 @@ public class NettyServer {
                 log.error("start rpc server fail, message={}, endPoint={}", f.cause().getMessage(), endPoint, f.cause());
             }
         });
+        try {
+            bindFuture.sync();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         return bindResultFuture;
     }
 

@@ -185,7 +185,8 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
 
     private void writeRequest(RpcRequest request) {
         ThreadLocalRandom threadLocalRandom = ThreadLocalRandom.current();
-        if (rpcClientOptions.isOnNet()) {
+        //TODO, requestConnect不可以被isOnNet阻拦
+        if (rpcClientOptions.isOnNet() || request.getMethod().equals("requestConnect")) {
             if (!rpcClientOptions.isReliable()) {
                 try {
                     Thread.sleep(threadLocalRandom.nextInt(Integer.MAX_VALUE) % 27);

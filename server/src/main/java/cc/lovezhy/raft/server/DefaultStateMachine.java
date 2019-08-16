@@ -19,6 +19,11 @@ public class DefaultStateMachine implements StateMachine {
     private final Map<String, Object> map = Maps.newConcurrentMap();
 
     @Override
+    public Map<String, Object> fetchAllEntry() {
+        return Maps.newHashMap(map);
+    }
+
+    @Override
     public synchronized boolean apply(DefaultCommand defaultCommand) {
         switch (defaultCommand.getCommandEnum()) {
             case SET: {
