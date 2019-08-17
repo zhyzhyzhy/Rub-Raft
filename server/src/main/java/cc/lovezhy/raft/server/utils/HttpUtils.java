@@ -39,6 +39,7 @@ public class HttpUtils {
             return new JsonObject(response.body().string());
         } catch (IOException e) {
             //ignore
+            e.printStackTrace();
             return new JsonObject().put("success", false);
         } finally {
             if (Objects.nonNull(response)) {

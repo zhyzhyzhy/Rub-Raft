@@ -399,6 +399,7 @@ public class RaftNode implements RaftService {
         if (Objects.equals(replicatedLogRequest.getLeaderId(), nodeScheduler.getVotedFor())) {
             log.info("receiveHeartbeat from={}", replicatedLogRequest.getLeaderId());
             nodeScheduler.receiveHeartbeat();
+            currentTerm = replicatedLogRequest.getTerm();
             return appendLog(replicatedLogRequest);
         }
 
@@ -695,7 +696,7 @@ public class RaftNode implements RaftService {
                     if (replicatedLogResponse.getTerm() > term) {
                         log.error("currentTerm={}, remoteServerTerm={}, remoteNodeId={}", term, replicatedLogResponse.getTerm(), peerRaftNode.getNodeId());
                         log.error("may have network isolate");
-                        currentTerm = replicatedLogRequest.getTerm();
+                        currentTerm = replicatedLogResponse.getTerm();
                         nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
                         tickManager.tickElectionTimeOut();
                         appendLogResult.set(false);
@@ -896,11 +897,13 @@ public class RaftNode implements RaftService {
                     log.info("commit success, index=" + logIndex + " command=" + JSON.toJSONString(command));
                     jsonObject.put("success", true);
                 } else {
+                    log.info("commit fail, index=" + logIndex + " command=" + JSON.toJSONString(command));
                     jsonObject.put("success", false);
                 }
                 jsonObject.put("index", logIndex);
                 return jsonObject;
             } else {
+                log.info("i am not leader command={}", JSON.toJSONString(command));
                 PeerRaftNode leader = nodeScheduler.getLeader();
                 if (Objects.nonNull(leader)) {
                     return postCommand(EndPoint.create(leader.getEndPoint().getHost(), leader.getEndPoint().getPort() + 1), command);

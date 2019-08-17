@@ -9,6 +9,7 @@ import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.node.PeerRaftNode;
 import cc.lovezhy.raft.server.node.RaftNode;
 import cc.lovezhy.raft.server.utils.Pair;
+import com.alibaba.fastjson.JSON;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
@@ -145,6 +146,11 @@ public class ClusterManager implements Mock6824Config {
     }
 
     @Override
+    public void setunreliable(boolean unreliable) {
+        setNetReliable(!unreliable);
+    }
+
+    @Override
     public int checkTerms() {
         long term = -1;
         for (RaftNode raftNode : raftNodes) {
@@ -181,6 +187,7 @@ public class ClusterManager implements Mock6824Config {
             }
             if (Objects.nonNull(entry)) {
                 if (count > 0 && !Objects.equals(defaultCommand, entry.getCommand())) {
+                    dumpAllNode();
                     fail("committed values do not match: index {}, {}, {}", index, defaultCommand, entry.getCommand());
                 }
                 count++;
@@ -197,9 +204,30 @@ public class ClusterManager implements Mock6824Config {
         while (System.currentTimeMillis() - current < TimeUnit.SECONDS.toMillis(10)) {
             try {
                 leaderNodeId = checkOneLeader();
-                if (Objects.nonNull(leaderNodeId)) {
-                    break;
+                if (Objects.isNull(leaderNodeId)) {
+                    continue;
                 }
+                RaftNode leaderRaftNode = nodeIdRaftNodeMap.get(leaderNodeId);
+                JsonObject jsonObject = leaderRaftNode.getOuterService().appendLog((DefaultCommand) command);
+                if (!jsonObject.getBoolean("success")) {
+                    log.info("appendLog fail, command={}", JSON.toJSONString(command));
+                    continue;
+                }
+                long lastLogIndex = jsonObject.getInteger("index");
+                int times = retry ? 2 : 1;
+                while (times >= 1) {
+                    long t0 = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - t0 < TimeUnit.SECONDS.toMillis(2)) {
+                        Pair<Integer, Command> commandPair = nCommitted(Math.toIntExact(lastLogIndex));
+                        if (commandPair.getKey() > 0 && commandPair.getKey() >= expectedServers) {
+                            if (Objects.equals(command, commandPair.getValue())) {
+                                return Math.toIntExact(lastLogIndex);
+                            }
+                        }
+                    }
+                    times--;
+                }
+                break;
             } catch (Exception e) {
                 //ignore
             }
@@ -207,26 +235,6 @@ public class ClusterManager implements Mock6824Config {
         if (Objects.isNull(leaderNodeId)) {
             fail("one({}) failed to reach agreement", command);
         }
-        log.info("leaderNodeId={}", leaderNodeId);
-        RaftNode leaderRaftNode = nodeIdRaftNodeMap.get(leaderNodeId);
-        leaderRaftNode.getOuterService().appendLog((DefaultCommand) command);
-        long lastLogIndex = leaderRaftNode.getLogService().getLastLogIndex();
-
-        int times = retry ? 2 : 1;
-        while (times >= 1) {
-            long t0 = System.currentTimeMillis();
-            while (System.currentTimeMillis() - t0 < TimeUnit.SECONDS.toMillis(2)) {
-                Pair<Integer, Command> commandPair = nCommitted(Math.toIntExact(lastLogIndex));
-                if (commandPair.getKey() > 0 && commandPair.getKey() >= expectedServers) {
-                    if (Objects.equals(command, commandPair.getValue())) {
-                        return Math.toIntExact(lastLogIndex);
-                    }
-                }
-            }
-            times--;
-        }
-        log.info("before fail one");
-        dumpAllNode();
         fail("one({}) failed to reach agreement", command);
         return -1;
     }
@@ -415,6 +423,7 @@ public class ClusterManager implements Mock6824Config {
             jsonObject.put("nodeId", raftNode.getNodeId().toString());
             jsonObject.put("role", raftNode.getNodeScheduler().isLeader() ? "leader" : "follower");
             jsonObject.put("currentTerm", raftNode.getCurrentTerm());
+            jsonObject.put("LogEntrySize", raftNode.getLogService().getStateMachine().fetchAllEntry().size());
             jsonObject.put("LogEntry", raftNode.getLogService().getStateMachine().fetchAllEntry());
             log.info(jsonObject.toString());
         }

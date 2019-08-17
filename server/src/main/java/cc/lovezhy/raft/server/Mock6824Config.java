@@ -161,4 +161,6 @@ public interface Mock6824Config {
 
     boolean exist(NodeId nodeId);
 
+    void setunreliable(boolean unreliable);
+
 }

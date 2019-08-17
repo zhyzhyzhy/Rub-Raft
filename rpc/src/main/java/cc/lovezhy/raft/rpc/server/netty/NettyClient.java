@@ -55,7 +55,7 @@ public class NettyClient {
                 connectResultFuture.set(null);
                 Runtime.getRuntime().addShutdownHook(new Thread(this::closeSync));
             } else {
-                log.info("rpc connected fail! waiting for retry！", f.cause());
+                log.info("rpc connected fail! waiting for retry！");
                 connectResultFuture.setException(f.cause());
                 worker.shutdownGracefully();
             }

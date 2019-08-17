@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Scanner;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static cc.lovezhy.raft.server.log.LogConstants.getDummyCommand;
@@ -304,7 +306,7 @@ public class Mock6824Test {
         clusterConfig.one(defineNumberCommand(105), servers, true);
     }
 
-//    @Test
+        @Test
     public void testBackup2B() {
         int servers = 5;
         clusterConfig = ClusterManager.newCluster(servers, false);
@@ -740,7 +742,7 @@ public class Mock6824Test {
      * // haven't been committed yet.
      * //
      */
-    @Test
+//    @Test
     public void testFigure82C() {
         int servers = 5;
         clusterConfig = ClusterManager.newCluster(servers, false);
@@ -753,7 +755,7 @@ public class Mock6824Test {
          * Caused by: java.io.IOException: Too many open files
          * 所以这里降为了200
          */
-        for (int iters = 0; iters < 200; iters++) {
+        for (int iters = 0; iters < 50; iters++) {
             NodeId leaderNodeId = null;
             for (NodeId nodeId : clusterConfig.fetchAllNodeId()) {
                 if (clusterConfig.exist(nodeId)) {
@@ -786,6 +788,7 @@ public class Mock6824Test {
                     nup += 1;
                 }
             }
+            System.out.println("iters" + iters);
         }
 
         for (NodeId nodeId : clusterConfig.fetchAllNodeId()) {
@@ -796,6 +799,69 @@ public class Mock6824Test {
         }
 
         clusterConfig.one(randomCommand(), servers, true);
+    }
+
+    @Test
+    public void testUnreliableAgree2C() throws InterruptedException {
+        int servers = 5;
+        clusterConfig = ClusterManager.newCluster(servers, true);
+        clusterConfig.begin("Test (2C): unreliable agreement");
+
+        int counts = 0;
+
+
+        for (int iters = 1; iters < 50; iters++) {
+            for (int j = 0; j < 4; j++) {
+                counts++;
+            }
+        }
+        /**
+         * for iters := 1; iters < 50; iters++ {
+         * 		for j := 0; j < 4; j++ {
+         * 			wg.Add(1)
+         * 			go func(iters, j int) {
+         * 				defer wg.Done()
+         * 				cfg.one((100*iters)+j, 1, true)
+         *                        }(iters, j)* 		}
+         * 		cfg.one(iters, 1, true)
+         *    }
+         */
+        CountDownLatch countDownLatch = new CountDownLatch(counts);
+
+        AtomicBoolean success = new AtomicBoolean(true);
+        AtomicReference<Throwable> throwableAtomicReference = new AtomicReference<>();
+        for (int iters = 1; iters < 50; iters++) {
+            for (int j = 0; j < 4; j++) {
+                int finalIters = iters;
+                int finalJ = j;
+                CompletableFuture.runAsync(() -> {
+                    clusterConfig.one(defineNumberCommand(100 * finalIters + finalJ), 1, true);
+                    countDownLatch.countDown();
+                }).exceptionally(throwable -> {
+                    throwableAtomicReference.set(throwable);
+                    success.set(false);
+                    countDownLatch.countDown();
+                    return null;
+                });
+                if (!success.get()) {
+                    fail(throwableAtomicReference.toString());
+                }
+            }
+            clusterConfig.dumpAllNode();
+            clusterConfig.one(defineNumberCommand(iters), 1, true);
+        }
+        if (!success.get()) {
+            fail(throwableAtomicReference.toString());
+        }
+        clusterConfig.setunreliable(false);
+        if (!success.get()) {
+            fail(throwableAtomicReference.toString());
+        }
+        countDownLatch.await();
+        clusterConfig.one(defineNumberCommand(100), servers, true);
+        if (!success.get()) {
+            fail(throwableAtomicReference.toString());
+        }
     }
 
     private void stop() {
