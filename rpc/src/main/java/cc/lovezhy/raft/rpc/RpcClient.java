@@ -74,7 +74,10 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
     }
 
     public boolean isConnectAlive() {
-        return nettyClient.getChannel().isRegistered();
+        if (Objects.nonNull(nettyClient.getChannel())) {
+            return nettyClient.getChannel().isRegistered();
+        }
+        return false;
     }
 
     /**

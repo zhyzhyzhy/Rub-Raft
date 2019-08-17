@@ -159,4 +159,6 @@ public interface Mock6824Config {
 
     void crash1(NodeId nodeId);
 
+    boolean exist(NodeId nodeId);
+
 }

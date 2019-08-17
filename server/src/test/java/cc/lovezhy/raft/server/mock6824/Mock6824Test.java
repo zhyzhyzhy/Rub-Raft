@@ -16,10 +16,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Scanner;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.function.Supplier;
 
 import static cc.lovezhy.raft.server.log.LogConstants.getDummyCommand;
@@ -703,27 +700,102 @@ public class Mock6824Test {
          */
         nodeId = leaderNodeId;
         clusterConfig.crash1(nodeId);
+        System.out.println("crash + " + nodeId);
         nodeId = clusterConfig.nextNode(nodeId);
         clusterConfig.crash1(nodeId);
+        System.out.println("crash + " + nodeId);
 
         nodeId = clusterConfig.nextNode(nodeId);
         clusterConfig.connect(nodeId);
         clusterConfig.start1(leaderNodeId);
+        System.out.println("connect + " + leaderNodeId);
         clusterConfig.connect(leaderNodeId);
 
         clusterConfig.one(defineNumberCommand(103), 2, true);
 
+        clusterConfig.dumpAllNode();
         /**
          * cfg.start1((leader + 1) % servers)
          * 	cfg.connect((leader + 1) % servers)
          */
         nodeId = leaderNodeId;
         nodeId = clusterConfig.nextNode(nodeId);
+        System.out.println("connect node=" + nodeId.toString());
         clusterConfig.start1(nodeId);
         clusterConfig.connect(nodeId);
 
         clusterConfig.one(defineNumberCommand(104), servers, true);
 
+    }
+
+    /**
+     * //
+     * // Test the scenarios described in Figure 8 of the extended Raft paper. Each
+     * // iteration asks a leader, if there is one, to insert a command in the Raft
+     * // log.  If there is a leader, that leader will fail quickly with a high
+     * // probability (perhaps without committing the command), or crash after a while
+     * // with low probability (most likey committing the command).  If the number of
+     * // alive servers isn't enough to form a majority, perhaps start a new server.
+     * // The leader in a new term may try to finish replicating log entries that
+     * // haven't been committed yet.
+     * //
+     */
+    @Test
+    public void testFigure82C() {
+        int servers = 5;
+        clusterConfig = ClusterManager.newCluster(servers, false);
+        clusterConfig.begin("Test (2C): Figure 8");
+
+        clusterConfig.one(randomCommand(), 1, true);
+
+        int nup = servers;
+        /**
+         * Caused by: java.io.IOException: Too many open files
+         * 所以这里降为了200
+         */
+        for (int iters = 0; iters < 200; iters++) {
+            NodeId leaderNodeId = null;
+            for (NodeId nodeId : clusterConfig.fetchAllNodeId()) {
+                if (clusterConfig.exist(nodeId)) {
+                    Mock6824Config.StartResponse startResponse = clusterConfig.start(nodeId, randomCommand());
+                    if (startResponse.isLeader()) {
+                        leaderNodeId = nodeId;
+                    }
+                }
+            }
+
+            if (ThreadLocalRandom.current().nextInt(1000) < 100) {
+                int ms = ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE) % (Math.toIntExact(RAFT_ELECTION_TIMEOUT) / 2);
+                pause(ms + RAFT_ELECTION_TIMEOUT);
+            } else {
+                int ms = ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE) % 13;
+                pause(ms + RAFT_ELECTION_TIMEOUT);
+            }
+
+            if (leaderNodeId != null) {
+                clusterConfig.crash1(leaderNodeId);
+                nup -= 1;
+            }
+
+            if (nup < 3) {
+                int nodeIndex = ThreadLocalRandom.current().nextInt(0, servers) % servers;
+                NodeId nodeId = NodeId.create(nodeIndex);
+                if (!clusterConfig.exist(nodeId)) {
+                    clusterConfig.start1(nodeId);
+                    clusterConfig.connect(nodeId);
+                    nup += 1;
+                }
+            }
+        }
+
+        for (NodeId nodeId : clusterConfig.fetchAllNodeId()) {
+            if (!clusterConfig.exist(nodeId)) {
+                clusterConfig.start1(nodeId);
+                clusterConfig.connect(nodeId);
+            }
+        }
+
+        clusterConfig.one(randomCommand(), servers, true);
     }
 
     private void stop() {

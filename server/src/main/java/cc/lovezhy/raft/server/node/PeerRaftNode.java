@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class PeerRaftNode implements Closeable {
 
@@ -89,5 +90,12 @@ public class PeerRaftNode implements Closeable {
             rpcClient.close();
             log.debug("close rpcClient, nodeId={}", nodeId.getPeerId());
         }
+    }
+
+    public static void main(String[] args) {
+        for (int i = 0; i < 30; i++) {
+            System.out.println(ThreadLocalRandom.current().nextInt(0, 5) % 5);
+        }
+
     }
 }

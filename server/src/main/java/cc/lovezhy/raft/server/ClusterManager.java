@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static cc.lovezhy.raft.server.RaftConstants.getRandomStartElectionTimeout;
 import static cc.lovezhy.raft.server.utils.ReflectUtils.getObjectMember;
@@ -37,6 +38,7 @@ public class ClusterManager implements Mock6824Config {
         return clusterManager;
     }
 
+    private int servers;
     private List<RaftNode> raftNodes;
     private Map<NodeId, RaftNode> nodeIdRaftNodeMap = Maps.newHashMap();
     private Map<NodeId, RaftNodeExtConfig> raftNodeExtConfigMap = Maps.newHashMap();
@@ -76,6 +78,7 @@ public class ClusterManager implements Mock6824Config {
     private void makeCluster(int servers, boolean unreliable) {
         Preconditions.checkArgument(servers > 0);
 
+        this.servers = servers;
         List<RaftNode> raftNodes = Lists.newArrayList();
 
 
@@ -137,14 +140,8 @@ public class ClusterManager implements Mock6824Config {
 
     @Override
     public NodeId nextNode(NodeId nodeId) {
-        int index = 0;
-        for (int i = 0; i < raftNodes.size(); i++) {
-            if (raftNodes.get(i).getNodeId().equals(nodeId)) {
-                index = i;
-            }
-        }
-        index = (index + 1) % raftNodes.size();
-        return raftNodes.get(index).getNodeId();
+        int peerId = nodeId.getPeerId() + 1;
+        return NodeId.create(peerId % servers);
     }
 
     @Override
@@ -270,21 +267,21 @@ public class ClusterManager implements Mock6824Config {
 
     private void setNetStatus(NodeId nodeId, boolean isOnNet) {
         //当前节点断开与peerNode的网络，当前节点向其他节点发送请求
-        RaftNode currentNode = raftNodes.stream().filter(raftNode -> raftNode.getNodeId().equals(nodeId)).findAny().get();
-        List<PeerRaftNode> currentNodePeerRaftNodes = getObjectMember(currentNode, "peerRaftNodes");
-        currentNodePeerRaftNodes.forEach(peerRaftNode -> {
-            RpcClientOptions rpcClientOptions = getObjectMember(peerRaftNode, "rpcClientOptions");
-            Preconditions.checkNotNull(rpcClientOptions);
-            rpcClientOptions.setOnNet(isOnNet);
+        raftNodes.stream().filter(raftNode -> raftNode.getNodeId().equals(nodeId)).findAny().ifPresent(currentNode -> {
+            List<PeerRaftNode> currentNodePeerRaftNodes = getObjectMember(currentNode, "peerRaftNodes");
+            currentNodePeerRaftNodes.forEach(peerRaftNode -> {
+                RpcClientOptions rpcClientOptions = getObjectMember(peerRaftNode, "rpcClientOptions");
+                Preconditions.checkNotNull(rpcClientOptions);
+                rpcClientOptions.setOnNet(isOnNet);
+            });
+
+            //当前节点能否回复请求
+            RpcServer rpcServer = getObjectMember(currentNode, "rpcServer");
+            Preconditions.checkNotNull(rpcServer);
+            RpcServerOptions rpcServerOptions = getObjectMember(rpcServer, "rpcServerOptions");
+            Preconditions.checkNotNull(rpcServerOptions);
+            rpcServerOptions.setOnNet(isOnNet);
         });
-
-        //当前节点能否回复请求
-        RpcServer rpcServer = getObjectMember(currentNode, "rpcServer");
-        Preconditions.checkNotNull(rpcServer);
-        RpcServerOptions rpcServerOptions = getObjectMember(rpcServer, "rpcServerOptions");
-        Preconditions.checkNotNull(rpcServerOptions);
-        rpcServerOptions.setOnNet(isOnNet);
-
         raftNodeExtConfigMap.get(nodeId).setOnNet(isOnNet);
     }
 
@@ -306,6 +303,9 @@ public class ClusterManager implements Mock6824Config {
     @Override
     public StartResponse start(NodeId nodeId, DefaultCommand command) {
         RaftNode node = nodeIdRaftNodeMap.get(nodeId);
+        if (!node.getNodeScheduler().isLeader()) {
+            return StartResponse.create(-1, -1, false);
+        }
         node.getOuterService().appendLog(command);
         boolean isLeader = node.getNodeScheduler().isLeader();
         int term = Math.toIntExact(node.getCurrentTerm());
@@ -362,15 +362,21 @@ public class ClusterManager implements Mock6824Config {
     public void crash1(NodeId nodeId) {
         disconnect(nodeId);
         RaftNode raftNode = nodeIdRaftNodeMap.get(nodeId);
-        Long currentTerm = raftNode.getCurrentTerm();
-        NodeId voteFor = raftNode.getNodeScheduler().getVotedFor();
-        LogService logService = raftNode.getLogService();
-        SavedNodeStatus savedNodeStatus = new SavedNodeStatus();
-        savedNodeStatus.setCurrentTerm(currentTerm);
-        savedNodeStatus.setLogService(logService);
-        savedNodeStatus.setVoteFor(voteFor);
-        raftNode.close();
-        raftNodeSavedNodeStatus.put(nodeId, savedNodeStatus);
+        if (Objects.isNull(raftNode)) {
+            //has crash before
+        } else {
+            Long currentTerm = raftNode.getCurrentTerm();
+            NodeId voteFor = raftNode.getNodeScheduler().getVotedFor();
+            LogService logService = raftNode.getLogService();
+            SavedNodeStatus savedNodeStatus = new SavedNodeStatus();
+            savedNodeStatus.setCurrentTerm(currentTerm);
+            savedNodeStatus.setLogService(logService);
+            savedNodeStatus.setVoteFor(voteFor);
+            raftNode.close();
+            raftNodeSavedNodeStatus.put(nodeId, savedNodeStatus);
+            nodeIdRaftNodeMap.put(nodeId, null);
+            raftNodes = nodeIdRaftNodeMap.values().stream().filter(Objects::nonNull).collect(Collectors.toList());
+        }
     }
 
     @Override
@@ -381,8 +387,13 @@ public class ClusterManager implements Mock6824Config {
         raftNode.init1(savedNodeStatus.getLogService(), savedNodeStatus.getCurrentTerm(), savedNodeStatus.getVoteFor());
         nodeIdRaftNodeMap.put(nodeId, raftNode);
         raftNodeExtConfigMap.put(nodeId, new RaftNodeExtConfig());
-        raftNodes = Lists.newArrayList(nodeIdRaftNodeMap.values());
+        raftNodes = Lists.newArrayList(nodeIdRaftNodeMap.values().stream().filter(Objects::nonNull).collect(Collectors.toList()));
         setNetReliable(reliable);
+    }
+
+    @Override
+    public boolean exist(NodeId nodeId) {
+        return nodeIdRaftNodeMap.get(nodeId) != null;
     }
 
     /**
