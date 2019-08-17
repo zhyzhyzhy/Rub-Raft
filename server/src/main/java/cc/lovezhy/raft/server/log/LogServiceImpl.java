@@ -177,7 +177,7 @@ public class LogServiceImpl implements LogService {
         }
         try {
             LOG_LOCK.lock();
-            while (fromIndex <= storageService.getLen() - 1 + start) {
+            while (fromIndex <= storageService.getLen() - 1 + start && !entries.isEmpty()) {
                 set(fromIndex, entries.get(0));
                 entries.remove(entries.get(0));
                 fromIndex++;
@@ -209,7 +209,7 @@ public class LogServiceImpl implements LogService {
 
     @Override
     public long getLastLogIndex() {
-        return storageService.getLen() - 1 + (long)start;
+        return storageService.getLen() - 1 + (long) start;
     }
 
     // 日志比较的原则是，如果本地的最后一条log entry的term更大，则term大的更新，如果term一样大，则log index更大的更新

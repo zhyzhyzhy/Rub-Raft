@@ -230,11 +230,14 @@ public class ClusterManager implements Mock6824Config {
                 break;
             } catch (Exception e) {
                 //ignore
+                throw e;
             }
         }
         if (Objects.isNull(leaderNodeId)) {
             fail("one({}) failed to reach agreement", command);
         }
+        log.info("before fail");
+        dumpAllNode();
         fail("one({}) failed to reach agreement", command);
         return -1;
     }

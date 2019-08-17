@@ -742,7 +742,7 @@ public class Mock6824Test {
      * // haven't been committed yet.
      * //
      */
-//    @Test
+    @Test
     public void testFigure82C() {
         int servers = 5;
         clusterConfig = ClusterManager.newCluster(servers, false);
@@ -844,23 +844,23 @@ public class Mock6824Test {
                     return null;
                 });
                 if (!success.get()) {
-                    fail(throwableAtomicReference.toString());
+                    fail(throwableAtomicReference.get().getMessage());
                 }
             }
             clusterConfig.dumpAllNode();
             clusterConfig.one(defineNumberCommand(iters), 1, true);
         }
         if (!success.get()) {
-            fail(throwableAtomicReference.toString());
+            fail(throwableAtomicReference.get().getMessage());
         }
         clusterConfig.setunreliable(false);
         if (!success.get()) {
-            fail(throwableAtomicReference.toString());
+            fail(throwableAtomicReference.get().getMessage());
         }
         countDownLatch.await();
         clusterConfig.one(defineNumberCommand(100), servers, true);
         if (!success.get()) {
-            fail(throwableAtomicReference.toString());
+            fail(throwableAtomicReference.get().getMessage());
         }
     }
 
