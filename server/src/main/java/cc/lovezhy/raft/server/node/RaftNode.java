@@ -35,7 +35,9 @@ import java.io.Closeable;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -44,7 +46,6 @@ import java.util.stream.Collectors;
 
 import static cc.lovezhy.raft.server.RaftConstants.*;
 import static cc.lovezhy.raft.server.utils.EventRecorder.Event.LOG;
-import static cc.lovezhy.raft.server.utils.HttpUtils.postCommand;
 
 public class RaftNode implements RaftService {
 
@@ -390,6 +391,7 @@ public class RaftNode implements RaftService {
         eventRecorder.add(LOG, replicatedLogRequest.toString());
         //感觉应该不会出现，除非是消息延迟
         if (term > replicatedLogRequest.getTerm()) {
+            eventRecorder.add(LOG, new ReplicatedLogResponse(term, false).toString());
             return new ReplicatedLogResponse(term, false);
         }
 
@@ -660,10 +662,15 @@ public class RaftNode implements RaftService {
 
 
         private Runnable prepareAppendLog(PeerRaftNode peerRaftNode, PeerNodeStateMachine peerNodeStateMachine, SettableFuture<Boolean> appendLogResult) {
+            /**
+             * BUG
+             * 在发生网络分区的时候，发送log的任务已经被添加到各个PeerNode的任务队列中准备执行了，那时候currentTerm可能已经是最新的了
+             * 所以这里在appendTask的时候先把currentTerm拿出来
+             */
+            long term = currentTerm;
             return () -> {
                 try {
                     log.info("prepareAppendLog, to {}", peerRaftNode.getNodeId().getPeerId());
-                    long term = currentTerm;
                     long currentLastLogIndex = logService.getLastLogIndex();
                     long currentLastCommitLogIndex = logService.getLastCommitLogIndex();
                     long preLogIndex = peerNodeStateMachine.getNextIndex() - 1;
@@ -739,6 +746,7 @@ public class RaftNode implements RaftService {
         }
 
         private Runnable prepareInstallSnapshot(PeerRaftNode peerRaftNode, PeerNodeStateMachine peerNodeStateMachine) {
+            long term = currentTerm;
             return () -> {
                 try {
                     if (peerNodeStateMachine.getNodeStatus().equals(PeerNodeStatus.INSTALLSNAPSHOT) || peerNodeStateMachine.getNodeStatus().equals(PeerNodeStatus.PROBE)) {
@@ -748,7 +756,7 @@ public class RaftNode implements RaftService {
                     Snapshot snapShot = logService.getSnapShot();
                     InstallSnapshotRequest installSnapShotRequest = new InstallSnapshotRequest();
                     installSnapShotRequest.setLeaderId(nodeId);
-                    installSnapShotRequest.setTerm(currentTerm);
+                    installSnapShotRequest.setTerm(term);
                     installSnapShotRequest.setSnapshot(snapShot);
                     installSnapShotRequest.setLogEntry(logService.get(snapShot.getLastLogIndex()));
                     InstallSnapshotResponse installSnapshotResponse = peerRaftNode.getRaftService().requestInstallSnapShot(installSnapShotRequest);
@@ -904,11 +912,12 @@ public class RaftNode implements RaftService {
                 return jsonObject;
             } else {
                 log.info("i am not leader command={}", JSON.toJSONString(command));
-                PeerRaftNode leader = nodeScheduler.getLeader();
-                if (Objects.nonNull(leader)) {
-                    return postCommand(EndPoint.create(leader.getEndPoint().getHost(), leader.getEndPoint().getPort() + 1), command);
-                }
                 return new JsonObject().put("success", false);
+//                PeerRaftNode leader = nodeScheduler.getLeader();
+//                if (Objects.nonNull(leader)) {
+//                    return postCommand(EndPoint.create(leader.getEndPoint().getHost(), leader.getEndPoint().getPort() + 1), command);
+//                }
+//                return new JsonObject().put("success", false);
             }
         }
 

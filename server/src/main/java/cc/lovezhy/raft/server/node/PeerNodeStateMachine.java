@@ -28,6 +28,7 @@ public class PeerNodeStateMachine implements Closeable {
 
     private Map<Integer, SettableFuture<Boolean>> appendLogIndexCompleteFuture = Maps.newConcurrentMap();
     private volatile Integer maxWaitIndex = 1;
+    private volatile boolean shutdown = false;
 
     private Runnable scheduleTask = () -> {
         for (; ; ) {
@@ -39,6 +40,9 @@ public class PeerNodeStateMachine implements Closeable {
             }
             if (Objects.isNull(task)) {
                 continue;
+            }
+            if (shutdown) {
+                break;
             }
             taskExecutor.submit(task).addListener(() -> {
                 SettableFuture<Boolean> voidSettableFuture = appendLogIndexCompleteFuture.get(matchIndex.intValue());
@@ -116,6 +120,7 @@ public class PeerNodeStateMachine implements Closeable {
 
     @Override
     public void close() {
+        shutdown = true;
         taskQueue.clear();
         taskExecutor.shutdown();
         schedulerExecutor.shutdown();

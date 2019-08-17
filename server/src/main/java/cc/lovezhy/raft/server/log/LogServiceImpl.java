@@ -177,7 +177,11 @@ public class LogServiceImpl implements LogService {
         }
         try {
             LOG_LOCK.lock();
-            while (fromIndex <= storageService.getLen() - 1 + start && !entries.isEmpty()) {
+            while (fromIndex <= storageService.getLen() - 1 + start) {
+                if (entries.isEmpty()) {
+                    System.out.println("break imme, fromIndex=" + fromIndex);
+                    break;
+                }
                 set(fromIndex, entries.get(0));
                 entries.remove(entries.get(0));
                 fromIndex++;

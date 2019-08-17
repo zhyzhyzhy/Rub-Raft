@@ -188,7 +188,7 @@ public class ClusterManager implements Mock6824Config {
             if (Objects.nonNull(entry)) {
                 if (count > 0 && !Objects.equals(defaultCommand, entry.getCommand())) {
                     dumpAllNode();
-                    fail("committed values do not match: index {}, {}, {}", index, defaultCommand, entry.getCommand());
+                    fail("committed values do not match: index {}, {}, NodeId={} = {}", index, defaultCommand, raftNode.getNodeId(), entry.getCommand());
                 }
                 count++;
                 defaultCommand = entry.getCommand();
@@ -201,7 +201,8 @@ public class ClusterManager implements Mock6824Config {
     public int one(Command command, int expectedServers, boolean retry) {
         NodeId leaderNodeId = null;
         long current = System.currentTimeMillis();
-        while (System.currentTimeMillis() - current < TimeUnit.SECONDS.toMillis(10)) {
+        int tryTimes = 0;
+        while ((System.currentTimeMillis() - current) < TimeUnit.SECONDS.toMillis(10)) {
             try {
                 leaderNodeId = checkOneLeader();
                 if (Objects.isNull(leaderNodeId)) {
@@ -210,6 +211,7 @@ public class ClusterManager implements Mock6824Config {
                 RaftNode leaderRaftNode = nodeIdRaftNodeMap.get(leaderNodeId);
                 JsonObject jsonObject = leaderRaftNode.getOuterService().appendLog((DefaultCommand) command);
                 if (!jsonObject.getBoolean("success")) {
+                    tryTimes++;
                     log.info("appendLog fail, command={}", JSON.toJSONString(command));
                     continue;
                 }
@@ -238,7 +240,7 @@ public class ClusterManager implements Mock6824Config {
         }
         log.info("before fail");
         dumpAllNode();
-        fail("one({}) failed to reach agreement", command);
+        fail("one({}) failed to reach agreement, expectedServers={}, lastTryLeaderNodeId={}, tryTimes={}", command, expectedServers, leaderNodeId, tryTimes);
         return -1;
     }
 
