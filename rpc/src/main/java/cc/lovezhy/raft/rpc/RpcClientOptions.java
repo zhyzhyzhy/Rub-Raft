@@ -24,10 +24,14 @@ public class RpcClientOptions {
     @ForTesting
     private volatile boolean reliable;
 
+    @ForTesting
+    private volatile boolean longReordering;
+
     public RpcClientOptions() {
         requestTypeOption = Collections.synchronizedMap(Maps.newHashMap());
         isOnNet = true;
         reliable = true;
+        longReordering = false;
     }
 
     public void defineMethodRequestType(String methodName, RpcRequestType requestType) {
@@ -57,6 +61,17 @@ public class RpcClientOptions {
     @ForTestingMethod
     public boolean isOnNet() {
         return isOnNet;
+    }
+
+
+    @ForTestingMethod
+    public boolean isLongReordering() {
+        return longReordering;
+    }
+
+    @ForTestingMethod
+    public void setLongReordering(boolean longReordering) {
+        this.longReordering = longReordering;
     }
 
     @ForTestingMethod

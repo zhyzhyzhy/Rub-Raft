@@ -51,4 +51,9 @@ public class FileStorageService implements StorageService {
     public void discard(int toIndex) {
         //TODO
     }
+
+    @Override
+    public void remove(int fromIndex) {
+
+    }
 }

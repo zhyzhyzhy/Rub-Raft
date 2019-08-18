@@ -22,6 +22,7 @@ public interface StorageService {
      */
     boolean append(StorageEntry storageEntry);
 
+    void remove(int fromIndex);
     /**
      * storage存的长度
      */

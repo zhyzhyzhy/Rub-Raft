@@ -163,4 +163,9 @@ public interface Mock6824Config {
 
     void setunreliable(boolean unreliable);
 
+    void setlongreordering(boolean longrel);
+
+
+    boolean isOnNet(NodeId nodeId);
+
 }

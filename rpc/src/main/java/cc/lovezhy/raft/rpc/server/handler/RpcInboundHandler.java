@@ -6,6 +6,8 @@ import cc.lovezhy.raft.rpc.server.netty.RpcService;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 
+import java.util.concurrent.CompletableFuture;
+
 public class RpcInboundHandler extends SimpleChannelInboundHandler<Object> {
 
     private RpcService rpcService;
@@ -14,10 +16,11 @@ public class RpcInboundHandler extends SimpleChannelInboundHandler<Object> {
         this.rpcService = rpcService;
     }
 
+
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof RpcResponse) {
-            rpcService.onResponse((RpcResponse) msg);
+            CompletableFuture.runAsync(() -> rpcService.onResponse((RpcResponse) msg));
         } else if (msg instanceof RpcRequest) {
             rpcService.handleRequest(ctx.channel(), (RpcRequest) msg);
         } else {

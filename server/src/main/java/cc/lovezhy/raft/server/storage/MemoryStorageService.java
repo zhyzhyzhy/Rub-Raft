@@ -1,5 +1,6 @@
 package cc.lovezhy.raft.server.storage;
 
+import com.alibaba.fastjson.JSON;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
@@ -43,6 +44,16 @@ public class MemoryStorageService implements StorageService {
     @Override
     public int getLen() {
         return entries.size();
+    }
+
+    @Override
+    public void remove(int fromIndex) {
+        int size = entries.size();
+        for (int i = size - 1; i >= fromIndex; i--) {
+            StorageEntry storageEntry = entries.get(i);
+            System.out.println(String.format("need remove, entry={%s}", JSON.toJSONString(storageEntry.toLogEntry())));
+            entries.remove(i);
+        }
     }
 
     @Override

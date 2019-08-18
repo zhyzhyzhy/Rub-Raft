@@ -117,12 +117,12 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
             }
         }
         RpcResponse rpcResponse = rpcResponseMap.get(requestId);
-        if (Objects.isNull(rpcResponse)) {
-            throw new RequestTimeoutException("request time out");
-        }
         waitConditionMap.remove(requestId);
         rpcResponseMap.remove(requestId);
         lockObject.recycle();
+        if (Objects.isNull(rpcResponse)) {
+            throw new RequestTimeoutException("request time out");
+        }
         return rpcResponse;
     }
 
@@ -157,6 +157,19 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
             log.debug("drop");
             return;
         }
+
+        //delay
+        if (rpcClientOptions.isLongReordering() && (ThreadLocalRandom.current().nextInt(900) ) < 600) {
+            int ms = 200 + ThreadLocalRandom.current().nextInt(0, ThreadLocalRandom.current().nextInt(1,2000));
+            return;
+//            try {
+//                Thread.sleep(ms);
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+        }
+
+
         String requestId = response.getRequestId();
         LockObject lockObject = waitConditionMap.get(requestId);
         //normal
@@ -176,7 +189,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
                 settableFuture.set(response.getResponseBody());
                 rpcFutureMap.remove(requestId);
             } else {
-                log.error("non async !!!!");
+//                log.error("non async !!!!");
             }
         }
     }
@@ -204,6 +217,15 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
             nettyClient.getChannel().writeAndFlush(request);
         } else {
             //ignore
+        }
+    }
+
+    public static void main(String[] args) {
+        for (int i = 0; i < 200; i++) {
+
+            System.out.println((ThreadLocalRandom.current().nextInt(900)) < 600);
+            int ms = 200 + ThreadLocalRandom.current().nextInt(0, ThreadLocalRandom.current().nextInt(1,2000));
+            System.out.println(ms);
         }
     }
 }

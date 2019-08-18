@@ -6,12 +6,23 @@ public class ReplicatedLogResponse {
 
     private Long term;
 
+    private Long lastCommitIndex;
+
     public ReplicatedLogResponse() {
     }
 
-    public ReplicatedLogResponse(Long term, Boolean success) {
+    public ReplicatedLogResponse(Long term, Boolean success, Long lastCommitIndex) {
         this.term = term;
         this.success = success;
+        this.lastCommitIndex = lastCommitIndex;
+    }
+
+    public Long getLastCommitIndex() {
+        return lastCommitIndex;
+    }
+
+    public void setLastCommitIndex(Long lastCommitIndex) {
+        this.lastCommitIndex = lastCommitIndex;
     }
 
     public Long getTerm() {

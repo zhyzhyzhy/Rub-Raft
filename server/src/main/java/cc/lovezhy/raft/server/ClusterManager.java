@@ -151,6 +151,11 @@ public class ClusterManager implements Mock6824Config {
     }
 
     @Override
+    public boolean isOnNet(NodeId nodeId) {
+        return raftNodeExtConfigMap.get(nodeId).isOnNet;
+    }
+
+    @Override
     public int checkTerms() {
         long term = -1;
         for (RaftNode raftNode : raftNodes) {
@@ -204,7 +209,13 @@ public class ClusterManager implements Mock6824Config {
         int tryTimes = 0;
         while ((System.currentTimeMillis() - current) < TimeUnit.SECONDS.toMillis(10)) {
             try {
-                leaderNodeId = checkOneLeader();
+                for (int i = 0; i < fetchAllNodeId().size(); i++) {
+                    NodeId nodeId = NodeId.create(i);
+                    if (isOnNet(nodeId) && nodeIdRaftNodeMap.get(nodeId).getNodeScheduler().isLeader()) {
+                        leaderNodeId = nodeId;
+                        break;
+                    }
+                }
                 if (Objects.isNull(leaderNodeId)) {
                     continue;
                 }
@@ -212,10 +223,13 @@ public class ClusterManager implements Mock6824Config {
                 JsonObject jsonObject = leaderRaftNode.getOuterService().appendLog((DefaultCommand) command);
                 if (!jsonObject.getBoolean("success")) {
                     tryTimes++;
-                    log.info("appendLog fail, command={}", JSON.toJSONString(command));
+                    log.info("appendLog fail, leaderNodeId={}, command={}", JSON.toJSONString(leaderNodeId),JSON.toJSONString(command));
+                    dumpAllNode();
+                    leaderNodeId = null;
                     continue;
                 }
                 long lastLogIndex = jsonObject.getInteger("index");
+                log.info("one lastLogIndex={}, LeaderNodeId={}", lastLogIndex, leaderNodeId);
                 int times = retry ? 2 : 1;
                 while (times >= 1) {
                     long t0 = System.currentTimeMillis();
@@ -232,10 +246,14 @@ public class ClusterManager implements Mock6824Config {
                 break;
             } catch (Exception e) {
                 //ignore
+                System.out.println("one exception fail");
+                dumpAllNode();
                 throw e;
             }
         }
         if (Objects.isNull(leaderNodeId)) {
+            log.info("before fail");
+            dumpAllNode();
             fail("one({}) failed to reach agreement", command);
         }
         log.info("before fail");
@@ -253,6 +271,22 @@ public class ClusterManager implements Mock6824Config {
         this.cmds0 = 0;
         //TODO
         this.maxIndex0 = 0;
+    }
+
+    /**
+     * 设置网络的时延
+     */
+    @Override
+    public void setlongreordering(boolean longrel) {
+//        raftNodes.forEach(raftNode -> {
+//            List<PeerRaftNode> peerRaftNodes = getObjectMember(raftNode, "peerRaftNodes");
+//            Preconditions.checkNotNull(peerRaftNodes);
+//            peerRaftNodes.forEach(peerRaftNode -> {
+//                RpcClientOptions rpcClientOptions = getObjectMember(peerRaftNode, "rpcClientOptions");
+//                Preconditions.checkNotNull(rpcClientOptions);
+//                rpcClientOptions.setLongReordering(longrel);
+//            });
+//        });
     }
 
     @Override
@@ -426,9 +460,11 @@ public class ClusterManager implements Mock6824Config {
         for (RaftNode raftNode : raftNodes) {
             JsonObject jsonObject = new JsonObject();
             jsonObject.put("nodeId", raftNode.getNodeId().toString());
+            jsonObject.put("isOnNet", raftNodeExtConfigMap.get(raftNode.getNodeId()).isOnNet);
             jsonObject.put("role", raftNode.getNodeScheduler().isLeader() ? "leader" : "follower");
             jsonObject.put("currentTerm", raftNode.getCurrentTerm());
-            jsonObject.put("LogEntrySize", raftNode.getLogService().getStateMachine().fetchAllEntry().size());
+            jsonObject.put("LogEntrySize", raftNode.getLogService().getStorageService().getLen());
+            jsonObject.put("voteFor", raftNode.getNodeScheduler().getVotedFor() == null ? "null" : raftNode.getNodeScheduler().getVotedFor().toString());
             jsonObject.put("LogEntry", raftNode.getLogService().getStateMachine().fetchAllEntry());
             log.info(jsonObject.toString());
         }

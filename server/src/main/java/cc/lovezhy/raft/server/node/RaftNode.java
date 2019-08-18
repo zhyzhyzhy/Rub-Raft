@@ -163,6 +163,7 @@ public class RaftNode implements RaftService {
         tickManager.tickElectionTimeOut();
         eventRecorder = new EventRecorder(log);
         logService = new LogServiceImpl(new DefaultStateMachine(), StorageType.MEMORY, eventRecorder);
+        NodeSlf4jHelper.changeObjectLogger(nodeId, logService);
         stopped = false;
     }
 
@@ -191,6 +192,7 @@ public class RaftNode implements RaftService {
         tickManager.tickElectionTimeOut();
         eventRecorder = new EventRecorder(log);
         this.logService = logService;
+        NodeSlf4jHelper.changeObjectLogger(nodeId, logService);
         stopped = false;
     }
 
@@ -212,6 +214,7 @@ public class RaftNode implements RaftService {
                 voteRequest.setCandidateId(nodeId);
                 voteRequest.setLastLogTerm(logService.getLastLogTerm());
                 voteRequest.setLastLogIndex(logService.getLastLogIndex());
+                log.info("preVote peerId={}, VoteRequest={}", peerRaftNode.getNodeId(), JSON.toJSONString(voteRequest));
                 peerRaftNode.getRaftService().requestPreVote(voteRequest);
                 SettableFuture<VoteResponse> voteResponseFuture = RpcContext.getContextFuture();
                 Futures.addCallback(voteResponseFuture, new FutureCallback<VoteResponse>() {
@@ -352,12 +355,16 @@ public class RaftNode implements RaftService {
 
     @Override
     public VoteResponse requestPreVote(VoteRequest voteRequest) {
+        log.info("receive preVote, voteRequest={}", JSON.toJSONString(voteRequest));
         Long term = currentTerm;
         if (term >= voteRequest.getTerm()) {
-            return new VoteResponse(term, false);
+            VoteResponse voteResponse = new VoteResponse(term, false);
+            log.info("response preVote, voteResponse={}", voteResponse);
         }
         if (logService.isNewerThanSelf(voteRequest.getLastLogTerm(), voteRequest.getLastLogIndex())) {
-            return new VoteResponse(term, true);
+            VoteResponse voteResponse = new VoteResponse(term, true);
+            log.info("response preVote, voteResponse={}", voteResponse);
+            return voteResponse;
         } else {
             return new VoteResponse(term, false);
         }
@@ -391,8 +398,8 @@ public class RaftNode implements RaftService {
         eventRecorder.add(LOG, replicatedLogRequest.toString());
         //感觉应该不会出现，除非是消息延迟
         if (term > replicatedLogRequest.getTerm()) {
-            eventRecorder.add(LOG, new ReplicatedLogResponse(term, false).toString());
-            return new ReplicatedLogResponse(term, false);
+            eventRecorder.add(LOG, new ReplicatedLogResponse(term, false, logService.getLastCommitLogIndex()).toString());
+            return new ReplicatedLogResponse(term, false, logService.getLastCommitLogIndex());
         }
 
         tickManager.tickElectionTimeOut();
@@ -414,26 +421,34 @@ public class RaftNode implements RaftService {
             log.info("receiveHeartbeat from={}", replicatedLogRequest.getLeaderId());
             return appendLog(replicatedLogRequest);
         }
-        return new ReplicatedLogResponse(term, false);
+        return new ReplicatedLogResponse(term, false, logService.getLastCommitLogIndex());
     }
 
     private ReplicatedLogResponse appendLog(ReplicatedLogRequest replicatedLogRequest) {
         try {
             log.info("prevLogIndex={}, LogEntry={}", replicatedLogRequest.getPrevLogIndex(), replicatedLogRequest.getEntries());
             LogEntry logEntry = logService.get(replicatedLogRequest.getPrevLogIndex());
+            log.info("currentNode entry={}", JSON.toJSONString(logEntry));
             if (Objects.isNull(logEntry)) {
-                return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), false);
+                return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), false, logService.getLastCommitLogIndex());
             }
             boolean isSameTerm;
             isSameTerm = logEntry.getTerm().equals(replicatedLogRequest.getPrevLogTerm());
             if (isSameTerm) {
                 logService.appendLog(replicatedLogRequest.getPrevLogIndex() + 1, replicatedLogRequest.getEntries());
+                logService.commit(replicatedLogRequest.getLeaderCommit());
+            } else {
+                log.info("not isSameTerm, totalLogEntry={}", JSON.toJSONString(logService.get(0, replicatedLogRequest.getPrevLogIndex())));
             }
-            logService.commit(replicatedLogRequest.getLeaderCommit());
-            log.debug("/appendLog, isSameTerm={}", isSameTerm);
-            return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), isSameTerm);
+            /**
+             * 因为可能是还在seek日志在哪儿的阶段，有的日志是需要被覆盖的，而commit之后就不允许修改了，
+             * 这样可能就直接把需要被覆盖的日志commit了
+             */
+//            logService.commit(replicatedLogRequest.getLeaderCommit());
+            log.info("/appendLog, isSameTerm={}", isSameTerm);
+            return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), isSameTerm, logService.getLastCommitLogIndex());
         } catch (HasCompactException e) {
-            return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), true);
+            return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), true, logService.getLastCommitLogIndex());
         }
     }
 
@@ -723,13 +738,14 @@ public class RaftNode implements RaftService {
                         }
                     } else {
                         if (!peerNodeStateMachine.getNodeStatus().equals(PeerNodeStatus.INSTALLSNAPSHOT)) {
-                            long nextPreLogIndex = peerNodeStateMachine.getNextIndex() - 2;
+//                            long nextPreLogIndex = peerNodeStateMachine.getNextIndex() - 2;
+                            long nextPreLogIndex = replicatedLogResponse.getLastCommitIndex();
                             //如果已经是在Snapshot中
                             if (logService.hasInSnapshot(nextPreLogIndex)) {
                                 Runnable runnable = prepareInstallSnapshot(peerRaftNode, peerNodeStateMachine);
                                 peerNodeStateMachine.appendFirst(runnable);
                             } else {
-                                peerNodeStateMachine.setNextIndex(peerNodeStateMachine.getNextIndex() - 1);
+                                peerNodeStateMachine.setNextIndex(nextPreLogIndex + 1);
                                 Runnable runnable = prepareAppendLog(peerRaftNode, peerNodeStateMachine, SettableFuture.create());
                                 peerNodeStateMachine.appendFirst(runnable);
                             }

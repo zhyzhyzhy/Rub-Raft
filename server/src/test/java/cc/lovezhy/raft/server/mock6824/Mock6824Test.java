@@ -1,5 +1,6 @@
 package cc.lovezhy.raft.server.mock6824;
 
+import cc.lovezhy.raft.rpc.common.RpcExecutors;
 import cc.lovezhy.raft.server.ClusterManager;
 import cc.lovezhy.raft.server.Mock6824Config;
 import cc.lovezhy.raft.server.log.Command;
@@ -767,11 +768,11 @@ public class Mock6824Test {
                 }
             }
 
-            if (ThreadLocalRandom.current().nextInt(1000) < 100) {
+            if (ThreadLocalRandom.current().nextInt(0, 1000) < 100) {
                 int ms = ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE) % (Math.toIntExact(RAFT_ELECTION_TIMEOUT) / 2);
                 pause(ms + RAFT_ELECTION_TIMEOUT);
             } else {
-                int ms = ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE) % 13;
+                int ms = ThreadLocalRandom.current().nextInt(0, Integer.MAX_VALUE) % 13;
                 pause(ms + RAFT_ELECTION_TIMEOUT);
             }
 
@@ -835,10 +836,14 @@ public class Mock6824Test {
             for (int j = 0; j < 4; j++) {
                 int finalIters = iters;
                 int finalJ = j;
+                /**
+                 * bug，这里的CompleteFuture使用的forkJoinpool的线程池
+                 * 在Netty的自己程序的处理中也是使用的这个线程池，导致被打满，然后全部超时
+                 */
                 CompletableFuture.runAsync(() -> {
                     clusterConfig.one(defineNumberCommand(100 * finalIters + finalJ), 1, true);
                     countDownLatch.countDown();
-                }).exceptionally(throwable -> {
+                }, RpcExecutors.commonExecutor()).exceptionally(throwable -> {
                     throwableAtomicReference.set(throwable);
                     success.set(false);
                     countDownLatch.countDown();
@@ -862,6 +867,67 @@ public class Mock6824Test {
         if (!success.get()) {
             fail(throwableAtomicReference.get().getMessage());
         }
+    }
+
+
+    @Test
+    public void testFigure8Unreliable2C() {
+        int servers = 5;
+        clusterConfig = ClusterManager.newCluster(servers, true);
+
+        clusterConfig.begin("Test (2C): Figure 8 (unreliable)");
+
+        clusterConfig.one(defineNumberCommand(ThreadLocalRandom.current().nextInt()), 1, true);
+
+        int nup = servers;
+        for (int iters = 0; iters < 20; iters++) {
+            System.out.println(iters);
+            if (iters == 10) {
+                clusterConfig.setlongreordering(true);
+            }
+            NodeId leaderNodeId = null;
+            for (NodeId nodeId : clusterConfig.fetchAllNodeId()) {
+                boolean isLeader = clusterConfig.start(nodeId, randomCommand()).isLeader();
+                if (isLeader && clusterConfig.isOnNet(nodeId)) {
+                    leaderNodeId = nodeId;
+                }
+            }
+
+            if (ThreadLocalRandom.current().nextInt(0, 1000) < 100) {
+                int ms = ThreadLocalRandom.current().nextInt(0, Integer.MAX_VALUE) % (Math.toIntExact(RAFT_ELECTION_TIMEOUT) / 2);
+                pause(ms + RAFT_ELECTION_TIMEOUT);
+            } else {
+                int ms = ThreadLocalRandom.current().nextInt(0, Integer.MAX_VALUE) % 13;
+                pause(ms + RAFT_ELECTION_TIMEOUT);
+            }
+
+            if (leaderNodeId != null && (ThreadLocalRandom.current().nextInt(0, 1000)) < (RAFT_ELECTION_TIMEOUT / 2)) {
+                clusterConfig.disconnect(leaderNodeId);
+                nup -= 1;
+            }
+            if (nup < 3) {
+                int peerNodeId = ThreadLocalRandom.current().nextInt(0, servers);
+                NodeId s = NodeId.create(peerNodeId);
+                if (!clusterConfig.isOnNet(s)) {
+                    clusterConfig.connect(s);
+                    nup += 1;
+                }
+            }
+            clusterConfig.dumpAllNode();
+
+        }
+
+        for (NodeId nodeId : clusterConfig.fetchAllNodeId()) {
+            if (!clusterConfig.isOnNet(nodeId)) {
+                clusterConfig.connect(nodeId);
+            }
+        }
+        System.out.println("before one");
+        clusterConfig.dumpAllNode();
+        clusterConfig.one(randomCommand(), servers, true);
+        System.out.println("after one");
+        clusterConfig.dumpAllNode();
+
     }
 
     private void stop() {

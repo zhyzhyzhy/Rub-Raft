@@ -4,6 +4,7 @@ import cc.lovezhy.raft.server.StateMachine;
 import cc.lovezhy.raft.server.log.exception.HasCompactException;
 import cc.lovezhy.raft.server.storage.*;
 import cc.lovezhy.raft.server.utils.EventRecorder;
+import com.alibaba.fastjson.JSON;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
@@ -19,7 +20,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class LogServiceImpl implements LogService {
 
-    private static final Logger log = LoggerFactory.getLogger(LogServiceImpl.class);
+    private Logger log = LoggerFactory.getLogger(LogServiceImpl.class);
 
     private StorageService storageService;
     private StateMachine stateMachine;
@@ -27,8 +28,8 @@ public class LogServiceImpl implements LogService {
     private volatile Long lastCommitLogIndex;
     private volatile Long lastCommitLogTerm;
 
-    private volatile Long lastAppliedLogIndex;
-    private volatile Long lastAppliedLogTerm;
+//    private volatile Long lastAppliedLogIndex;
+//    private volatile Long lastAppliedLogTerm;
 
     private volatile Snapshot snapshot;
 
@@ -70,8 +71,8 @@ public class LogServiceImpl implements LogService {
         this.storageService.append(LogConstants.getInitialLogEntry().toStorageEntry());
         this.lastCommitLogIndex = 0L;
         this.lastCommitLogTerm = 0L;
-        this.lastAppliedLogIndex = 0L;
-        this.lastAppliedLogTerm = 0L;
+//        this.lastAppliedLogIndex = 0L;
+//        this.lastAppliedLogTerm = 0L;
         this.eventRecorder = eventRecorder;
     }
 
@@ -144,6 +145,7 @@ public class LogServiceImpl implements LogService {
         long expectNextIndex = this.lastCommitLogIndex + 1;
         while (index >= expectNextIndex) {
             LogEntry logEntry = get(expectNextIndex);
+            log.info("commit logEntry={}", JSON.toJSONString(logEntry));
             if (Objects.nonNull(logEntry)) {
                 this.stateMachine.apply(logEntry.getCommand());
             }
@@ -151,7 +153,7 @@ public class LogServiceImpl implements LogService {
         }
         this.lastCommitLogIndex = index;
         this.lastCommitLogTerm = get(index).getTerm();
-        createSnapShotIfNecessary();
+//        createSnapShotIfNecessary();
     }
 
     @Override
@@ -172,14 +174,21 @@ public class LogServiceImpl implements LogService {
     @Override
     public synchronized int appendLog(long fromIndex, List<LogEntry> entries) {
         Preconditions.checkNotNull(entries);
+        /**
+         * origin bug
+         * 如果为空，根据fromIndex，要将后面的log进行remove
+         */
         if (entries.isEmpty()) {
-            return start;
+            if (fromIndex <= (storageService.getLen() - 1 + start)) {
+                System.out.println("origin bug");
+            }
+//            return start;
         }
         try {
             LOG_LOCK.lock();
-            while (fromIndex <= storageService.getLen() - 1 + start) {
+            while (fromIndex <= (storageService.getLen() - 1 + start)) {
                 if (entries.isEmpty()) {
-                    System.out.println("break imme, fromIndex=" + fromIndex);
+                    storageService.remove(Math.toIntExact(fromIndex));
                     break;
                 }
                 set(fromIndex, entries.get(0));
@@ -219,6 +228,7 @@ public class LogServiceImpl implements LogService {
     // 日志比较的原则是，如果本地的最后一条log entry的term更大，则term大的更新，如果term一样大，则log index更大的更新
     @Override
     public boolean isNewerThanSelf(long lastLogTerm, long lastLogIndex) {
+        log.info("lastLogTerm={}, lastLogIndex={}", getLastLogTerm(), getLastLogIndex());
         if (lastLogTerm > getLastLogTerm()) {
             return true;
         }
@@ -271,9 +281,9 @@ public class LogServiceImpl implements LogService {
             LOG_LOCK.lock();
             stateMachine.fromSnapShot(snapshot.getData());
             this.lastCommitLogIndex = snapshot.getLastLogIndex();
-            this.lastAppliedLogIndex = snapshot.getLastLogIndex();
-            this.lastAppliedLogTerm = snapshot.getLastLogTerm();
-            this.lastAppliedLogIndex = snapshot.getLastLogTerm();
+//            this.lastAppliedLogIndex = snapshot.getLastLogIndex();
+//            this.lastAppliedLogTerm = snapshot.getLastLogTerm();
+//            this.lastAppliedLogIndex = snapshot.getLastLogTerm();
             this.start = Math.toIntExact(lastCommitLogIndex);
             storageService.append(logEntry.toStorageEntry());
         } finally {
@@ -290,6 +300,10 @@ public class LogServiceImpl implements LogService {
         } finally {
             LOG_LOCK.unlock();
         }
+    }
+
+    public StorageService getStorageService() {
+        return storageService;
     }
 
     @Override

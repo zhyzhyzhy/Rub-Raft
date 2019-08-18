@@ -1,6 +1,7 @@
 package cc.lovezhy.raft.server.log;
 
 import cc.lovezhy.raft.server.StateMachine;
+import cc.lovezhy.raft.server.storage.StorageService;
 
 import java.util.List;
 
@@ -43,4 +44,6 @@ public interface LogService {
     void execInLock(Runnable action);
 
     StateMachine getStateMachine();
+
+    StorageService getStorageService();
 }
