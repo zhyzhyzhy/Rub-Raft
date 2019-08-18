@@ -278,15 +278,15 @@ public class ClusterManager implements Mock6824Config {
      */
     @Override
     public void setlongreordering(boolean longrel) {
-//        raftNodes.forEach(raftNode -> {
-//            List<PeerRaftNode> peerRaftNodes = getObjectMember(raftNode, "peerRaftNodes");
-//            Preconditions.checkNotNull(peerRaftNodes);
-//            peerRaftNodes.forEach(peerRaftNode -> {
-//                RpcClientOptions rpcClientOptions = getObjectMember(peerRaftNode, "rpcClientOptions");
-//                Preconditions.checkNotNull(rpcClientOptions);
-//                rpcClientOptions.setLongReordering(longrel);
-//            });
-//        });
+        raftNodes.forEach(raftNode -> {
+            List<PeerRaftNode> peerRaftNodes = getObjectMember(raftNode, "peerRaftNodes");
+            Preconditions.checkNotNull(peerRaftNodes);
+            peerRaftNodes.forEach(peerRaftNode -> {
+                RpcClientOptions rpcClientOptions = getObjectMember(peerRaftNode, "rpcClientOptions");
+                Preconditions.checkNotNull(rpcClientOptions);
+                rpcClientOptions.setLongReordering(longrel);
+            });
+        });
     }
 
     @Override

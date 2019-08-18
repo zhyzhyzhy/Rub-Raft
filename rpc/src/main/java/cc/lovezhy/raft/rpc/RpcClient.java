@@ -160,6 +160,7 @@ public class RpcClient<T> implements ConsumerRpcService, RpcService {
 
         //delay
         if (rpcClientOptions.isLongReordering() && (ThreadLocalRandom.current().nextInt(900) ) < 600) {
+            //这里其实意义不大，超过60ms就是超时了，在这儿sleep反而会拉长ForkJoinPool的压力
             int ms = 200 + ThreadLocalRandom.current().nextInt(0, ThreadLocalRandom.current().nextInt(1,2000));
             return;
 //            try {
