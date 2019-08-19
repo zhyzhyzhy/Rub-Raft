@@ -8,6 +8,8 @@ import cc.lovezhy.raft.server.log.DefaultCommand;
 import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.utils.Pair;
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.SettableFuture;
 import org.junit.After;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -19,7 +21,9 @@ import java.util.Objects;
 import java.util.Scanner;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static cc.lovezhy.raft.server.log.LogConstants.getDummyCommand;
@@ -927,6 +931,150 @@ public class Mock6824Test {
         clusterConfig.one(randomCommand(), servers, true);
         System.out.println("after one");
         clusterConfig.dumpAllNode();
+
+    }
+
+    @Test
+    public void testReliableChurn2C() throws ExecutionException, InterruptedException {
+        internalChurn(false);
+    }
+
+    @Test
+    public void testUnreliableChurn2C() throws ExecutionException, InterruptedException {
+        internalChurn(true);
+    }
+
+    private void internalChurn(boolean unreliable) throws ExecutionException, InterruptedException {
+        int servers = 5;
+        clusterConfig = ClusterManager.newCluster(servers, unreliable);
+
+        if (unreliable) {
+            clusterConfig.begin("Test (2C): unreliable churn");
+        } else {
+            clusterConfig.begin("Test (2C): churn");
+        }
+
+        AtomicInteger stop = new AtomicInteger(0);
+
+        //create concurrent clients
+        BiConsumer<Integer, SettableFuture<List<Command>>> cfn = (me, listSettableFuture) -> {
+            List<Command> ret = Lists.newArrayList();
+            while (stop.get() == 0) {
+                int x = ThreadLocalRandom.current().nextInt(0, Integer.MAX_VALUE);
+                int index = -1;
+                boolean ok = false;
+                for (NodeId nodeId : clusterConfig.fetchAllNodeId()) {
+                    if (clusterConfig.exist(nodeId)) {
+                        Mock6824Config.StartResponse startResponse = clusterConfig.start(nodeId, defineNumberCommand(x));
+                        if (startResponse.isLeader()) {
+                            ok = true;
+                            index = startResponse.getIndex();
+                        }
+                    }
+                }
+                if (ok) {
+                    // maybe leader will commit our value, maybe not.
+                    // but don't wait forever.
+                    for (int i : new int[]{10, 20, 50, 100, 200}) {
+                        Pair<Integer, Command> nCommittedResponse = clusterConfig.nCommitted(index);
+                        if(nCommittedResponse.getKey() > 0) {
+                            ret.add(nCommittedResponse.getValue());
+                        }
+                        pause(TimeUnit.MILLISECONDS.toMillis(i));
+                    }
+                } else {
+                    pause(TimeUnit.MILLISECONDS.toMillis(79 + me * 17));
+                }
+            }
+            System.out.println("done me=" + me);
+            listSettableFuture.set(ret);
+        };
+
+        int ncli = 3;
+        List<SettableFuture<List<Command>>> cha = Lists.newArrayList();
+        for (int i = 0; i < ncli; i++) {
+            SettableFuture<List<Command>> settableFuture = SettableFuture.create();
+            cha.add(settableFuture);
+            int finalI = i;
+            CompletableFuture.runAsync(
+                    () -> cfn.accept(finalI, settableFuture), RpcExecutors.commonExecutor()).
+                    exceptionally(throwable -> {
+                        throwable.printStackTrace();
+                        return null;
+                    });
+        }
+
+        for (int iters = 0; iters < 20; iters++) {
+            if (ThreadLocalRandom.current().nextInt(0, 1000) < 100) {
+                NodeId nodeId = NodeId.create(ThreadLocalRandom.current().nextInt(0, servers));
+                clusterConfig.disconnect(nodeId);
+            }
+
+            if (ThreadLocalRandom.current().nextInt(0, 1000) < 500) {
+                NodeId nodeId = NodeId.create(ThreadLocalRandom.current().nextInt(0, servers));
+                if (!clusterConfig.exist(nodeId)) {
+                    clusterConfig.start1(nodeId);
+                }
+                clusterConfig.connect(nodeId);
+            }
+
+            if (ThreadLocalRandom.current().nextInt(0, 1000) < 200) {
+                NodeId nodeId = NodeId.create(ThreadLocalRandom.current().nextInt(0, servers));
+                if (clusterConfig.exist(nodeId)) {
+                    clusterConfig.crash1(nodeId);
+                }
+            }
+
+            pause(RAFT_ELECTION_TIMEOUT * 7 / 10);
+        }
+
+        pause(RAFT_ELECTION_TIMEOUT);
+        clusterConfig.setunreliable(false);
+
+        for (NodeId nodeId : clusterConfig.fetchAllNodeId()) {
+            if (!clusterConfig.exist(nodeId)) {
+                clusterConfig.start1(nodeId);
+            }
+            clusterConfig.connect(nodeId);
+        }
+
+        stop.set(1);
+
+        Futures.allAsList(cha).get();
+        List<Command> values = Lists.newArrayList();
+        for (int i = 0; i < ncli; i++) {
+            if (!cha.get(i).isDone()) {
+                fail("...client failed");
+            }
+            values.addAll(cha.get(i).get());
+        }
+
+        pause(RAFT_ELECTION_TIMEOUT);
+
+        int lastIndex = clusterConfig.one(randomCommand(), servers, true);
+
+        List<Command> really = Lists.newArrayList();
+
+        for (int index = 1; index <= lastIndex; index++) {
+            Command v = clusterConfig.wait(index, servers, -1);
+            if (Objects.nonNull(v)) {
+                really.add(v);
+            } else {
+                fail("not an int");
+            }
+        }
+
+        for (Command command1 : values) {
+            boolean ok = false;
+            for (Command command2 : really) {
+                if (command1.equals(command2)) {
+                    ok = true;
+                }
+            }
+            if (!ok) {
+                fail("didn't find a value");
+            }
+        }
 
     }
 
