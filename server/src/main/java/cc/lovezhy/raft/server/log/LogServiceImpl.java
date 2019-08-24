@@ -35,7 +35,7 @@ public class LogServiceImpl implements LogService {
 
 
     @VisibleForTesting
-    public static final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 10000;
+    public static final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 20;
     private AtomicInteger appliedLogInMemoryCounter = new AtomicInteger(0);
 
     /**
@@ -157,7 +157,7 @@ public class LogServiceImpl implements LogService {
         }
         this.lastCommitLogIndex = index;
         this.lastCommitLogTerm = get(index).getTerm();
-//        createSnapShotIfNecessary();
+        createSnapShotIfNecessary();
     }
 
     @Override

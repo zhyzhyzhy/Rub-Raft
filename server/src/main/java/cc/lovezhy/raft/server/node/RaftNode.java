@@ -808,6 +808,7 @@ public class RaftNode implements RaftService {
             long term = currentTerm;
             return () -> {
                 try {
+                    log.info("prepareInstallSnapshot peerNode={}",peerRaftNode.getNodeId());
                     if (peerNodeStateMachine.getNodeStatus().equals(PeerNodeStatus.INSTALLSNAPSHOT) || peerNodeStateMachine.getNodeStatus().equals(PeerNodeStatus.PROBE)) {
                         return;
                     }
@@ -827,6 +828,8 @@ public class RaftNode implements RaftService {
                         throw new IllegalStateException();
                     }
                 } catch (Exception e) {
+                    peerNodeStateMachine.setNodeStatus(PeerNodeStatus.NORMAL);
+                    log.info("prepareInstallSnapshot fail, errMsg={}", e.getMessage(), e);
                     log.error(e.getMessage());
                 }
             };
