@@ -1,10 +1,8 @@
 package cc.lovezhy.raft.server;
 
-import cc.lovezhy.raft.rpc.RpcClientOptions;
-import cc.lovezhy.raft.rpc.RpcServer;
-import cc.lovezhy.raft.rpc.RpcServerOptions;
-import cc.lovezhy.raft.rpc.RpcStatistics;
+import cc.lovezhy.raft.rpc.*;
 import cc.lovezhy.raft.server.log.*;
+import cc.lovezhy.raft.server.node.NodeConfig;
 import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.node.PeerRaftNode;
 import cc.lovezhy.raft.server.node.RaftNode;
@@ -26,7 +24,7 @@ import java.util.stream.Collectors;
 import static cc.lovezhy.raft.server.RaftConstants.getRandomStartElectionTimeout;
 import static cc.lovezhy.raft.server.utils.ReflectUtils.getObjectMember;
 
-public class ClusterManager implements Mock6824Config {
+public class ClusterManager implements Mock6824Config, ClusterChangeConfig {
 
     private static final Logger log = LoggerFactory.getLogger(ClusterManager.class);
 
@@ -46,7 +44,61 @@ public class ClusterManager implements Mock6824Config {
     private Map<NodeId, Properties> raftNodeStartProperties = Maps.newHashMap();
     private Map<NodeId, SavedNodeStatus> raftNodeSavedNodeStatus = Maps.newHashMap();
     private boolean reliable;
+    private AtomicInteger nodeRpcPortAllocator;
 
+    @Override
+    public ClusterConfCommand newAddNodeCommand() {
+        int nextNodeId = this.servers++;
+        int nextRpcPort = nodeRpcPortAllocator.getAndAdd(3);
+//        NodeId leaderNodeId = checkOneLeader();
+//        RaftNode leaderRaftNode = nodeIdRaftNodeMap.get(leaderNodeId);
+        NodeConfig nodeConfig = NodeConfig.create(NodeId.create(nextNodeId), EndPoint.create("localhost", nextRpcPort));
+        Properties properties = new Properties();
+        properties.setProperty("local", "localhost:" + nextRpcPort + ":" + nextNodeId);
+//        properties.setProperty("peer", "localhost:" + leaderRaftNode.getEndPoint().getPort()+":" + leaderNodeId.getPeerId());
+        RaftNode newNode = new RaftStarter().start(properties);
+        newNode.init();
+
+        List<NodeConfig> nodeConfigs = Lists.newArrayList();
+        for (RaftNode node : nodeIdRaftNodeMap.values()) {
+            nodeConfigs.add(NodeConfig.create(node.getNodeId(), node.getEndPoint()));
+        }
+        nodeConfigs.add(nodeConfig);
+
+        raftNodeExtConfigMap.put(newNode.getNodeId(), new RaftNodeExtConfig());
+        nodeIdRaftNodeMap.put(newNode.getNodeId(), newNode);
+        raftNodeStartProperties.put(newNode.getNodeId(), properties);
+        raftNodes.add(newNode);
+        return ClusterConfCommand.create(nodeConfigs);
+    }
+
+    @Override
+    public ClusterConfCommand newDelNodeCommand(NodeId nodeId) {
+        RaftNode raftNode = nodeIdRaftNodeMap.get(nodeId);
+        List<NodeConfig> nodeConfigsCopy = Lists.newArrayList(raftNode.getClusterConfig().getNodeConfigs());
+        NodeConfig config = NodeConfig.create(nodeId, raftNode.getEndPoint());
+        nodeConfigsCopy.remove(config);
+        ClusterConfig clusterConfig = ClusterConfig.create(nodeConfigsCopy);
+        return ClusterConfCommand.create(clusterConfig.getNodeConfigs());
+    }
+
+    @Override
+    public EndPoint fetchLeaderEndPoint() {
+        NodeId leaderNodeId = checkOneLeader();
+        return nodeIdRaftNodeMap.get(leaderNodeId).getEndPoint();
+    }
+
+    @Override
+    public void checkClusterConfig() {
+        List<ClusterConfig> clusterConfigs = this.raftNodes.stream().map(RaftNode::getClusterConfig).collect(Collectors.toList());
+        for (int i = 1; i < clusterConfigs.size(); i++) {
+            ClusterConfig clusterConfig1 = clusterConfigs.get(i -1);
+            ClusterConfig clusterConfig2 = clusterConfigs.get(i -1);
+            if (!clusterConfig1.equals(clusterConfig2)) {
+                fail("cluster not equals, cluster1={}, cluster2={}", clusterConfig1, clusterConfig2);
+            }
+        }
+    }
 
     class RaftNodeExtConfig {
 
@@ -83,7 +135,7 @@ public class ClusterManager implements Mock6824Config {
         List<RaftNode> raftNodes = Lists.newArrayList();
 
 
-        AtomicInteger nodeRpcPortAllocator = new AtomicInteger(5283);
+        nodeRpcPortAllocator = new AtomicInteger(5283);
 
         List<String> nodeList = Lists.newArrayList();
         for (int i = 0; i < servers; i++) {
@@ -91,7 +143,6 @@ public class ClusterManager implements Mock6824Config {
         }
         nodeList.forEach(currentNode -> {
             Properties properties = new Properties();
-            properties.setProperty("cluster.nodes", String.valueOf(servers));
             properties.setProperty("local", currentNode);
             List<String> peerNode = Lists.newLinkedList(nodeList);
             peerNode.remove(currentNode);
@@ -107,6 +158,7 @@ public class ClusterManager implements Mock6824Config {
         setNetReliable(!unreliable);
         this.raftNodes.forEach(RaftNode::init);
     }
+
 
     @Override
     public NodeId checkOneLeader() {

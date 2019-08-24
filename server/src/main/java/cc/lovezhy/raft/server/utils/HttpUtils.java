@@ -1,6 +1,7 @@
 package cc.lovezhy.raft.server.utils;
 
 import cc.lovezhy.raft.rpc.EndPoint;
+import cc.lovezhy.raft.server.log.ClusterConfCommand;
 import cc.lovezhy.raft.server.log.DefaultCommand;
 import cc.lovezhy.raft.server.node.RaftNode;
 import com.alibaba.fastjson.JSON;
@@ -31,6 +32,27 @@ public class HttpUtils {
         Request request = new Request.Builder()
                 .url(endPoint.toUrl() + "/command")
                 .post(RequestBody.create(MEDIA_JSON, JSON.toJSONString(defaultCommand)))
+                .build();
+
+        Response response = null;
+        try {
+            response = client.newCall(request).execute();
+            return new JsonObject(response.body().string());
+        } catch (IOException e) {
+            //ignore
+            e.printStackTrace();
+            return new JsonObject().put("success", false);
+        } finally {
+            if (Objects.nonNull(response)) {
+                response.close();
+            }
+        }
+    }
+
+    public static JsonObject postConfCommand(EndPoint endPoint, ClusterConfCommand clusterConfCommand) {
+        Request request = new Request.Builder()
+                .url(endPoint.toUrl() + "/conf")
+                .post(RequestBody.create(MEDIA_JSON, JSON.toJSONString(clusterConfCommand)))
                 .build();
 
         Response response = null;

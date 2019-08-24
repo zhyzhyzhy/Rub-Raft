@@ -4,9 +4,8 @@ Rub-Raft
 # 使用
 配置`server.properties`  
 ```
-cluster.nodes=3
-local=localhost:5283:0
-peer=localhost:5285:1,localhost:5287:2
+local=localhost:5283:0  //表示当前节点
+peer=localhost:5285:1,localhost:5287:2 //表示其他节点
 ```
 使用RaftStarter.start(Properties properties)启动
 
@@ -24,7 +23,7 @@ peer=localhost:5285:1,localhost:5287:2
 Mock了6.824的测试样例
 
 # TODO
-- 支持节点变更
+- ~~支持节点变更~~
 - 完善基于RandomAccessFile的底层文件
 - 重构代码
 

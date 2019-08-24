@@ -97,8 +97,9 @@ public class ClientHttpService extends AbstractVerticle {
             HttpServerResponse response = routingContext.response();
             JsonObject bodyJson = routingContext.getBodyAsJson();
             ClusterConfCommand clusterConfCommand = bodyJson.mapTo(ClusterConfCommand.class);
+            JsonObject jsonObject = outerService.appendLog(clusterConfCommand, true);
             response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
-            response.end("OK");
+            response.end(jsonObject.toString());
         });
 
         /*

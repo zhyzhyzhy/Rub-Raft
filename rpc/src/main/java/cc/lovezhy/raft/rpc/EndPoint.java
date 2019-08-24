@@ -1,6 +1,7 @@
 package cc.lovezhy.raft.rpc;
 
 import com.google.common.base.MoreObjects;
+import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 
 import javax.annotation.concurrent.Immutable;
@@ -12,6 +13,9 @@ public class EndPoint {
 
     private int port;
 
+    private EndPoint() {
+
+    }
     private EndPoint(String host, int port) {
         Preconditions.checkNotNull(host);
         this.host = host;
@@ -32,6 +36,20 @@ public class EndPoint {
 
     public int getPort() {
         return port;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        EndPoint endPoint = (EndPoint) o;
+        return port == endPoint.port &&
+                Objects.equal(host, endPoint.host);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(host, port);
     }
 
     @Override

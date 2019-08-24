@@ -1,69 +1,85 @@
 package cc.lovezhy.raft.server.log;
 
 import cc.lovezhy.raft.rpc.EndPoint;
+import cc.lovezhy.raft.server.ClusterConfig;
+import cc.lovezhy.raft.server.node.NodeConfig;
 import cc.lovezhy.raft.server.node.NodeId;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import jdk.nashorn.internal.ir.annotations.Immutable;
+
+import java.util.List;
 
 @Immutable
 public class ClusterConfCommand implements Command {
 
-    private ClusterConfCommandTypeEnum commandType;
-    private NodeId nodeId;
-    private EndPoint endPoint;
 
-    public static ClusterConfCommand addNode(NodeId nodeId, EndPoint endPoint) {
-        Preconditions.checkNotNull(nodeId);
-        Preconditions.checkNotNull(endPoint);
-        return new ClusterConfCommand(ClusterConfCommandTypeEnum.ADD, nodeId, endPoint);
+    public static ClusterConfCommand create(List<NodeConfig> clusterNodeConfig) {
+        ClusterConfCommand clusterConfCommand = new ClusterConfCommand();
+        clusterConfCommand.clusterNodeConfig = ImmutableList.copyOf(clusterNodeConfig);
+        return clusterConfCommand;
     }
 
-    public static ClusterConfCommand removeNode(NodeId nodeId, EndPoint endPoint) {
-        Preconditions.checkNotNull(nodeId);
-        Preconditions.checkNotNull(endPoint);
-        return new ClusterConfCommand(ClusterConfCommandTypeEnum.REMOVE, nodeId, endPoint);
-    }
+    private List<NodeConfig> clusterNodeConfig;
+
 
     private ClusterConfCommand() {
     }
 
-    private ClusterConfCommand(ClusterConfCommandTypeEnum commandType, NodeId nodeId, EndPoint endPoint) {
-        this.commandType = commandType;
-        this.nodeId = nodeId;
-        this.endPoint = endPoint;
+    public List<NodeConfig> getClusterNodeConfig() {
+        return ImmutableList.copyOf(clusterNodeConfig);
     }
 
-    public ClusterConfCommandTypeEnum getCommandType() {
-        return commandType;
+    public boolean isAddCommand(ClusterConfig currentConfig) {
+        for (NodeConfig nodeConfig : clusterNodeConfig) {
+            if (!currentConfig.getNodeConfigs().contains(nodeConfig)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    public void setCommandType(ClusterConfCommandTypeEnum commandType) {
-        this.commandType = commandType;
+    private NodeConfig extractNewNodeConfig(ClusterConfig clusterConfig) {
+        NodeConfig newNodeId = null;
+        for (NodeConfig nodeConfig : clusterNodeConfig) {
+            if (!clusterConfig.getNodeConfigs().contains(nodeConfig)) {
+                newNodeId = nodeConfig;
+                break;
+            }
+        }
+        return newNodeId;
     }
 
-    public NodeId getNodeId() {
-        return nodeId;
+    public NodeId extractNewNodeId(ClusterConfig clusterConfig) {
+        NodeConfig nodeConfig = extractNewNodeConfig(clusterConfig);
+        Preconditions.checkNotNull(nodeConfig);
+        return nodeConfig.getNodeId();
     }
 
-    public void setNodeId(NodeId nodeId) {
-        this.nodeId = nodeId;
+    public EndPoint extractNewNodeIdEndPoint(ClusterConfig clusterConfig) {
+        NodeConfig nodeConfig = extractNewNodeConfig(clusterConfig);
+        Preconditions.checkNotNull(nodeConfig);
+        return nodeConfig.getEndPoint();
     }
 
-    public EndPoint getEndPoint() {
-        return endPoint;
+    public boolean needRemoveNode(NodeId currentNodeId) {
+        for (NodeConfig nodeConfig : clusterNodeConfig) {
+            if (nodeConfig.getNodeId().equals(currentNodeId)) {
+                return false;
+            }
+        }
+        return true;
     }
 
-    public void setEndPoint(EndPoint endPoint) {
-        this.endPoint = endPoint;
+    public ClusterConfig toClusterConfig() {
+        return ClusterConfig.create(clusterNodeConfig);
     }
 
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this)
-                .add("commandType", commandType)
-                .add("nodeId", nodeId)
-                .add("endPoint", endPoint)
+                .add("clusterNodeConfig", clusterNodeConfig)
                 .toString();
     }
 }

@@ -67,7 +67,7 @@ public class LogServiceImpl implements LogService {
         /*
           提交一个DUMMY的LogEntry
          */
-        this.stateMachine.apply(LogConstants.getInitialLogEntry().getCommand());
+        this.stateMachine.apply(((DefaultCommand) LogConstants.getInitialLogEntry().getCommand()));
         this.storageService.append(LogConstants.getInitialLogEntry().toStorageEntry());
         this.lastCommitLogIndex = 0L;
         this.lastCommitLogTerm = 0L;
@@ -147,7 +147,11 @@ public class LogServiceImpl implements LogService {
             LogEntry logEntry = get(expectNextIndex);
             log.info("commit logEntry={}", JSON.toJSONString(logEntry));
             if (Objects.nonNull(logEntry)) {
-                this.stateMachine.apply(logEntry.getCommand());
+                if (logEntry.getCommand() instanceof ClusterConfCommand) {
+
+                } else {
+                    this.stateMachine.apply(((DefaultCommand) logEntry.getCommand()));
+                }
             }
             expectNextIndex++;
         }

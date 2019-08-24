@@ -1,11 +1,13 @@
 package cc.lovezhy.raft.server;
 
 import cc.lovezhy.raft.rpc.EndPoint;
+import cc.lovezhy.raft.server.node.NodeConfig;
 import cc.lovezhy.raft.server.node.NodeId;
 import cc.lovezhy.raft.server.node.PeerRaftNode;
 import cc.lovezhy.raft.server.node.RaftNode;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+import io.netty.util.internal.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,12 +25,17 @@ public class RaftStarter {
 
     private final List<PeerRaftNode> peerRaftNodes = Lists.newArrayList();
 
+    private final List<NodeConfig> clusterNodeConfig = Lists.newArrayList();
+
     private RaftNode localRaftNode;
 
     private ClusterConfig clusterConfig;
 
     private void loadPeerRaftNode(String value) {
-        Preconditions.checkNotNull(value);
+//        Preconditions.checkNotNull(value);
+        if (StringUtil.isNullOrEmpty(value)) {
+            return;
+        }
         String[] peerItems = value.split(",");
         Arrays.stream(peerItems)
                 .forEach(peerItem -> {
@@ -38,6 +45,7 @@ public class RaftStarter {
                     NodeId nodeId = NodeId.create(Integer.parseInt(peerConfig[2]));
                     PeerRaftNode peerRaftNode = new PeerRaftNode(nodeId, endPoint, false);
                     peerRaftNodes.add(peerRaftNode);
+                    clusterNodeConfig.add(NodeConfig.create(nodeId, endPoint));
                 });
     }
 
@@ -47,7 +55,10 @@ public class RaftStarter {
         Preconditions.checkState(localConfig.length == 3);
         EndPoint endPoint = EndPoint.create(localConfig[0], localConfig[1]);
         NodeId nodeId = NodeId.create(Integer.parseInt(localConfig[2]));
+        clusterNodeConfig.add(NodeConfig.create(nodeId, endPoint));
+        clusterConfig = ClusterConfig.create(clusterNodeConfig);
         localRaftNode = new RaftNode(nodeId, endPoint, clusterConfig, peerRaftNodes);
+
     }
 
     private void check() {
@@ -71,10 +82,8 @@ public class RaftStarter {
         Preconditions.checkNotNull(properties);
         loadPeerRaftNode(properties.getProperty(PEER_SERVERS_KEY));
 
-        clusterConfig = new ClusterConfig();
-        clusterConfig.setNodeCount(Integer.parseInt(properties.getProperty(CLUSTER_NODES)));
-
         loadLocalRaftNode(properties.getProperty(LOCAL_SERVER_KEY));
+
 
         check();
 

@@ -8,24 +8,24 @@ import com.google.common.base.Preconditions;
 
 public class LogEntry {
 
-    public static LogEntry of(DefaultCommand command, Long term) {
+    public static LogEntry of(Command command, Long term) {
         Preconditions.checkNotNull(command);
         Preconditions.checkNotNull(term);
         return new LogEntry(command, term);
     }
 
 
-    private DefaultCommand command;
+    private Command command;
     private Long term;
 
     public LogEntry() {}
 
-    public LogEntry(DefaultCommand command, Long term) {
+    public LogEntry(Command command, Long term) {
         this.command = command;
         this.term = term;
     }
 
-    public DefaultCommand getCommand() {
+    public Command getCommand() {
         return command;
     }
 

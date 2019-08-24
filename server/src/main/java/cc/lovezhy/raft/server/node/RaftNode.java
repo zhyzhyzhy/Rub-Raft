@@ -35,6 +35,7 @@ import java.io.Closeable;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -114,12 +115,16 @@ public class RaftNode implements RaftService {
         Preconditions.checkNotNull(endPoint);
         Preconditions.checkNotNull(clusterConfig);
         Preconditions.checkNotNull(peerRaftNodes);
-        Preconditions.checkState(peerRaftNodes.size() >= 2, "raft cluster should init with at least 3 server!");
+//        Preconditions.checkState(peerRaftNodes.size() >= 2, "raft cluster should init with at least 3 server!");
 
         this.nodeId = nodeId;
         this.peerRaftNodes = peerRaftNodes;
         this.clusterConfig = clusterConfig;
         this.endPoint = endPoint;
+    }
+
+    public ClusterConfig getClusterConfig() {
+        return clusterConfig;
     }
 
     public NodeScheduler getNodeScheduler() {
@@ -436,6 +441,17 @@ public class RaftNode implements RaftService {
             isSameTerm = logEntry.getTerm().equals(replicatedLogRequest.getPrevLogTerm());
             if (isSameTerm) {
                 logService.appendLog(replicatedLogRequest.getPrevLogIndex() + 1, replicatedLogRequest.getEntries());
+                List<LogEntry> logEntries = replicatedLogRequest.getEntries();
+                for (LogEntry needAppendLogEntry : logEntries) {
+                    switch (needAppendLogEntry.getCommand().type()) {
+                        case DEFAULT:
+                            break;
+                        case CLUSTER_CONF: {
+                            ClusterConfCommand clusterConfCommand = ((ClusterConfCommand) needAppendLogEntry.getCommand());
+                            applyClusterConfig(clusterConfCommand);
+                        }
+                    }
+                }
                 logService.commit(replicatedLogRequest.getLeaderCommit());
             } else {
                 log.info("not isSameTerm, totalLogEntry={}", JSON.toJSONString(logService.get(0, replicatedLogRequest.getPrevLogIndex())));
@@ -463,6 +479,33 @@ public class RaftNode implements RaftService {
         logService.installSnapshot(installSnapShotRequest.getSnapshot(), installSnapShotRequest.getLogEntry());
         return new InstallSnapshotResponse(term, true);
     }
+
+    private void applyClusterConfig(ClusterConfCommand command) {
+        ClusterConfig oldClusterConfig = RaftNode.this.clusterConfig;
+        ClusterConfig newClusterConfig = command.toClusterConfig();
+        List<PeerRaftNode> peerRaftNodes = RaftNode.this.peerRaftNodes;
+        List<PeerRaftNode> newPeerRaftNodes = Lists.newArrayList();
+        List<PeerRaftNode> toRemoveRaftNodes = Lists.newArrayList();
+        for (PeerRaftNode peerRaftNode : peerRaftNodes) {
+            NodeId nodeId = peerRaftNode.getNodeId();
+            //如果新配置中没有此节点，则关闭连接
+            if (!newClusterConfig.containsNode(nodeId)) {
+                toRemoveRaftNodes.add(peerRaftNode);
+            }
+        }
+        //如果新配置中有这个节点，而旧配置中没有这个节点，则增加
+        for (NodeConfig nodeConfig : newClusterConfig.getNodeConfigs()) {
+            if (!oldClusterConfig.containsNode(nodeConfig.getNodeId())) {
+                newPeerRaftNodes.add(new PeerRaftNode(nodeConfig.getNodeId(), nodeConfig.getEndPoint()));
+            }
+        }
+        toRemoveRaftNodes.forEach(PeerRaftNode::close);
+        peerRaftNodes.removeAll(toRemoveRaftNodes);
+        newPeerRaftNodes.forEach(peerRaftNode -> peerRaftNode.connect(nodeId));
+        peerRaftNodes.addAll(newPeerRaftNodes);
+        RaftNode.this.clusterConfig = newClusterConfig;
+    }
+
 
     @VisibleForTesting
     public LogService getLogService() {
@@ -830,7 +873,7 @@ public class RaftNode implements RaftService {
                     return;
                 }
                 if (waitTimeOut == currentWaitTimeOut && currentVersion == electionTimeOutVersion) {
-                    if (nodeScheduler.isLoseHeartbeat(currentWaitTimeOut) && !nodeScheduler.isLeader()) {
+                    if (nodeScheduler.isLoseHeartbeat(currentWaitTimeOut) && !nodeScheduler.isLeader() && clusterConfig.getNodeCount() >= 2) {
                         preVote(currentTerm + 1);
                     }
                 }
@@ -877,15 +920,44 @@ public class RaftNode implements RaftService {
      * 向外界提供服务的
      */
     public class OuterService {
-        //TODO
+
+        public synchronized JsonObject appendLog(Command command) {
+            return appendLog(command, true);
+        }
 
         /**
          * SelfAppend 一般对于Leader而言，自己append到LogService中就算成功
          * success 是指append到大多数
          * //todo,需要做一个区分
          */
-        public synchronized JsonObject appendLog(DefaultCommand command) {
+        private AddNodeScheduler addNodeScheduler;
+
+        public synchronized JsonObject appendLog(Command command, boolean needSyncLog) {
             if (nodeScheduler.isLeader()) {
+
+                if (command instanceof ClusterConfCommand) {
+                    ClusterConfCommand clusterConfCommand = (ClusterConfCommand) command;
+                    if (clusterConfCommand.isAddCommand(clusterConfig) && needSyncLog) {
+                        NodeId newNodeId = clusterConfCommand.extractNewNodeId(clusterConfig);
+                        EndPoint newNodeEndPoint = clusterConfCommand.extractNewNodeIdEndPoint(clusterConfig);
+                        addNodeScheduler = AddNodeScheduler.create(nodeId, newNodeId, newNodeEndPoint, currentTerm, logService);
+                        SettableFuture<Boolean> booleanSettableFuture = addNodeScheduler.startSyncLog();
+                        Futures.addCallback(booleanSettableFuture, new FutureCallback<Boolean>() {
+                            @Override
+                            public void onSuccess(@Nullable Boolean aBoolean) {
+                                appendLog(command, false);
+                            }
+
+                            @Override
+                            public void onFailure(Throwable throwable) {
+                                //ignore
+                            }
+                        }, RpcExecutors.commonExecutor());
+                        JsonObject jsonObject = new JsonObject();
+                        return jsonObject;
+                    }
+                }
+
                 JsonObject jsonObject = new JsonObject();
                 log.info("http append {}", JSON.toJSONString(command));
                 LogEntry logEntry = LogEntry.of(command, currentTerm);
@@ -917,6 +989,13 @@ public class RaftNode implements RaftService {
                     log.error(e.getMessage(), e);
                 }
                 if (voteAction.votedSuccess()) {
+                    if (command instanceof ClusterConfCommand) {
+                        boolean isAddCommand = ((ClusterConfCommand) command).isAddCommand(clusterConfig);
+                        applyClusterConfig(((ClusterConfCommand) command));
+                        if (isAddCommand) {
+                            peerNodeScheduler.peerNode.put(addNodeScheduler.getPeerRaftNode(), addNodeScheduler.getPeerNodeStateMachine());
+                        }
+                    }
                     logService.commit(logIndex);
                     log.info("commit success, index=" + logIndex + " command=" + JSON.toJSONString(command));
                     jsonObject.put("success", true);
@@ -925,15 +1004,14 @@ public class RaftNode implements RaftService {
                     jsonObject.put("success", false);
                 }
                 jsonObject.put("index", logIndex);
+                if (command instanceof ClusterConfCommand && ((ClusterConfCommand) command).needRemoveNode(nodeId)) {
+                    System.out.println("close self");
+                    CompletableFuture.runAsync(RaftNode.this::close);
+                }
                 return jsonObject;
             } else {
                 log.info("i am not leader command={}", JSON.toJSONString(command));
                 return new JsonObject().put("success", false);
-//                PeerRaftNode leader = nodeScheduler.getLeader();
-//                if (Objects.nonNull(leader)) {
-//                    return postCommand(EndPoint.create(leader.getEndPoint().getHost(), leader.getEndPoint().getPort() + 1), command);
-//                }
-//                return new JsonObject().put("success", false);
             }
         }
 
