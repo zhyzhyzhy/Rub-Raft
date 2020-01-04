@@ -19,13 +19,13 @@ public class ProxyInterceptor implements MethodInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(ProxyInterceptor.class);
 
-    private ConsumerRpcService consumerRpcService;
+    private ConsumerService consumerService;
     private Class<?> superClass;
     private RpcClientOptions rpcClientOptions;
 
-    ProxyInterceptor(Class<?> superClass, RpcClientOptions rpcClientOptions, ConsumerRpcService consumerRpcService) {
+    ProxyInterceptor(Class<?> superClass, RpcClientOptions rpcClientOptions, ConsumerService consumerService) {
         this.superClass = superClass;
-        this.consumerRpcService = consumerRpcService;
+        this.consumerService = consumerService;
         this.rpcClientOptions = rpcClientOptions;
     }
 
@@ -41,17 +41,17 @@ public class ProxyInterceptor implements MethodInterceptor {
         switch (requestType) {
             case NORMAL: {
                 request.setRpcRequestType(RpcRequestType.NORMAL);
-                RpcResponse rpcResponse = consumerRpcService.sendRequest(request);
+                RpcResponse rpcResponse = consumerService.sendRequest(request);
                 return rpcResponse.getResponseBody();
             }
             case ONE_WAY: {
                 request.setRpcRequestType(RpcRequestType.ONE_WAY);
-                consumerRpcService.sendOneWayRequest(request);
+                consumerService.sendOneWayRequest(request);
                 return null;
             }
             case ASYNC: {
                 request.setRpcRequestType(RpcRequestType.ASYNC);
-                consumerRpcService.sendRequestAsync(request);
+                consumerService.sendRequestAsync(request);
                 return null;
             }
         }

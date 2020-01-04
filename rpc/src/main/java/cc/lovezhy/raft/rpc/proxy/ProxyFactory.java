@@ -8,13 +8,12 @@ import static java.util.Objects.requireNonNull;
 public class ProxyFactory {
 
     @SuppressWarnings("unchecked")
-    public static <T> T createRpcProxy(Class<T> clazz, ConsumerRpcService consumerRpcService, RpcClientOptions rpcClientOptions) {
+    public static <T> T createRpcProxy(Class<T> clazz, ConsumerService consumerService, RpcClientOptions rpcClientOptions) {
         requireNonNull(clazz);
-        requireNonNull(consumerRpcService);
-
+        requireNonNull(consumerService);
         Enhancer enhancer = new Enhancer();
         enhancer.setSuperclass(clazz);
-        enhancer.setCallback(new ProxyInterceptor(clazz, rpcClientOptions, consumerRpcService));
+        enhancer.setCallback(new ProxyInterceptor(clazz, rpcClientOptions, consumerService));
         return (T) enhancer.create();
     }
 

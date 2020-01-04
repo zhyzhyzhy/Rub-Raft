@@ -6,9 +6,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * mark method is for test
+ * mark field variable is for test
  */
 @Retention(RetentionPolicy.SOURCE)
-@Target(ElementType.METHOD)
-public @interface ForTestingMethod {
+@Target(ElementType.FIELD)
+public @interface ForTestingVariable {
 }

@@ -1,7 +1,7 @@
 package cc.lovezhy.raft.rpc;
 
-import cc.lovezhy.raft.rpc.annotation.ForTesting;
 import cc.lovezhy.raft.rpc.annotation.ForTestingMethod;
+import cc.lovezhy.raft.rpc.annotation.ForTestingVariable;
 import cc.lovezhy.raft.rpc.protocal.RpcRequestType;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
@@ -18,13 +18,13 @@ public class RpcClientOptions {
     // methodName -> RpcRequestType
     private Map<String, RpcRequestType> requestTypeOption;
 
-    @ForTesting
+    @ForTestingVariable
     private volatile boolean isOnNet;
 
-    @ForTesting
+    @ForTestingVariable
     private volatile boolean reliable;
 
-    @ForTesting
+    @ForTestingVariable
     private volatile boolean longReordering;
 
     public RpcClientOptions() {
