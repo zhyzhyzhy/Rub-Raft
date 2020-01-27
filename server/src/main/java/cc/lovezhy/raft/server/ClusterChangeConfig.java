@@ -14,5 +14,4 @@ public interface ClusterChangeConfig {
     void disconnect(NodeId nodeId);
     NodeId checkOneLeader();
     void end();
-
 }

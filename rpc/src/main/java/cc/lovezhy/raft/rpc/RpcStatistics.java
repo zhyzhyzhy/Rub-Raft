@@ -1,11 +1,11 @@
 package cc.lovezhy.raft.rpc;
 
-import io.vertx.core.json.JsonObject;
-
 import javax.annotation.concurrent.ThreadSafe;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 
+/**
+ * @author zhuyichen
+ */
 @ThreadSafe
 public class RpcStatistics {
 
@@ -16,24 +16,37 @@ public class RpcStatistics {
     /**
      * 进来的Rpc个数
      */
-    private static final String INCOMING_TOTAL_REQUEST = "incomingTotalRequest";
-    private AtomicLong incomingTotalRequest;
+    private LongAdder incomingRequestCounter;
 
     private RpcStatistics() {
-        this.incomingTotalRequest = new AtomicLong(0L);
+        this.incomingRequestCounter = new LongAdder();
     }
 
     public void incrIncomingRequestAsync() {
-        CompletableFuture.runAsync(() -> incomingTotalRequest.incrementAndGet());
+        this.incomingRequestCounter.increment();
     }
 
-    public Long fetchIncomingRequestCount() {
-        return incomingTotalRequest.get();
+    public long fetchIncomingRequestCount() {
+        return this.incomingRequestCounter.sum();
     }
 
-    public JsonObject toJsonObject() {
-        JsonObject jsonObject = new JsonObject();
-        jsonObject.put(INCOMING_TOTAL_REQUEST, incomingTotalRequest);
-        return jsonObject;
+    public StatisticsModel toModel() {
+        StatisticsModel statisticsModel = new StatisticsModel();
+        statisticsModel.setIncomingRequest(fetchIncomingRequestCount());
+        return statisticsModel;
     }
+
+
+    public static class StatisticsModel {
+        private Long incomingRequest;
+
+        public Long getIncomingRequest() {
+            return incomingRequest;
+        }
+
+        public void setIncomingRequest(Long incomingRequest) {
+            this.incomingRequest = incomingRequest;
+        }
+    }
+
 }

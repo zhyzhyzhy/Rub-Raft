@@ -17,7 +17,7 @@ public class ReflectUtils {
             Object o = field.get(object);
             return (T) o;
         } catch (NoSuchFieldException | IllegalAccessException e) {
-            log.error(e.getMessage());
+            log.error("getObjectMember fail, memberName={}, errMsg={}", memberName, e.getMessage(), e);
         }
         return null;
     }

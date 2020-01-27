@@ -1,6 +1,7 @@
 package cc.lovezhy.raft.rpc.resource;
 
 import cc.lovezhy.raft.rpc.RpcStatistics;
+import com.alibaba.fastjson.JSON;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.vertx.core.AbstractVerticle;
@@ -11,11 +12,15 @@ import io.vertx.ext.web.Router;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
 import java.util.concurrent.CountDownLatch;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class RpcServerStateResource extends AbstractVerticle {
+/**
+ * @author zhuyichen
+ */
+public class RpcServerStateResource extends AbstractVerticle implements Closeable {
 
     private static final Logger log = LoggerFactory.getLogger(RpcServerStateResource.class);
 
@@ -48,22 +53,21 @@ public class RpcServerStateResource extends AbstractVerticle {
         router.get("/statistic").handler(routingContext -> {
             HttpServerResponse response = routingContext.response();
             response.putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
-            response.end(rpcStatistics.toJsonObject().toString());
+            response.end(JSON.toJSONString(rpcStatistics.toModel()));
         });
 
         httpServer.requestHandler(router::accept)
                 .listen(port);
     }
 
+    @Override
     public void close() {
         try {
             CountDownLatch countDownLatch = new CountDownLatch(1);
-            this.httpServer.close(as -> {
-                countDownLatch.countDown();
-            });
+            this.httpServer.close(as -> countDownLatch.countDown());
             countDownLatch.await();
         } catch (Exception e) {
-            log.error(e.getMessage(), e);
+            log.error("close httpServer error, errMsg={}", e.getMessage(), e);
         }
     }
 }

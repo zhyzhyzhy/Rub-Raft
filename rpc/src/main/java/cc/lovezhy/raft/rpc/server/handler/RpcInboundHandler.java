@@ -24,7 +24,6 @@ public class RpcInboundHandler extends SimpleChannelInboundHandler<Object> {
         } else if (msg instanceof RpcRequest) {
             rpcService.handleRequest(ctx.channel(), (RpcRequest) msg);
         } else {
-            // TODO
             // ignore
             throw new IllegalStateException("unknown channel message, msg=" + msg);
         }

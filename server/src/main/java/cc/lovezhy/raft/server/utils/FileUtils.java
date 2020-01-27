@@ -15,11 +15,10 @@ public class FileUtils {
         return true;
     }
 
-    public static boolean checkFileNotExist(String filePath) {
+    public static void checkFileNotExist(String filePath) {
         File file = new File(filePath);
         if (file.exists()) {
             throw new IllegalStateException("File exist");
         }
-        return true;
     }
 }

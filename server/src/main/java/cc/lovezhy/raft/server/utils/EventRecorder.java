@@ -3,10 +3,10 @@ package cc.lovezhy.raft.server.utils;
 import cc.lovezhy.raft.rpc.util.IdFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import org.joda.time.DateTime;
 import org.slf4j.Logger;
 
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -60,7 +60,7 @@ public class EventRecorder {
 
     public void add(Event event, Object record) {
         log.info("{}", record);
-        eventRecorderListMap.get(event).put(new DateTime().toString() + IdFactory.generateId(), record);
+        eventRecorderListMap.get(event).put(new Date().toString() + IdFactory.generateId(), record);
     }
 
     public Map<String, Object> eventRecorders(Event event) {

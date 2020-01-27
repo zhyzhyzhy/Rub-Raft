@@ -16,6 +16,7 @@ public class EndPoint {
     private EndPoint() {
 
     }
+
     private EndPoint(String host, int port) {
         Preconditions.checkNotNull(host);
         this.host = host;

@@ -20,7 +20,7 @@ public class HttpUtils {
 
     private static final Logger LOG = LoggerFactory.getLogger(HttpUtils.class);
 
-    private static final OkHttpClient client = new OkHttpClient();
+    private static final OkHttpClient HTTP_CLIENT = new OkHttpClient();
     private static final MediaType MEDIA_JSON = MediaType.parse("application/json;charset=utf-8");
 
 
@@ -36,7 +36,7 @@ public class HttpUtils {
 
         Response response = null;
         try {
-            response = client.newCall(request).execute();
+            response = HTTP_CLIENT.newCall(request).execute();
             return new JsonObject(response.body().string());
         } catch (IOException e) {
             //ignore
@@ -57,7 +57,7 @@ public class HttpUtils {
 
         Response response = null;
         try {
-            response = client.newCall(request).execute();
+            response = HTTP_CLIENT.newCall(request).execute();
             return new JsonObject(response.body().string());
         } catch (IOException e) {
             //ignore
@@ -79,7 +79,7 @@ public class HttpUtils {
 
         Response response = null;
         try {
-            response = client.newCall(request).execute();
+            response = HTTP_CLIENT.newCall(request).execute();
             JsonObject jsonObject = new JsonObject(response.body().string());
             return jsonObject.getJsonObject("data").getMap();
         } catch (IOException e) {
@@ -103,7 +103,7 @@ public class HttpUtils {
 
         Response response = null;
         try {
-            response = client.newCall(request).execute();
+            response = HTTP_CLIENT.newCall(request).execute();
             JsonObject jsonObject = new JsonObject(response.body().string());
             return jsonObject.getString("value");
         } catch (IOException e) {
