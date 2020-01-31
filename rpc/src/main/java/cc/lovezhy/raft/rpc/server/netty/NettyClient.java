@@ -7,16 +7,21 @@ import cc.lovezhy.raft.rpc.server.handler.RpcInboundHandler;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.SettableFuture;
 import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.*;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
 import java.net.InetSocketAddress;
+import java.util.Objects;
 
-public class NettyClient {
+public class NettyClient implements Closeable {
 
     private static final Logger log = LoggerFactory.getLogger(NettyClient.class);
     private EndPoint endPoint;
@@ -66,7 +71,22 @@ public class NettyClient {
 
     public void closeSync() {
         try {
-            if (channel.isActive()) {
+            if (Objects.nonNull(channel) && channel.isActive()) {
+                channel.close().sync();
+                Preconditions.checkState(!channel.isActive());
+                log.debug("shutdown client");
+            }
+        } catch (InterruptedException e) {
+            // ignore
+        } finally {
+            worker.shutdownGracefully();
+        }
+    }
+
+    @Override
+    public void close() {
+        try {
+            if (Objects.nonNull(channel) && channel.isActive()) {
                 channel.close().sync();
                 Preconditions.checkState(!channel.isActive());
                 log.debug("shutdown client");

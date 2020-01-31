@@ -35,7 +35,7 @@ public class LogServiceImpl implements LogService {
 
 
     @VisibleForTesting
-    public static final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 20;
+    public static final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 200000;
     private AtomicInteger appliedLogInMemoryCounter = new AtomicInteger(0);
 
     /**
@@ -121,7 +121,12 @@ public class LogServiceImpl implements LogService {
         if (index > start + storageService.getLen()) {
             throw new IndexOutOfBoundsException();
         }
-        return start > index;
+        try {
+            get(index);
+            return false;
+        } catch (Exception e) {
+            return true;
+        }
     }
 
     @Override
@@ -279,7 +284,7 @@ public class LogServiceImpl implements LogService {
     }
 
     @Override
-    public boolean installSnapshot(Snapshot snapshot, LogEntry logEntry) {
+    public synchronized boolean installSnapshot(Snapshot snapshot, LogEntry logEntry) {
         Preconditions.checkNotNull(snapshot);
         LOG_LOCK.lock();
         try {
@@ -291,6 +296,7 @@ public class LogServiceImpl implements LogService {
 //            this.start = Math.toIntExact(lastCommitLogIndex);
             storageService.append(logEntry.toStorageEntry());
             this.start = (int) (this.lastCommitLogIndex - storageService.getLen() + 1);
+            System.out.println("after install, this.start=" + this.start);
         } finally {
             LOG_LOCK.unlock();
         }
@@ -299,14 +305,15 @@ public class LogServiceImpl implements LogService {
 
     @Override
     public void execInLock(Runnable action) {
+        LOG_LOCK.lock();
         try {
-            LOG_LOCK.lock();
             action.run();
         } finally {
             LOG_LOCK.unlock();
         }
     }
 
+    @Override
     public StorageService getStorageService() {
         return storageService;
     }

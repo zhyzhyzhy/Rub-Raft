@@ -470,7 +470,7 @@ public class RaftNode implements RaftService {
             return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), isSameTerm, logService.getLastCommitLogIndex());
         } catch (HasCompactException e) {
             log.info("hasCompact, errMsg={}", e.getMessage());
-            return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), true, logService.getLastCommitLogIndex());
+            return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), false, logService.getLastCommitLogIndex());
         }
     }
 
@@ -482,6 +482,7 @@ public class RaftNode implements RaftService {
         }
         eventRecorder.add(EventRecorder.Event.SnapShot, String.format("install snapshot, term=%d, leaderId=[%d]", installSnapShotRequest.getTerm(), installSnapShotRequest.getLeaderId().getPeerId()));
         log.info("installSnapshot " + JSON.toJSONString(installSnapShotRequest));
+        System.out.println("installSnapshot " + JSON.toJSONString(installSnapShotRequest));
         logService.installSnapshot(installSnapShotRequest.getSnapshot(), installSnapShotRequest.getLogEntry());
         return new InstallSnapshotResponse(term, true);
     }

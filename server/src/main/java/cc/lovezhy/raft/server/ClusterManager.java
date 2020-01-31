@@ -240,7 +240,11 @@ public class ClusterManager implements Mock6824Config, ClusterChangeConfig {
             LogService logService = raftNode.getLogService();
             LogEntry entry = null;
             if (index <= logService.getLastCommitLogIndex()) {
-                entry = logService.get(index);
+                try {
+                    entry = logService.get(index);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
             if (Objects.nonNull(entry)) {
                 if (count > 0 && !Objects.equals(defaultCommand, entry.getCommand())) {

@@ -17,11 +17,13 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class NettyServer {
+public class NettyServer implements Closeable {
 
     private final Logger log = LoggerFactory.getLogger(NettyServer.class);
 
@@ -93,5 +95,10 @@ public class NettyServer {
             boss.shutdownGracefully();
             worker.shutdownGracefully();
         }
+    }
+
+    @Override
+    public void close() throws IOException {
+        closeSync();
     }
 }

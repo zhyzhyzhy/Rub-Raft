@@ -312,7 +312,7 @@ public class Mock6824Test {
         clusterConfig.one(defineNumberCommand(105), servers, true);
     }
 
-        @Test
+    @Test
     public void testBackup2B() {
         int servers = 5;
         clusterConfig = ClusterManager.newCluster(servers, false);
@@ -999,6 +999,7 @@ public class Mock6824Test {
             CompletableFuture.runAsync(
                     () -> cfn.accept(finalI, settableFuture), RpcExecutors.commonExecutor()).
                     exceptionally(throwable -> {
+                        settableFuture.setException(throwable);
                         throwable.printStackTrace();
                         return null;
                     });
