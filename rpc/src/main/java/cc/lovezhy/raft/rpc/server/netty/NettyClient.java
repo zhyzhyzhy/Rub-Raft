@@ -76,6 +76,7 @@ public class NettyClient implements Closeable {
                 Preconditions.checkState(!channel.isActive());
                 log.debug("shutdown client");
             }
+
         } catch (InterruptedException e) {
             // ignore
         } finally {

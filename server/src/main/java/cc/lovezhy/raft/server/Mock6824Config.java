@@ -11,6 +11,7 @@ import java.util.Collection;
 public interface Mock6824Config {
 
     void dumpAllNode();
+
     void begin(String description);
 
     void end();

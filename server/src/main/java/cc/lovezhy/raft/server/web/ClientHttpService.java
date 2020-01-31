@@ -26,7 +26,10 @@ public class ClientHttpService extends AbstractVerticle {
 
     private final String COMMAND_FILE_NAME = ClientHttpService.class.getResource("/index.html").getFile();
 
+    private static final Vertx vertx = Vertx.vertx();
+
     private HttpServer httpServer;
+
     private int port;
 
     private RaftNode.OuterService outerService;
@@ -35,7 +38,6 @@ public class ClientHttpService extends AbstractVerticle {
         Preconditions.checkNotNull(outerService);
         this.outerService = outerService;
         this.port = port;
-        this.vertx = Vertx.vertx();
     }
 
     public void createHttpServer() {

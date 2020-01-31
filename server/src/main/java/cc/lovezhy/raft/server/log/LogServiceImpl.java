@@ -35,7 +35,7 @@ public class LogServiceImpl implements LogService {
 
 
     @VisibleForTesting
-    public static final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 200000;
+    public static final int MAX_LOG_BEFORE_TAKE_SNAPSHOT = 20;
     private AtomicInteger appliedLogInMemoryCounter = new AtomicInteger(0);
 
     /**
@@ -121,12 +121,7 @@ public class LogServiceImpl implements LogService {
         if (index > start + storageService.getLen()) {
             throw new IndexOutOfBoundsException();
         }
-        try {
-            get(index);
-            return false;
-        } catch (Exception e) {
-            return true;
-        }
+        return index < start;
     }
 
     @Override
@@ -162,7 +157,7 @@ public class LogServiceImpl implements LogService {
         }
         this.lastCommitLogIndex = index;
         this.lastCommitLogTerm = get(index).getTerm();
-        createSnapShotIfNecessary();
+//        createSnapShotIfNecessary();
     }
 
     @Override
@@ -193,8 +188,8 @@ public class LogServiceImpl implements LogService {
             }
 //            return start;
         }
+        LOG_LOCK.lock();
         try {
-            LOG_LOCK.lock();
             while (fromIndex <= (storageService.getLen() - 1 + start)) {
                 if (entries.isEmpty()) {
                     storageService.remove(Math.toIntExact(fromIndex));
@@ -275,8 +270,8 @@ public class LogServiceImpl implements LogService {
             snapshot.setLastLogIndex(lastCommitLogIndex);
             snapshot.setLastLogTerm(lastCommitLogTerm);
             this.snapshot = snapshot;
-            this.storageService.discard(Math.toIntExact(lastCommitLogIndex - start - 1));
-            this.start = Math.toIntExact(lastCommitLogIndex - 1);
+//            this.storageService.discard(Math.toIntExact(lastCommitLogIndex - start - 1));
+//            this.start = Math.toIntExact(lastCommitLogIndex - 1);
             eventRecorder.add(EventRecorder.Event.SnapShot, String.format("after snapshot, start=%d, lastCommitLogIndex=%d", this.start, getLastCommitLogIndex()));
         } finally {
             LOG_LOCK.unlock();
@@ -294,9 +289,10 @@ public class LogServiceImpl implements LogService {
 //            this.lastAppliedLogTerm = snapshot.getLastLogTerm();
 //            this.lastAppliedLogIndex = snapshot.getLastLogTerm();
 //            this.start = Math.toIntExact(lastCommitLogIndex);
+            storageService.discard(storageService.getLen());
             storageService.append(logEntry.toStorageEntry());
-            this.start = (int) (this.lastCommitLogIndex - storageService.getLen() + 1);
-            System.out.println("after install, this.start=" + this.start);
+//            this.start = (int) (this.lastCommitLogIndex - storageService.getLen() + 1);
+            this.start = Math.toIntExact(this.lastCommitLogIndex);
         } finally {
             LOG_LOCK.unlock();
         }

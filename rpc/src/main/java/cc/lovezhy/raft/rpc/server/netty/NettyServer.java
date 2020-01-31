@@ -89,6 +89,7 @@ public class NettyServer implements Closeable {
             if (channel.isOpen()) {
                 channel.close().sync();
             }
+
         } catch (InterruptedException e) {
             // ignore
         } finally {

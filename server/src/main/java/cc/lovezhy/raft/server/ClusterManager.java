@@ -525,6 +525,7 @@ public class ClusterManager implements Mock6824Config, ClusterChangeConfig {
             jsonObject.put("voteFor", raftNode.getNodeScheduler().getVotedFor() == null ? "null" : raftNode.getNodeScheduler().getVotedFor().toString());
             jsonObject.put("LogEntry", raftNode.getLogService().getStateMachine().fetchAllEntry());
             log.info(jsonObject.toString());
+            System.out.println(jsonObject.toString());
         }
     }
 
