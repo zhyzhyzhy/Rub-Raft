@@ -259,8 +259,8 @@ public class LogServiceImpl implements LogService {
 
     @Override
     public void createSnapshot() {
+        LOG_LOCK.lock();
         try {
-            LOG_LOCK.lock();
             eventRecorder.add(EventRecorder.Event.SnapShot, String.format("before snapshot, start=%d, lastCommitLogIndex=%d", this.start, getLastCommitLogIndex()));
             byte[] snapshotValues = stateMachine.takeSnapShot();
             Long lastCommitLogIndex = getLastCommitLogIndex();
@@ -281,15 +281,16 @@ public class LogServiceImpl implements LogService {
     @Override
     public boolean installSnapshot(Snapshot snapshot, LogEntry logEntry) {
         Preconditions.checkNotNull(snapshot);
+        LOG_LOCK.lock();
         try {
-            LOG_LOCK.lock();
             stateMachine.fromSnapShot(snapshot.getData());
             this.lastCommitLogIndex = snapshot.getLastLogIndex();
 //            this.lastAppliedLogIndex = snapshot.getLastLogIndex();
 //            this.lastAppliedLogTerm = snapshot.getLastLogTerm();
 //            this.lastAppliedLogIndex = snapshot.getLastLogTerm();
-            this.start = Math.toIntExact(lastCommitLogIndex);
+//            this.start = Math.toIntExact(lastCommitLogIndex);
             storageService.append(logEntry.toStorageEntry());
+            this.start = (int) (this.lastCommitLogIndex - storageService.getLen() + 1);
         } finally {
             LOG_LOCK.unlock();
         }

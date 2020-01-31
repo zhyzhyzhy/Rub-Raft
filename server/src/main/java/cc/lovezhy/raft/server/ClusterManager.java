@@ -356,11 +356,13 @@ public class ClusterManager implements Mock6824Config, ClusterChangeConfig {
 
     @Override
     public void disconnect(NodeId nodeId) {
+        System.out.println("disconnect nodeId=" + nodeId);
         setNetStatus(nodeId, false);
     }
 
     @Override
     public void connect(NodeId nodeId) {
+        System.out.println("connect nodeId=" + nodeId);
         setNetStatus(nodeId, true);
     }
 

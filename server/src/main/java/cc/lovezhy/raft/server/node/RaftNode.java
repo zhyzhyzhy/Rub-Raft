@@ -449,12 +449,17 @@ public class RaftNode implements RaftService {
                         case CLUSTER_CONF: {
                             ClusterConfCommand clusterConfCommand = ((ClusterConfCommand) needAppendLogEntry.getCommand());
                             applyClusterConfig(clusterConfCommand);
+                            break;
                         }
                     }
                 }
                 logService.commit(replicatedLogRequest.getLeaderCommit());
             } else {
-                log.info("not isSameTerm, totalLogEntry={}", JSON.toJSONString(logService.get(0, replicatedLogRequest.getPrevLogIndex())));
+                try {
+                    log.info("not isSameTerm");
+                } catch (Exception e) {
+                    log.info("hasCompact, errMsg={}", e.getMessage());
+                }
             }
             /**
              * 因为可能是还在seek日志在哪儿的阶段，有的日志是需要被覆盖的，而commit之后就不允许修改了，
@@ -464,6 +469,7 @@ public class RaftNode implements RaftService {
             log.info("/appendLog, isSameTerm={}", isSameTerm);
             return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), isSameTerm, logService.getLastCommitLogIndex());
         } catch (HasCompactException e) {
+            log.info("hasCompact, errMsg={}", e.getMessage());
             return new ReplicatedLogResponse(replicatedLogRequest.getTerm(), true, logService.getLastCommitLogIndex());
         }
     }
@@ -475,7 +481,7 @@ public class RaftNode implements RaftService {
             return new InstallSnapshotResponse(term, false);
         }
         eventRecorder.add(EventRecorder.Event.SnapShot, String.format("install snapshot, term=%d, leaderId=[%d]", installSnapShotRequest.getTerm(), installSnapShotRequest.getLeaderId().getPeerId()));
-        System.out.println("installSnapshot " + JSON.toJSONString(installSnapShotRequest));
+        log.info("installSnapshot " + JSON.toJSONString(installSnapShotRequest));
         logService.installSnapshot(installSnapShotRequest.getSnapshot(), installSnapShotRequest.getLogEntry());
         return new InstallSnapshotResponse(term, true);
     }
