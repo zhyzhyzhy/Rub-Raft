@@ -402,12 +402,12 @@ public class Mock6824Test {
         for (int i = 0; i < 50; i++) {
             clusterConfig.one(randomCommand(), 3, true);
         }
-
-        for (NodeId nodeId : clusterConfig.fetchAllNodeId()) {
-            clusterConfig.connect(nodeId);
-        }
-
-        clusterConfig.one(randomCommand(), servers, true);
+//
+//        for (NodeId nodeId : clusterConfig.fetchAllNodeId()) {
+//            clusterConfig.connect(nodeId);
+//        }
+//
+//        clusterConfig.one(randomCommand(), servers, true);
     }
 
     /**
