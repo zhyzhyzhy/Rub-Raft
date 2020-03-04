@@ -9,6 +9,9 @@ public interface StorageService {
      */
     StorageEntry get(int index);
 
+    /**
+     * 获取一个范围
+     */
     List<StorageEntry> range(int start, int end);
 
     /**
@@ -22,7 +25,11 @@ public interface StorageService {
      */
     boolean append(StorageEntry storageEntry);
 
+    /**
+     * 删除从FromIndex开始的往后的
+     */
     void remove(int fromIndex);
+
     /**
      * storage存的长度
      */

@@ -28,9 +28,6 @@ public class LogServiceImpl implements LogService {
     private volatile Long lastCommitLogIndex;
     private volatile Long lastCommitLogTerm;
 
-//    private volatile Long lastAppliedLogIndex;
-//    private volatile Long lastAppliedLogTerm;
-
     private volatile Snapshot snapshot;
 
 
@@ -186,7 +183,6 @@ public class LogServiceImpl implements LogService {
             if (fromIndex <= (storageService.getLen() - 1 + start)) {
                 System.out.println("origin bug");
             }
-//            return start;
         }
         LOG_LOCK.lock();
         try {
@@ -270,8 +266,6 @@ public class LogServiceImpl implements LogService {
             snapshot.setLastLogIndex(lastCommitLogIndex);
             snapshot.setLastLogTerm(lastCommitLogTerm);
             this.snapshot = snapshot;
-//            this.storageService.discard(Math.toIntExact(lastCommitLogIndex - start - 1));
-//            this.start = Math.toIntExact(lastCommitLogIndex - 1);
             eventRecorder.add(EventRecorder.Event.SnapShot, String.format("after snapshot, start=%d, lastCommitLogIndex=%d", this.start, getLastCommitLogIndex()));
         } finally {
             LOG_LOCK.unlock();
@@ -285,13 +279,8 @@ public class LogServiceImpl implements LogService {
         try {
             stateMachine.fromSnapShot(snapshot.getData());
             this.lastCommitLogIndex = snapshot.getLastLogIndex();
-//            this.lastAppliedLogIndex = snapshot.getLastLogIndex();
-//            this.lastAppliedLogTerm = snapshot.getLastLogTerm();
-//            this.lastAppliedLogIndex = snapshot.getLastLogTerm();
-//            this.start = Math.toIntExact(lastCommitLogIndex);
             storageService.discard(storageService.getLen());
             storageService.append(logEntry.toStorageEntry());
-//            this.start = (int) (this.lastCommitLogIndex - storageService.getLen() + 1);
             this.start = Math.toIntExact(this.lastCommitLogIndex);
         } finally {
             LOG_LOCK.unlock();
