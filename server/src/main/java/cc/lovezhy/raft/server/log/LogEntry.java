@@ -33,6 +33,14 @@ public class LogEntry {
         return term;
     }
 
+    public void setCommand(Command command) {
+        this.command = command;
+    }
+
+    public void setTerm(Long term) {
+        this.term = term;
+    }
+
     public StorageEntry toStorageEntry() {
         byte[] values = KryoUtils.serializeLogEntry(this);
         return new StorageEntry(values);

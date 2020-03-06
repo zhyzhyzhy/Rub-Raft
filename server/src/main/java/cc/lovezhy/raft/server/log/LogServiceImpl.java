@@ -11,7 +11,7 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -44,17 +44,18 @@ public class LogServiceImpl implements LogService {
 
     private ReentrantLock LOG_LOCK = new ReentrantLock(true);
 
-    public LogServiceImpl(StateMachine stateMachine, StorageType storageType, EventRecorder eventRecorder) {
+    public LogServiceImpl(StateMachine stateMachine, StorageType storageType, EventRecorder eventRecorder) throws IOException {
         Preconditions.checkNotNull(stateMachine);
         Preconditions.checkNotNull(storageType);
         Preconditions.checkNotNull(eventRecorder);
 
         switch (storageType) {
             case FILE:
-                this.storageService = FileStorageService.create("/Users/zhuyichen/tmp/raft", "raft.log");
+                this.storageService = FileStorageService.create("/private/var/log/raft/");
                 break;
             case MEMORY:
-                this.storageService = MemoryStorageService.create();
+//                this.storageService = MemoryStorageService.create();
+                this.storageService = FileStorageService.create("/private/var/log/raft/");
                 break;
             default:
                 throw new IllegalStateException();
@@ -74,7 +75,6 @@ public class LogServiceImpl implements LogService {
     }
 
     @Override
-    @Nullable
     public LogEntry get(long index) {
         Preconditions.checkState(index >= 0, String.format("index=%d", index));
         //如果日志已经被压缩
@@ -121,14 +121,18 @@ public class LogServiceImpl implements LogService {
         return index < start;
     }
 
-    @Override
-    public boolean set(long index, LogEntry entry) {
-        Preconditions.checkNotNull(entry);
-        if (index < start) {
-            throw new HasCompactException(String.format("start=%d, index=%d", start, index));
-        }
-        return storageService.set((int) (index - start), entry.toStorageEntry());
-    }
+    /**
+     * file中的set不太好做，直接remove再Append吧
+     * @param index
+     */
+//    @Override
+//    public boolean set(long index, LogEntry entry) {
+//        Preconditions.checkNotNull(entry);
+//        if (index < start) {
+//            throw new HasCompactException(String.format("start=%d, index=%d", start, index));
+//        }
+//        return storageService.set((int) (index - start), entry.toStorageEntry());
+//    }
 
     @Override
     public void commit(long index) {
@@ -154,6 +158,7 @@ public class LogServiceImpl implements LogService {
         }
         this.lastCommitLogIndex = index;
         this.lastCommitLogTerm = get(index).getTerm();
+        //暂时不需要创建快照
 //        createSnapShotIfNecessary();
     }
 
@@ -187,13 +192,7 @@ public class LogServiceImpl implements LogService {
         LOG_LOCK.lock();
         try {
             while (fromIndex <= (storageService.getLen() - 1 + start)) {
-                if (entries.isEmpty()) {
-                    storageService.remove(Math.toIntExact(fromIndex));
-                    break;
-                }
-                set(fromIndex, entries.get(0));
-                entries.remove(entries.get(0));
-                fromIndex++;
+                storageService.remove(Math.toIntExact(fromIndex));
             }
             for (LogEntry entry : entries) {
                 storageService.append(entry.toStorageEntry());
@@ -216,8 +215,11 @@ public class LogServiceImpl implements LogService {
 
     @Override
     public long getLastLogTerm() {
-        LogEntry logEntry = storageService.get(storageService.getLen() - 1).toLogEntry();
-        return logEntry.getTerm();
+        StorageEntry storageEntry = storageService.get(storageService.getLen() - 1);
+        if (Objects.isNull(storageEntry)) {
+            System.out.println("cdvfd");
+        }
+        return storageEntry.toLogEntry().getTerm();
     }
 
     @Override

@@ -1,27 +1,39 @@
 package cc.lovezhy.raft.server.storage;
 
+import cc.lovezhy.raft.server.utils.KryoUtils;
+import com.google.common.collect.Lists;
+
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class RaftFileRecordManager {
+
+    private static final AtomicInteger counter = new AtomicInteger(0);
 
     private LocalFile recordFile;
     private LocalFile indexFile;
 
-    public RaftFileRecordManager() throws IOException {
-        this.recordFile = LocalFile.create("/Users/zhuyichen/logFile.txt");
-        this.indexFile = LocalFile.create("/Users/zhuyichen/indexFile.txt");
+
+    public static RaftFileRecordManager create(String category) throws IOException {
+        return new RaftFileRecordManager(category);
+    }
+
+    private RaftFileRecordManager(String category) throws IOException {
+        int index = counter.getAndIncrement();
+        this.recordFile = LocalFile.create(category + "/logFile" + index + ".txt");
+        this.indexFile = LocalFile.create(category + "/indexFile" + index + ".txt");
     }
 
     public synchronized void appendRecord(RaftRecord raftRecord) throws IOException {
-        indexFile.appendLong(raftRecord.getIndex());
+        int index = (int) (indexFile.size() / 16);
+        indexFile.position(indexFile.size());
+        indexFile.appendLong(index);
         indexFile.appendLong(recordFile.size());
 
         recordFile.position(recordFile.size());
-        recordFile.appendLong(raftRecord.getIndex());
-        recordFile.appendLenAndBuf(raftRecord.getRecord().getBytes());
+        recordFile.appendLenAndBuf(raftRecord.getRecord());
     }
 
     public synchronized RaftRecord fetchRecord(int index) throws IOException {
@@ -29,18 +41,20 @@ public class RaftFileRecordManager {
         return raftRecords.isEmpty() ? null : raftRecords.get(0);
     }
 
+    public synchronized long getLen() throws IOException {
+        return indexFile.size() / 16;
+    }
+
     public synchronized List<RaftRecord> fetchRecords(int startIndex, int len) throws IOException {
         long position = searchRecordPosition(startIndex, false);
         if (position == -1) {
-            return Collections.emptyList();
+            return Lists.newArrayList();
         }
         recordFile.position(position);
         List<RaftRecord> raftRecords = new ArrayList<>();
         for (int i = 0; i < len && recordFile.position() < recordFile.size(); i++) {
-            long index = recordFile.readLong();
-            String s = recordFile.readLenAndBuffer();
+            byte[] s = recordFile.readLenAndBuffer();
             RaftRecord raftRecord = new RaftRecord();
-            raftRecord.setIndex(index);
             raftRecord.setRecord(s);
             raftRecords.add(raftRecord);
         }
@@ -93,9 +107,21 @@ public class RaftFileRecordManager {
     public synchronized void dumpLogFile() throws IOException {
         recordFile.position(0);
         do {
-            long index = recordFile.readLong();
-            String s = recordFile.readLenAndBuffer();
+            byte[] s = recordFile.readLenAndBuffer();
+            System.out.println(KryoUtils.deserializeLogEntry(s));
         } while (recordFile.position() < recordFile.size());
+
+        indexFile.position(0);
+        do {
+            long index = indexFile.readLong();
+            long pos = indexFile.readLong();
+            System.out.printf("%d %d\n", index, pos);
+        } while (indexFile.position() < indexFile.size());
+    }
+
+    public static void main(String[] args) throws IOException {
+        RaftFileRecordManager raftFileRecordManager = RaftFileRecordManager.create("/private/var/log/raft/");
+        raftFileRecordManager.dumpLogFile();
     }
 
 

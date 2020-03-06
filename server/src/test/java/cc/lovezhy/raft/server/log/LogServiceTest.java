@@ -11,6 +11,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.List;
 
 public class LogServiceTest {
@@ -23,7 +24,7 @@ public class LogServiceTest {
     private static final Logger log = LoggerFactory.getLogger(LogServiceTest.class);
 
     @Before
-    public void setUp() {
+    public void setUp() throws IOException {
         this.stateMachine = new DefaultStateMachine();
         this.logService = new LogServiceImpl(stateMachine, StorageType.MEMORY, new EventRecorder(log));
         this.logEntries = Lists.newArrayList();

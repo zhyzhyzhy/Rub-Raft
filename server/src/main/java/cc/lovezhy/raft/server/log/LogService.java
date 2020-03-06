@@ -13,8 +13,6 @@ public interface LogService {
 
     boolean hasInSnapshot(long index);
 
-    boolean set(long index, LogEntry entry);
-
     void commit(long index);
 
     int appendLog(LogEntry logEntry);

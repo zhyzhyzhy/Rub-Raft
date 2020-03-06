@@ -18,4 +18,8 @@ public class StorageEntry {
         Preconditions.checkNotNull(values);
         return KryoUtils.deserializeLogEntry(values);
     }
+
+    public byte[] getValues() {
+        return values;
+    }
 }

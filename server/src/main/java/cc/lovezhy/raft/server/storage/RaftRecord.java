@@ -2,7 +2,7 @@ package cc.lovezhy.raft.server.storage;
 
 public class RaftRecord {
     private long index;
-    private String record;
+    private byte[] record;
 
     public long getIndex() {
         return index;
@@ -12,11 +12,11 @@ public class RaftRecord {
         this.index = index;
     }
 
-    public String getRecord() {
+    public byte[] getRecord() {
         return record;
     }
 
-    public void setRecord(String record) {
+    public void setRecord(byte[] record) {
         this.record = record;
     }
 
@@ -24,7 +24,7 @@ public class RaftRecord {
     public String toString() {
         final StringBuilder sb = new StringBuilder("RaftRecord{");
         sb.append("index=").append(index);
-        sb.append(", record='").append(record).append('\'');
+        sb.append(", record='").append(new String(record)).append('\'');
         sb.append('}');
         return sb.toString();
     }

@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -115,8 +116,6 @@ public class RaftNode implements RaftService {
         Preconditions.checkNotNull(endPoint);
         Preconditions.checkNotNull(clusterConfig);
         Preconditions.checkNotNull(peerRaftNodes);
-//        Preconditions.checkState(peerRaftNodes.size() >= 2, "raft cluster should init with at least 3 server!");
-
         this.nodeId = nodeId;
         this.peerRaftNodes = peerRaftNodes;
         this.clusterConfig = clusterConfig;
@@ -167,7 +166,12 @@ public class RaftNode implements RaftService {
         nodeScheduler.changeNodeStatus(NodeStatus.FOLLOWER);
         tickManager.tickElectionTimeOut();
         eventRecorder = new EventRecorder(log);
-        logService = new LogServiceImpl(new DefaultStateMachine(), StorageType.MEMORY, eventRecorder);
+        try {
+            logService = new LogServiceImpl(new DefaultStateMachine(), StorageType.MEMORY, eventRecorder);
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException("create log file fail");
+        }
         NodeSlf4jHelper.changeObjectLogger(nodeId, logService);
         stopped = false;
     }
@@ -246,13 +250,13 @@ public class RaftNode implements RaftService {
 
                     @Override
                     public void onFailure(Throwable t) {
-                        log.error(t.getMessage());
+                        log.error(t.getMessage(), t);
                         voteAction.fail();
                     }
                 }, RpcExecutors.commonExecutor());
             } catch (Exception e) {
                 voteAction.fail();
-                log.error(e.getMessage());
+                log.error(e.getMessage(), e);
             }
         });
         voteAction.await();

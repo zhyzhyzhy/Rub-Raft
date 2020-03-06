@@ -19,6 +19,7 @@ public class LocalFile implements Closeable {
     private LocalFile(String name) throws IOException {
         this.name = name;
         this.fileChannel = new RandomAccessFile(this.name, "rw").getChannel();
+        this.fileChannel.truncate(0);
     }
 
     public void appendLong(long number) throws IOException {
@@ -54,14 +55,14 @@ public class LocalFile implements Closeable {
         return byteBuffer.getLong();
     }
 
-    public String readLenAndBuffer() throws IOException {
+    public byte[] readLenAndBuffer() throws IOException {
         ByteBuffer byteBuffer = ByteBuffer.allocate(4);
         this.fileChannel.read(byteBuffer);
         byteBuffer.flip();
         int len = byteBuffer.getInt();
         byteBuffer = ByteBuffer.allocate(len);
         this.fileChannel.read(byteBuffer);
-        return new String(byteBuffer.array());
+        return byteBuffer.array();
     }
 
     public void truncate(long size) throws IOException {

@@ -15,11 +15,6 @@ public interface StorageService {
     List<StorageEntry> range(int start, int end);
 
     /**
-     * 设置Index位置的StorageEntry
-     */
-    boolean set(int index, StorageEntry storageEntry);
-
-    /**
      * append一个Entry，
      * 自动补充offset
      */

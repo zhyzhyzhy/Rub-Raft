@@ -28,12 +28,6 @@ public class MemoryStorageService implements StorageService {
         return entries.subList(start, end + 1);
     }
 
-    @Override
-    public synchronized boolean set(int index, StorageEntry storageEntry) {
-        Preconditions.checkState(entries.size() > index);
-        entries.set(index, storageEntry);
-        return true;
-    }
 
     @Override
     public synchronized boolean append(StorageEntry storageEntry) {
